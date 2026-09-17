@@ -1,32 +1,37 @@
-# React + TypeScript + Vite
+# Eldritch Horror
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A digital adaptation of the Eldritch Horror board game, developed as a personal project using React and TypeScript.
 
-Currently, two official plugins are available:
+The goal of the project is to recreate the main game mechanics and provide an interactive digital experience, including investigators, encounters, Mythos cards, tests, monsters, locations and other game elements.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+> This is an unofficial fan-made project and is not affiliated with or endorsed by Fantasy Flight Games.
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Investigator selection and management
+- Game map and locations
+- Encounter system
+- Mythos card system
+- Skill and attribute tests
+- Dice rolling and test results
+- Monsters and monster encounters
+- Conditions and other game effects
+- Spells and item management
+- Game state management
+- Randomized game events
+- Responsive interface
+- Card and game asset visualization
 
-## Expanding the Oxlint configuration
+## Technologies
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui
+- Lucide React
+- HTML / CSS
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+## Project Structure
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The project is organized around the game logic and the user interface.
