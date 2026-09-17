@@ -2,10 +2,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-export default defineConfig({
-  base: "/eldritch-horror/",
+export default defineConfig(({ command }) => ({
+  base: command === "build" ? "/eldritch-horror/" : "/",
   plugins: [
     react(),
     tailwindcss(),
   ],
-});
+}));
