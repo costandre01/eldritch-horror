@@ -1109,6 +1109,97 @@ export function resolveGameFlowChoice(
   }
 
   /*
+  * ============================================================
+  * OMEN OF GOOD FORTUNE
+  * ============================================================
+  *
+  * The Lead Investigator may move the Omen to any
+  * position on the Omen track without advancing Doom.
+  */
+
+  if (
+    decision.source ===
+    "mythos:omen-of-good-fortune"
+  ) {
+    const leadInvestigatorId =
+      getLeadInvestigatorId(game);
+
+    if (!leadInvestigatorId) {
+      return game;
+    }
+
+    /*
+     * ==========================================================
+     * DO NOT MOVE THE OMEN
+     * ==========================================================
+     */
+
+    if (
+      choiceId ===
+      "omen-position:pass"
+    ) {
+      return {
+        ...game,
+
+        currentMythosId: null,
+
+        pendingDecision: null,
+      };
+    }
+
+    /*
+     * ==========================================================
+     * SELECT OMEN POSITION
+     * ==========================================================
+     */
+
+    const omenPositionMap: Record<
+      string,
+      number
+    > = {
+      "omen-position:0": 0,
+      "omen-position:1": 1,
+      "omen-position:2": 2,
+      "omen-position:3": 3,
+    };
+
+    const targetPosition =
+      omenPositionMap[
+        choiceId
+      ];
+
+    if (
+      targetPosition === undefined
+    ) {
+      return game;
+    }
+
+    /*
+     * ==========================================================
+     * MOVE OMEN
+     * ==========================================================
+     *
+     * IMPORTANT:
+     * This does NOT advance Doom.
+     */
+
+    return {
+      ...game,
+
+      ancientOne: {
+        ...game.ancientOne,
+
+        omenPosition:
+          targetPosition,
+      },
+
+      currentMythosId: null,
+
+      pendingDecision: null,
+    };
+  }
+
+  /*
    * ============================================================
    * MYTHOS DECK SELECTION
    * ============================================================

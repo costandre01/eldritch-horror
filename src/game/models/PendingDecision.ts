@@ -231,6 +231,8 @@ export type PendingDecision =
 
       source?: string;
 
+      investigatorId?: string;
+
       resume?: MonsterReckoningResume;
     }
 

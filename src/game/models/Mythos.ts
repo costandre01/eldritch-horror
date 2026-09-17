@@ -141,4 +141,12 @@ export type MythosEffect =
       investigator: "lead";
 
       onOneOrTwo: EncounterEffect[];
+    }
+  | {
+      type: "move-omen-choice";
+      investigator: "lead";
+    }
+  | {
+      type: "gain-ally";
+      investigator: "lead";
     };

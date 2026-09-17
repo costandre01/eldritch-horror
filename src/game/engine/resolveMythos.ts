@@ -20,6 +20,7 @@ import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { resolveMythosSpecial } from "./resolveMythosSpecial";
 import { gainArtifact } from "./gainArtifact";
+import { resolveEncounterEffects } from "./resolveEncounterEffects";
 
 /*
  * ============================================================
@@ -390,6 +391,122 @@ export function resolveMythos(
               `mythos:single-die-roll:${mythos.id}`,
           },
         };
+      }
+
+      /*
+       * --------------------------------------------------------
+       * MOVE OMEN — OMEN OF GOOD FORTUNE
+       * --------------------------------------------------------
+       */
+
+      case "move-omen-choice": {
+        const investigatorId =
+          effect.investigator === "lead"
+            ? getLeadInvestigatorId(
+                currentGame,
+              )
+            : currentGame.activeInvestigatorId;
+
+        if (!investigatorId) {
+          throw new Error(
+            "No investigator available for Mythos Omen effect.",
+          );
+        }
+
+        return {
+          ...currentGame,
+
+          pendingDecision: {
+            type: "choice",
+
+            title:
+              mythos.name,
+
+            message:
+              "The Lead Investigator may move the Omen to any space on the Omen track without advancing Doom.",
+
+            options: [
+              {
+                id: "omen-position:0",
+
+                title: "Green",
+
+                description:
+                  "Move the Omen to the green space.",
+              },
+              {
+                id: "omen-position:1",
+
+                title: "Blue",
+
+                description:
+                  "Move the Omen to the blue space.",
+              },
+              {
+                id: "omen-position:2",
+
+                title: "Red",
+
+                description:
+                  "Move the Omen to the red space.",
+              },
+              {
+                id: "omen-position:3",
+
+                title: "Blue",
+
+                description:
+                  "Move the Omen to the blue space.",
+              },
+              {
+                id: "omen-position:pass",
+
+                title: "Do Not Move",
+
+                description:
+                  "Leave the Omen where it is.",
+              },
+            ],
+
+            source:
+              "mythos:omen-of-good-fortune",
+          },
+        };
+      }
+
+      /*
+       * --------------------------------------------------------
+       * GAIN ALLY
+       * --------------------------------------------------------
+       */
+
+      case "gain-ally": {
+        const investigatorId =
+          effect.investigator === "lead"
+            ? getLeadInvestigatorId(
+                currentGame,
+              )
+            : currentGame.activeInvestigatorId;
+
+        if (!investigatorId) {
+          throw new Error(
+            "No investigator available for Mythos Ally effect.",
+          );
+        }
+
+        currentGame =
+          resolveEncounterEffects(
+            currentGame,
+            investigatorId,
+            [
+              {
+                type: "gain-ally",
+              },
+            ],
+            map,
+          );
+
+        break;
       }
 
       case "mythos-special": {

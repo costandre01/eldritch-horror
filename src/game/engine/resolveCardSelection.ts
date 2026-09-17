@@ -63,6 +63,7 @@ export function resolveCardSelection(
     }
 
     const investigatorId =
+      decision.investigatorId ??
       game.activeInvestigatorId;
 
     if (!investigatorId) {

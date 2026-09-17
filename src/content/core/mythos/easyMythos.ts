@@ -336,13 +336,10 @@ export const easyMythos: MythosDefinition[] = [
             "The Lead Investigator may move the Omen to a space of his choice on the Omen track without advancing Doom.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Lead Investigator may move the Omen
-            * to any space on the Omen track
-            * without advancing Doom.
-            */
+            {
+                type: "move-omen-choice",
+                investigator: "lead",
+            },
         ],
     },
 
@@ -377,12 +374,10 @@ export const easyMythos: MythosDefinition[] = [
             "The Lead Investigator gains 1 random Ally Asset from the deck.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Lead Investigator gains
-            * 1 random Ally Asset from the deck.
-            */
+            {
+                type: "gain-ally",
+                investigator: "lead",
+            },
         ],
     },
 
@@ -410,24 +405,11 @@ export const easyMythos: MythosDefinition[] = [
         text:
             "Investigators cannot resolve Expedition Encounters.\n\nAs an encounter, an investigator on the Active Expedition space may attempt to uncover secrets lost to time and history. If he passes, he may spend Clues equal to half no investigators to solve this Rumor.",
 
-        effects: [
-            /*
-            * TODO:
-            *
-            * Investigators cannot resolve Expedition Encounters.
-            *
-            * Investigator on the Active Expedition space may:
-            *   -> test Observation
-            *   -> if successful, spend Clues equal to half no investigators
-            *   -> solve this Rumor
-            *
-            * Reckoning:
-            *   -> return all cards of the Active Expedition
-            *      from the Expedition Encounter deck to the game box
-            *   -> if the Expedition Encounter deck is empty,
-            *      investigators lose the game
-            */
-        ],
+        effects: [],
+
+        reckoning: {
+            type: "return-active-expedition",
+        },
     },
 
     {
@@ -461,19 +443,10 @@ export const easyMythos: MythosDefinition[] = [
             "Each investigator may do one of the following: gain 1 Clue, gain 1 Asset, or gain 1 Spell.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH investigator:
-            *
-            *   Choose ONE:
-            *
-            *   -> Gain 1 Clue
-            *   -> Gain 1 Asset
-            *   -> Gain 1 Spell
-            *
-            * Each investigator makes the choice independently.
-            */
+            {
+                type: "mythos-special",
+                id: "silver-twilight-aid",
+            },
         ],
     },
 

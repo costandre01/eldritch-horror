@@ -115,7 +115,17 @@ export function startEncounter(
    * Expedition spaces can use the Expedition Encounter deck.
    */
 
-  if (currentSpace.isExpedition) {
+  const secretsOfThePastInPlay =
+    result.game.board.mythosInPlay.some(
+      (entry) =>
+        entry.definitionId ===
+        "secrets-of-the-past",
+    );
+  
+  if (
+    currentSpace.isExpedition &&
+    !secretsOfThePastInPlay
+  ) {
     if (
       result.game.board
         .encounterDecks.expedition
@@ -199,6 +209,11 @@ export function startEncounter(
       ),
     );
 
+  const canAttemptSecretsOfThePast =
+    secretsOfThePastInPlay &&
+    currentSpace.id ===
+      result.game.board.activeExpeditionSpaceId;
+
   /*
   * ============================================================
   * FRACTURED REALITY — ANCIENT PORTAL
@@ -236,7 +251,8 @@ export function startEncounter(
 
   if (
     uniqueDeckTypes.length === 0 &&
-    !fracturedReality
+    !fracturedReality &&
+    !canAttemptSecretsOfThePast
   ) {
     throw new Error(
       `No Encounter decks are available at "${currentSpace.name}".`,
@@ -350,6 +366,31 @@ export function startEncounter(
                     (definition) =>
                       definition.id ===
                       "growing-madness",
+                  )?.image,
+              },
+            ]
+          : []),
+        ...(canAttemptSecretsOfThePast
+          ? [
+              {
+                id:
+                  "secrets-of-the-past-encounter",
+
+                title:
+                  "Secrets of the Past",
+
+                description:
+                  "Attempt to uncover secrets lost to time and history.",
+
+                image:
+                  [
+                    ...easyMythos,
+                    ...normalMythos,
+                    ...hardMythos,
+                  ].find(
+                    (definition) =>
+                      definition.id ===
+                      "secrets-of-the-past",
                   )?.image,
               },
             ]

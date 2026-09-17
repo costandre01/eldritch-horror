@@ -234,6 +234,119 @@ export function resolveMythosCardReckoning(
 
   /*
    * ============================================================
+   * RETURN ACTIVE EXPEDITION
+   * ============================================================
+   *
+   * Return all Expedition Encounter cards belonging to the
+   * Active Expedition from the Expedition Encounter deck
+   * to the game box.
+   *
+   * If the Expedition Encounter deck becomes empty,
+   * the investigators lose the game.
+   */
+
+  if (
+    mythos.reckoning?.type ===
+    "return-active-expedition"
+  ) {
+    const activeExpeditionSpaceId =
+      game.board.activeExpeditionSpaceId;
+
+    if (!activeExpeditionSpaceId) {
+      return {
+        ...game,
+
+        pendingDecision: {
+          ...decision,
+
+          resolvedMythosIds: [
+            ...decision.resolvedMythosIds,
+            mythosId,
+          ],
+        },
+      };
+    }
+
+    const activeExpeditionSpace =
+      _map.spaces.find(
+        (space) =>
+          space.id ===
+          activeExpeditionSpaceId,
+      );
+
+    if (!activeExpeditionSpace) {
+      throw new Error(
+        `Active Expedition space "${activeExpeditionSpaceId}" does not exist.`,
+      );
+    }
+
+    const expeditionDeck =
+      game.board.encounterDecks.expedition;
+
+    const remainingExpeditionDeck =
+      expeditionDeck.filter(
+        (encounterId) =>
+          game.encounters[
+            encounterId
+          ]?.name !==
+          activeExpeditionSpace.name,
+      );
+
+    /*
+     * If the Expedition Encounter deck is now empty,
+     * the investigators lose the game.
+     */
+
+    if (
+      remainingExpeditionDeck.length === 0
+    ) {
+      return {
+        ...game,
+
+        board: {
+          ...game.board,
+
+          encounterDecks: {
+            ...game.board.encounterDecks,
+
+            expedition:
+              remainingExpeditionDeck,
+          },
+        },
+
+        status: "defeat",
+
+        pendingDecision: null,
+      };
+    }
+
+    return {
+      ...game,
+
+      board: {
+        ...game.board,
+
+        encounterDecks: {
+          ...game.board.encounterDecks,
+
+          expedition:
+            remainingExpeditionDeck,
+        },
+      },
+
+      pendingDecision: {
+        ...decision,
+
+        resolvedMythosIds: [
+          ...decision.resolvedMythosIds,
+          mythosId,
+        ],
+      },
+    };
+  }
+
+  /*
+   * ============================================================
    * RECKONING
    * ============================================================
    */
@@ -286,8 +399,9 @@ export function resolveMythosCardReckoning(
     * MYTHOS REACHES 0 ELDritch TOKENS
     * ==========================================================
     *
-    * Growing Madness and Fractured Reality resolve
-    * immediately when their last Eldritch Token is removed.
+    * Growing Madness, Fractured Reality and Lost Knowledge
+    * resolve their 0 Eldritch Token effect immediately when
+    * their last Eldritch Token is removed.
     */
 
     if (
@@ -296,7 +410,9 @@ export function resolveMythosCardReckoning(
         mythos.id ===
           "growing-madness" ||
         mythos.id ===
-          "fractured-reality"
+          "fractured-reality" ||
+        mythos.id ===
+          "lost-knowledge"
       )
     ) {
       return resolveMythosSpecial(

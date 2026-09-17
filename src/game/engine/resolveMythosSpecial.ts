@@ -293,12 +293,133 @@ export function resolveMythosSpecial(
         );
       }
 
-      return spawnEpicMonsterAtSpace(
-        game,
-        map,
-        "space-21",
-        "tick-tock-men",
-      );
+      const mythosInPlay =
+        game.board.mythosInPlay.find(
+          (entry) =>
+            entry.definitionId ===
+            mythos.id,
+        );
+
+      if (!mythosInPlay) {
+        return game;
+      }
+
+      /*
+       * ==========================================================
+       * LOST KNOWLEDGE — ENTERS PLAY
+       * ==========================================================
+       *
+       * The Mythos enters play with 3 Eldritch Tokens.
+       * Spawn the Tick-Tock Men on Space 21.
+       */
+
+      if (
+        mythosInPlay.eldritchTokens > 0
+      ) {
+        return spawnEpicMonsterAtSpace(
+          game,
+          map,
+          "space-21",
+          "tick-tock-men",
+        );
+      }
+
+      /*
+       * ==========================================================
+       * LOST KNOWLEDGE — 0 ELDRITCH TOKENS
+       * ==========================================================
+       *
+       * Discard all Clues on the game board, then each
+       * Investigator discards all Clues.
+       */
+
+      const clueTokensToDiscard: {
+        id: string;
+        spaceId: string;
+      }[] = [];
+
+      const updatedSpaces = {
+        ...game.board.spaces,
+      };
+
+      /*
+       * Remove every Clue token from the board.
+       */
+
+      for (
+        const [
+          spaceId,
+          space,
+        ] of Object.entries(
+          game.board.spaces,
+        )
+      ) {
+        for (
+          const clueTokenId of
+            space.clueTokenIds
+        ) {
+          clueTokensToDiscard.push({
+            id: clueTokenId,
+            spaceId,
+          });
+        }
+
+        updatedSpaces[spaceId] = {
+          ...space,
+
+          clues: 0,
+
+          clueTokenIds: [],
+        };
+      }
+
+      /*
+       * Remove every Clue from every Investigator.
+       */
+
+      const updatedInvestigators = {
+        ...game.investigators,
+      };
+
+      for (
+        const [
+          investigatorId,
+          investigator,
+        ] of Object.entries(
+          game.investigators,
+        )
+      ) {
+        updatedInvestigators[
+          investigatorId
+        ] = {
+          ...investigator,
+
+          clues: 0,
+        };
+      }
+
+      /*
+       * Move all physical Clue tokens to the discard.
+       */
+
+      return {
+        ...game,
+
+        investigators:
+          updatedInvestigators,
+
+        board: {
+          ...game.board,
+
+          spaces:
+            updatedSpaces,
+
+          clueDiscard: [
+            ...game.board.clueDiscard,
+            ...clueTokensToDiscard,
+          ],
+        },
+      };
     }
     
     case "growing-madness-encounter": {
