@@ -150,7 +150,7 @@ export default function InvestigatorActionsPanel({
     {
       label: "Trade",
 
-      icon: "/icons/game/trade.png",
+      icon: "/icons/game/influence.png",
 
       disabled: !canTrade,
 
@@ -167,7 +167,7 @@ export default function InvestigatorActionsPanel({
     {
       label: "Acquire Assets",
 
-      icon: "/icons/game/assets.png",
+      icon: "/icons/game/resource.png",
 
       disabled: !canAcquireAssets,
 
