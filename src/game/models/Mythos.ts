@@ -149,4 +149,24 @@ export type MythosEffect =
   | {
       type: "gain-ally";
       investigator: "lead";
+    }
+  | {
+      type: "select-gate";
+    }
+  | {
+      type: "world-fights-back";
+    }
+  | {
+      type: "mythos-dark-power";
+    }
+  | {
+      type: "blood-flows";
+    }
+  | {
+      type: "spawn-monsters";
+
+      amount: number;
+
+      location:
+        | "active-expedition";
     };

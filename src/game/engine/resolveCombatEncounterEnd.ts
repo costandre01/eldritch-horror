@@ -161,6 +161,266 @@ export function resolveCombatEncounterEnd(
     );
   }
 
+  /*
+   * ==========================================================
+   * A DARK POWER RESUME
+   * ==========================================================
+   *
+   * Each Investigator must immediately encounter every
+   * Monster on their space, in the order of their choice.
+   *
+   * A Monster counts as resolved here whether it was
+   * defeated or survived its Combat.
+   */
+
+  if (
+    resume?.type ===
+    "mythos-dark-power"
+  ) {
+    const resolvedMonsterIds = [
+      ...resume.resolvedMonsterIds,
+      defeatedMonsterId,
+    ];
+
+    /*
+     * ----------------------------------------------------------
+     * MORE MONSTERS FOR THE SAME INVESTIGATOR
+     * ----------------------------------------------------------
+     */
+
+    const nextMonsterId =
+      resume.monsterIds.find(
+        (monsterId) =>
+          !resolvedMonsterIds.includes(
+            monsterId,
+          ),
+      );
+
+    if (nextMonsterId) {
+      const updatedResume = {
+        ...resume,
+
+        resolvedMonsterIds,
+      };
+
+      return startMonsterCombat(
+        {
+          ...game,
+
+          activeInvestigatorId:
+            resume.investigatorIds[
+              resume.currentInvestigatorIndex
+            ],
+
+          pendingDecision:
+            null,
+
+          combatOrder:
+            null,
+        },
+        nextMonsterId,
+        updatedResume,
+      );
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * CURRENT INVESTIGATOR FINISHED
+     * ----------------------------------------------------------
+     *
+     * Find the next Investigator who has Monsters on
+     * their current space.
+     */
+
+    let nextInvestigatorIndex =
+      resume.currentInvestigatorIndex + 1;
+
+    while (
+      nextInvestigatorIndex <
+      resume.investigatorIds.length
+    ) {
+      const nextInvestigatorId =
+        resume.investigatorIds[
+          nextInvestigatorIndex
+        ];
+
+      if (!nextInvestigatorId) {
+        nextInvestigatorIndex++;
+        continue;
+      }
+
+      const nextInvestigator =
+        game.investigators[
+          nextInvestigatorId
+        ];
+
+      if (!nextInvestigator?.spaceId) {
+        nextInvestigatorIndex++;
+        continue;
+      }
+
+      const nextSpace =
+        game.board.spaces[
+          nextInvestigator.spaceId
+        ];
+
+      if (!nextSpace) {
+        nextInvestigatorIndex++;
+        continue;
+      }
+
+      const nextMonsterIds =
+        nextSpace.monsterIds.filter(
+          (monsterId) =>
+            game.monsters[
+              monsterId
+            ] !== undefined,
+        );
+
+      if (
+        nextMonsterIds.length > 0
+      ) {
+        const nextResume = {
+          type:
+            "mythos-dark-power" as const,
+
+          investigatorIds:
+            resume.investigatorIds,
+
+          currentInvestigatorIndex:
+            nextInvestigatorIndex,
+
+          monsterIds:
+            nextMonsterIds,
+
+          resolvedMonsterIds: [],
+        };
+
+        /*
+         * One Monster:
+         * start Combat immediately.
+         */
+
+        if (
+          nextMonsterIds.length === 1
+        ) {
+          const nextMonsterId =
+            nextMonsterIds[0];
+
+          if (!nextMonsterId) {
+            throw new Error(
+              "A Dark Power could not determine the next Monster.",
+            );
+          }
+
+          return startMonsterCombat(
+            {
+              ...game,
+
+              activeInvestigatorId:
+                nextInvestigatorId,
+
+              pendingDecision:
+                null,
+
+              combatOrder:
+                null,
+            },
+            nextMonsterId,
+            nextResume,
+          );
+        }
+
+        /*
+         * Multiple Monsters:
+         * the Investigator chooses the order.
+         */
+
+        return {
+          ...game,
+
+          activeInvestigatorId:
+            nextInvestigatorId,
+
+          combatOrder:
+            null,
+
+          pendingDecision: {
+            type:
+              "combat-order",
+
+            title:
+              "A Dark Power — Combat Order",
+
+            message:
+              "Choose the order in which you will encounter the Monsters on your space.",
+
+            monsterIds:
+              nextMonsterIds,
+
+            orderedMonsterIds: [],
+
+            source:
+              "combat-order",
+
+            resume:
+              nextResume,
+          },
+        };
+      }
+
+      nextInvestigatorIndex++;
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * A DARK POWER FINISHED
+     * ----------------------------------------------------------
+     */
+
+    const currentMythos =
+      [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ].find(
+        (mythos) =>
+          mythos.id ===
+          game.currentMythosId,
+      );
+
+    if (!currentMythos) {
+      throw new Error(
+        "A Dark Power could not find the current Mythos card.",
+      );
+    }
+
+    return {
+      ...game,
+
+      board: {
+        ...game.board,
+
+        mythosDiscard: [
+          ...game.board.mythosDiscard,
+          currentMythos,
+        ],
+      },
+
+      currentMythosId:
+        null,
+
+      activeInvestigatorId:
+        null,
+
+      pendingDecision:
+        null,
+
+      combatOrder:
+        null,
+    };
+  }
+
   const investigatorId =
     game.activeInvestigatorId;
 

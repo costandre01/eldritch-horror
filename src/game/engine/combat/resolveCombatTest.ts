@@ -183,7 +183,10 @@ export function resolveCombatTest(
     source.split(":");
 
   const resume =
-    testDecision.resume;
+    testDecision.resume?.type ===
+      "mythos-arrests-made"
+      ? undefined
+      : testDecision.resume;
 
   if (
     parts[0] !== "combat"

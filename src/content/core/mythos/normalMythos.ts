@@ -32,20 +32,9 @@ export const normalMythos: MythosDefinition[] = [
             "Each Monster recovers all Health. Then each investigator immediately encounters each Monster on his space in the order of his choice.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH Monster on the game board:
-            *
-            *   -> Recover all Health.
-            *
-            * Then, for EACH investigator:
-            *
-            *   -> Immediately encounter each Monster
-            *      on his space.
-            *   -> The investigator chooses the order
-            *      of the encounters.
-            */
+            {
+                type: "mythos-dark-power",
+            }
         ],
     },
 
@@ -80,11 +69,13 @@ export const normalMythos: MythosDefinition[] = [
             "Spawn 2 Monsters on the Active Expedition space.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Spawn 2 Monsters on the Active Expedition space.
-            */
+            {
+                type: "spawn-monsters",
+
+                amount: 2,
+                
+                location: "active-expedition",
+            },
         ],
     },
 
@@ -119,18 +110,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator on a City space with a Weapon possession tests Influence. If he fails, he discards 1 Weapon possession and gains a Detained Condition.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH investigator:
-            *
-            *   If on a City space AND has a Weapon:
-            *     -> Test Influence.
-            *
-            *   If the test fails:
-            *     -> Discard 1 Weapon possession.
-            *     -> Gain a Detained Condition.
-            */
+            {
+                type: "mythos-special",
+                id: "arrests-made-in-murder-case",
+            },
         ],
     },
 
@@ -165,15 +148,10 @@ export const normalMythos: MythosDefinition[] = [
             "The Lead Investigator discards 1 Monster of his choice and loses Health equal to its toughness.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * The Lead Investigator chooses 1 Monster
-            * on the game board.
-            *
-            * -> Discard that Monster.
-            * -> Lose Health equal to its current toughness.
-            */
+            {
+                type: "mythos-special",
+                id: "blood-flows",
+            },
         ],
     },
 

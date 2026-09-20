@@ -2,9 +2,17 @@ import type { GameState } from "../models/GameState";
 
 import { startMonsterCombat } from "./startMonsterCombat";
 
+import type {
+  MonsterReckoningResume,
+  DarkPowerResume,
+} from "../models/PendingDecision";
+
 export function resolveCombatOrder(
   game: GameState,
   orderedMonsterIds: string[],
+  resume?:
+    | MonsterReckoningResume
+    | DarkPowerResume,
 ): GameState {
   if (orderedMonsterIds.length < 2) {
     throw new Error(
@@ -21,6 +29,15 @@ export function resolveCombatOrder(
     );
   }
 
+  const updatedResume =
+    resume?.type === "mythos-dark-power"
+      ? {
+          ...resume,
+          monsterIds: orderedMonsterIds,
+          resolvedMonsterIds: [],
+        }
+      : resume;
+
   const updatedGame: GameState = {
     ...game,
 
@@ -34,5 +51,6 @@ export function resolveCombatOrder(
   return startMonsterCombat(
     updatedGame,
     firstMonsterId,
+    updatedResume,
   );
 }

@@ -59,6 +59,75 @@ export function resolveStandardTestResult(
   ];
 
   /*
+  * ============================================================
+  * MYTHOS — ARRESTS MADE IN MURDER CASE!
+  * ============================================================
+  */
+
+  if (
+    testDecision.source?.startsWith(
+      "mythos:arrests-made:test:",
+    )
+  ) {
+    const sourceParts =
+      testDecision.source.split(":");
+
+    const investigatorId =
+      sourceParts[3];
+
+    const investigatorIndex =
+      Number(sourceParts[4]);
+
+    if (
+      !investigatorId ||
+      !Number.isInteger(
+        investigatorIndex,
+      )
+    ) {
+      throw new Error(
+        "Arrests Made test has an invalid source.",
+      );
+    }
+
+    return {
+      type: "state",
+
+      game: {
+        ...game,
+
+        pendingDecision: {
+          type: "continue",
+
+          title:
+            passed
+              ? "PASS"
+              : "FAIL",
+
+          message:
+            passed
+              ? "The Influence test was successful."
+              : "The Influence test failed.",
+
+          image:
+            testDecision.image,
+
+          onComplete:
+            [],
+
+          source:
+            `mythos:arrests-made:test-result:${investigatorId}:${investigatorIndex}:${passed ? "pass" : "fail"}`,
+
+          resume:
+            testDecision.resume,
+        },
+
+        lastTest:
+          diceTest,
+      },
+    };
+  }
+
+  /*
    * ============================================================
    * ACQUIRE ASSETS
    * ============================================================

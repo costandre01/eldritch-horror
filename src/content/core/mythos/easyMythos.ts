@@ -523,19 +523,9 @@ export const easyMythos: MythosDefinition[] = [
             "Investigators, as a group, choose 1 Gate on the game board and discard it. If the discarded Gate does not correspond to the current Omen, advance Doom by 1.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Os investigadores escolhem em conjunto
-            * 1 Gate existente no game board.
-            *
-            * -> Remove esse Gate do tabuleiro.
-            *
-            * Depois:
-            *
-            * -> Se o símbolo do Gate NÃO corresponder
-            *    ao Omen atual, advance Doom by 1.
-            */
+            {
+            type: "select-gate",
+            },
         ],
     },
 
@@ -570,24 +560,9 @@ export const easyMythos: MythosDefinition[] = [
             "Each investigator may do one of the following: Recover 2 Health, Recover 2 Sanity, or discard 1 Monster from his space.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH investigator:
-            *
-            * Choose ONE:
-            *
-            * -> Recover 2 Health
-            * -> Recover 2 Sanity
-            * -> Discard 1 Monster from his space
-            *
-            * Each investigator chooses independently.
-            *
-            * If choosing to discard a Monster:
-            *
-            * -> The investigator selects 1 Monster
-            *    currently on his space.
-            */
+            {
+                type: "world-fights-back",
+            },
         ],
     },
 ];

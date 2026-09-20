@@ -20,6 +20,11 @@ import { resolveMonsterReckoning } from "./resolveMonsterReckoning";
 import { startAncientOneReckoning } from "./startAncientOneReckoning";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { resolveNextYogSothothInvestigator } from "./resolveYogSothothReckoning";
+import { startMonsterCombat } from "./startMonsterCombat";
+import { easyMythos } from "../../content/core/mythos/easyMythos";
+import { normalMythos } from "../../content/core/mythos/normalMythos";
+import { hardMythos } from "../../content/core/mythos/hardMythos";
+import { startArrestsMade } from "./resolveMythosSpecial";
 
 export interface GameFlowContinueResult {
   game: GameState;
@@ -421,6 +426,165 @@ export function resolveGameFlowContinue(
   }
 
   /*
+  * ============================================================
+  * MYTHOS — ARRESTS MADE IN MURDER CASE!
+  * TEST RESULT
+  * ============================================================
+  */
+
+  if (
+    decision.type === "continue" &&
+    decision.source?.startsWith(
+      "mythos:arrests-made:test-result:",
+    )
+  ) {
+    /*
+    * Arrests Made must always carry
+    * its original Investigator sequence.
+    */
+
+    const resume =
+      decision.resume;
+
+    if (
+      !resume ||
+      resume.type !==
+        "mythos-arrests-made"
+    ) {
+      throw new Error(
+        "Arrests Made test result is missing its resume.",
+      );
+    }
+
+    const result =
+      decision.source.split(":")[5];
+
+    /*
+    * ==========================================================
+    * PASS
+    * ==========================================================
+    *
+    * Move directly to the next eligible Investigator.
+    */
+
+    if (
+      result === "pass"
+    ) {
+      return {
+        game:
+          startArrestsMade(
+            {
+              ...game,
+
+              pendingDecision:
+                null,
+            },
+            map,
+            resume.investigatorIds,
+            resume.currentInvestigatorIndex + 1,
+          ),
+
+        resetEncounterStartedForTurn:
+          false,
+      };
+    }
+
+    /*
+    * ==========================================================
+    * FAIL
+    * ==========================================================
+    *
+    * The Investigator must discard
+    * exactly 1 Weapon.
+    */
+
+    const investigatorId =
+      resume.investigatorIds[
+        resume.currentInvestigatorIndex
+      ];
+
+    if (!investigatorId) {
+      throw new Error(
+        "Arrests Made could not determine the current Investigator.",
+      );
+    }
+
+    const investigator =
+      game.investigators[
+        investigatorId
+      ];
+
+    if (!investigator) {
+      throw new Error(
+        `Investigator "${investigatorId}" does not exist.`,
+      );
+    }
+
+    const weaponIds =
+      investigator.assetIds.filter(
+        (assetId) =>
+          game.assets[assetId]?.traits.includes(
+            "weapon",
+          ),
+      );
+
+    /*
+    * The Investigator was eligible when
+    * Arrests Made started, so a Weapon should
+    * still be available here.
+    */
+
+    if (
+      weaponIds.length === 0
+    ) {
+      throw new Error(
+        `Investigator "${investigatorId}" failed Arrests Made but has no Weapon to discard.`,
+      );
+    }
+
+    return {
+      game: {
+        ...game,
+
+        pendingDecision: {
+          type: "select-card",
+
+          title:
+            "Discard a Weapon",
+
+          message:
+            "Choose 1 Weapon possession to discard.",
+
+          cardIds:
+            weaponIds,
+
+          selectableCardIds:
+            weaponIds,
+
+          minSelections:
+            1,
+
+          maxSelections:
+            1,
+
+          selectedCardIds:
+            [],
+
+          investigatorId,
+
+          source:
+            `mythos:arrests-made:weapon:${investigatorId}:${resume.currentInvestigatorIndex}`,
+
+          resume,
+        },
+      },
+
+      resetEncounterStartedForTurn:
+        false,
+    };
+  }
+
+  /*
    * ============================================================
    * TEST RESULT CONTINUE
    * ============================================================
@@ -746,6 +910,302 @@ export function resolveGameFlowContinue(
 
       return {
         game: nextGame,
+        resetEncounterStartedForTurn:
+          false,
+      };
+    }
+
+    /*
+    * ==========================================================
+    * A DARK POWER COMBAT
+    * ==========================================================
+    *
+    * The investigator was defeated while resolving
+    * A Dark Power.
+    *
+    * The defeated investigator's sequence ends.
+    * Continue with the next investigator from the
+    * original investigator snapshot.
+    */
+
+    if (
+      decision.resume?.type ===
+      "mythos-dark-power"
+    ) {
+      const resume =
+        decision.resume;
+
+      const defeatedInvestigatorId =
+        decision.source.split(":")[1];
+
+      if (!defeatedInvestigatorId) {
+        throw new Error(
+          "A Dark Power defeat decision is missing investigatorId.",
+        );
+      }
+
+      const defeatedInvestigator =
+        finishedGame.investigators[
+          defeatedInvestigatorId
+        ];
+
+      if (!defeatedInvestigator) {
+        throw new Error(
+          `Investigator "${defeatedInvestigatorId}" does not exist.`,
+        );
+      }
+
+      /*
+      * Mark the Investigator as defeated.
+      */
+
+      let gameAfterDefeat: GameState = {
+        ...finishedGame,
+
+        activeInvestigatorId:
+          null,
+
+        combatOrder:
+          null,
+
+        investigators: {
+          ...finishedGame.investigators,
+
+          [defeatedInvestigatorId]: {
+            ...defeatedInvestigator,
+
+            isDefeated:
+              true,
+          },
+        },
+      };
+
+      /*
+      * ----------------------------------------------------------
+      * FIND NEXT INVESTIGATOR
+      * ----------------------------------------------------------
+      */
+
+      let nextInvestigatorIndex =
+        resume.currentInvestigatorIndex + 1;
+
+      while (
+        nextInvestigatorIndex <
+        resume.investigatorIds.length
+      ) {
+        const nextInvestigatorId =
+          resume.investigatorIds[
+            nextInvestigatorIndex
+          ];
+
+        if (!nextInvestigatorId) {
+          nextInvestigatorIndex++;
+          continue;
+        }
+
+        const nextInvestigator =
+          gameAfterDefeat.investigators[
+            nextInvestigatorId
+          ];
+
+        /*
+        * Defeated Investigators cannot resolve
+        * A Dark Power encounters.
+        */
+
+        if (
+          !nextInvestigator ||
+          nextInvestigator.isDefeated ||
+          !nextInvestigator.spaceId
+        ) {
+          nextInvestigatorIndex++;
+          continue;
+        }
+
+        const nextSpace =
+          gameAfterDefeat.board.spaces[
+            nextInvestigator.spaceId
+          ];
+
+        if (!nextSpace) {
+          nextInvestigatorIndex++;
+          continue;
+        }
+
+        /*
+        * Only Monsters that still exist on the space
+        * can be encountered.
+        */
+
+        const nextMonsterIds =
+          nextSpace.monsterIds.filter(
+            (monsterId) =>
+              gameAfterDefeat.monsters[
+                monsterId
+              ] !== undefined,
+          );
+
+        if (
+          nextMonsterIds.length === 0
+        ) {
+          nextInvestigatorIndex++;
+          continue;
+        }
+
+        const nextResume = {
+          type:
+            "mythos-dark-power" as const,
+
+          investigatorIds:
+            resume.investigatorIds,
+
+          currentInvestigatorIndex:
+            nextInvestigatorIndex,
+
+          monsterIds:
+            nextMonsterIds,
+
+          resolvedMonsterIds: [],
+        };
+
+        /*
+        * One Monster:
+        * start Combat immediately.
+        */
+
+        if (
+          nextMonsterIds.length === 1
+        ) {
+          const nextMonsterId =
+            nextMonsterIds[0];
+
+          if (!nextMonsterId) {
+            throw new Error(
+              "A Dark Power could not determine the next Monster.",
+            );
+          }
+
+          return {
+            game:
+              startMonsterCombat(
+                {
+                  ...gameAfterDefeat,
+
+                  activeInvestigatorId:
+                    nextInvestigatorId,
+
+                  pendingDecision:
+                    null,
+
+                  combatOrder:
+                    null,
+                },
+                nextMonsterId,
+                nextResume,
+              ),
+
+            resetEncounterStartedForTurn:
+              false,
+          };
+        }
+
+        /*
+        * Multiple Monsters:
+        * choose their encounter order.
+        */
+
+        gameAfterDefeat = {
+          ...gameAfterDefeat,
+
+          activeInvestigatorId:
+            nextInvestigatorId,
+
+          combatOrder:
+            null,
+
+          pendingDecision: {
+            type:
+              "combat-order",
+
+            title:
+              "A Dark Power — Combat Order",
+
+            message:
+              "Choose the order in which you will encounter the Monsters on your space.",
+
+            monsterIds:
+              nextMonsterIds,
+
+            orderedMonsterIds: [],
+
+            source:
+              "combat-order",
+
+            resume:
+              nextResume,
+          },
+        };
+
+        return {
+          game:
+            gameAfterDefeat,
+
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+
+      /*
+      * ----------------------------------------------------------
+      * NO MORE INVESTIGATORS
+      * ----------------------------------------------------------
+      *
+      * A Dark Power is completely resolved.
+      */
+
+      const currentMythos =
+        [
+          ...easyMythos,
+          ...normalMythos,
+          ...hardMythos,
+        ].find(
+          (mythos) =>
+            mythos.id ===
+            gameAfterDefeat.currentMythosId,
+        );
+
+      if (!currentMythos) {
+        throw new Error(
+          "A Dark Power could not find the current Mythos card.",
+        );
+      }
+
+      return {
+        game: {
+          ...gameAfterDefeat,
+
+          board: {
+            ...gameAfterDefeat.board,
+
+            mythosDiscard: [
+              ...gameAfterDefeat.board.mythosDiscard,
+              currentMythos,
+            ],
+          },
+
+          currentMythosId:
+            null,
+
+          activeInvestigatorId:
+            null,
+
+          pendingDecision:
+            null,
+
+          combatOrder:
+            null,
+        },
+
         resetEncounterStartedForTurn:
           false,
       };

@@ -2,12 +2,273 @@ import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 import type { MythosDefinition } from "../models/Mythos";
 import { advanceDoom } from "./doomEngine";
+import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { spawnEpicMonsterAtSpace } from "./spawnEpicMonsterAtSpace";
 import { startOtherWorldEncounter } from "./startOtherWorldEncounter";
+
+function createSilverTwilightAidChoice(
+  game: GameState,
+  investigatorIndex: number,
+): GameState {
+  const investigatorId =
+    game.investigatorOrder[
+      investigatorIndex
+    ];
+
+  if (!investigatorId) {
+    return {
+      ...game,
+
+      currentMythosId: null,
+
+      pendingDecision: null,
+    };
+  }
+
+  const investigator =
+    game.investigators[
+      investigatorId
+    ];
+
+  if (!investigator) {
+    return {
+      ...game,
+
+      pendingDecision: null,
+    };
+  }
+
+  const options = [
+    {
+      id:
+        `silver-twilight-aid:clue:${investigatorIndex}`,
+
+      title:
+        "Gain 1 Clue",
+
+      description:
+        "Gain 1 Clue.",
+    },
+
+    ...(game.board.assetDeck.length > 0
+      ? [
+          {
+            id:
+              `silver-twilight-aid:asset:${investigatorIndex}`,
+
+            title:
+              "Gain 1 Asset",
+
+            description:
+              "Gain 1 Asset.",
+          },
+        ]
+      : []),
+
+    ...(game.board.spellDeck.length > 0
+      ? [
+          {
+            id:
+              `silver-twilight-aid:spell:${investigatorIndex}`,
+
+            title:
+              "Gain 1 Spell",
+
+            description:
+              "Choose 1 Spell from the Spell deck.",
+          },
+        ]
+      : []),
+
+    {
+      id:
+        `silver-twilight-aid:pass:${investigatorIndex}`,
+
+      title:
+        "Do Nothing",
+
+      description:
+        "Do not gain a Clue, Asset, or Spell.",
+    },
+  ];
+
+  return {
+    ...game,
+
+    pendingDecision: {
+      type: "choice",
+
+      title:
+        "Silver Twilight Aid",
+
+      message:
+        "This Investigator may gain 1 Clue, gain 1 Asset, or gain 1 Spell.",
+
+      options,
+
+      source:
+        `mythos:silver-twilight-aid:${investigatorIndex}`,
+    },
+  };
+}
+
+export function resumeSilverTwilightAid(
+  game: GameState,
+  _map: MapDefinition,
+  investigatorIndex: number,
+): GameState {
+  if (
+    investigatorIndex >=
+    game.investigatorOrder.length
+  ) {
+    return {
+      ...game,
+
+      currentMythosId: null,
+
+      pendingDecision: null,
+    };
+  }
+
+  return createSilverTwilightAidChoice(
+    game,
+    investigatorIndex,
+  );
+}
+
+function getArrestsMadeInvestigators(
+  game: GameState,
+  map: MapDefinition,
+): string[] {
+  return game.investigatorOrder.filter(
+    (investigatorId) => {
+      const investigator =
+        game.investigators[investigatorId];
+
+      if (
+        !investigator ||
+        !investigator.spaceId
+      ) {
+        return false;
+      }
+
+      const space =
+        map.spaces.find(
+          (item) =>
+            item.id ===
+            investigator.spaceId,
+        );
+
+      if (
+        space?.type !== "city"
+      ) {
+        return false;
+      }
+
+      return investigator.assetIds.some(
+        (assetId) =>
+          game.assets[assetId]?.traits.includes(
+            "weapon",
+          ),
+      );
+    },
+  );
+}
+
+export function startArrestsMade(
+  game: GameState,
+  _map: MapDefinition,
+  investigatorIds: string[],
+  investigatorIndex: number,
+): GameState {
+  /*
+   * Todos os Investigators elegíveis
+   * já foram tratados.
+   */
+
+  if (
+    investigatorIndex >=
+    investigatorIds.length
+  ) {
+    return {
+      ...game,
+
+      currentMythosId:
+        null,
+
+      pendingDecision:
+        null,
+
+      activeInvestigatorId:
+        null,
+    };
+  }
+
+  const investigatorId =
+    investigatorIds[investigatorIndex];
+
+  if (!investigatorId) {
+    throw new Error(
+      "Arrests Made could not determine the next Investigator.",
+    );
+  }
+
+  const investigator =
+    game.investigators[
+      investigatorId
+    ];
+
+  if (!investigator) {
+    throw new Error(
+      `Investigator "${investigatorId}" does not exist.`,
+    );
+  }
+
+  return {
+    ...game,
+
+    activeInvestigatorId:
+      investigatorId,
+
+    pendingDecision: {
+      type: "test",
+
+      title:
+        "Arrests Made in Murder Case!",
+
+      message:
+        "Test Influence.",
+
+      image:
+        "/cards/Mythos/Mythos/Medium - Arrests Made in Murder Case!.jpg",
+
+      skill:
+        "influence",
+
+      modifier:
+        0,
+
+      investigatorId,
+
+      source:
+        `mythos:arrests-made:test:${investigatorId}:${investigatorIndex}`,
+
+      resume: {
+        type:
+          "mythos-arrests-made",
+
+        investigatorIds,
+
+        currentInvestigatorIndex:
+          investigatorIndex,
+      },
+    },
+  };
+}
 
 export function resolveMythosSpecial(
   game: GameState,
@@ -132,6 +393,121 @@ export function resolveMythosSpecial(
           ],
         },
       };
+    }
+
+    case "blood-flows": {
+      if (mythos.id !== "blood-flows") {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Blood Flows.`,
+        );
+      }
+
+      const leadInvestigatorId =
+        getLeadInvestigatorId(game);
+
+      if (!leadInvestigatorId) {
+        throw new Error(
+          "There is no Lead Investigator.",
+        );
+      }
+
+      const monsterIds =
+        Object.values(game.monsters)
+          .filter(
+            (monster) =>
+              !!monster.spaceId,
+          )
+          .map(
+            (monster) =>
+              monster.id,
+          );
+
+      /*
+      * ============================================================
+      * NO MONSTERS
+      * ============================================================
+      *
+      * There is no Monster available to discard.
+      */
+
+      if (monsterIds.length === 0) {
+        return {
+          ...game,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+        };
+      }
+
+      /*
+      * ============================================================
+      * CHOOSE MONSTER
+      * ============================================================
+      *
+      * The Lead Investigator chooses any Monster
+      * currently on the game board.
+      */
+
+      return {
+        ...game,
+
+        activeInvestigatorId:
+          leadInvestigatorId,
+
+        pendingDecision: {
+          type: "select-monster",
+
+          title:
+            "Blood Flows",
+
+          message:
+            "Choose 1 Monster to discard. The Lead Investigator loses Health equal to its toughness.",
+
+          monsterIds,
+
+          onMonsterSelected: [
+            {
+              type:
+                "discard-selected-monster",
+            },
+          ],
+
+          onComplete: [],
+
+          investigatorId:
+            leadInvestigatorId,
+
+          source:
+            "mythos:blood-flows",
+        },
+      };
+    }
+
+    case "arrests-made-in-murder-case": {
+      if (
+        mythos.id !==
+        "arrests-made-in-murder-case"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Arrests Made in Murder Case!.`,
+        );
+      }
+
+      const investigatorIds =
+        getArrestsMadeInvestigators(
+          game,
+          map,
+        );
+
+      return startArrestsMade(
+        game,
+        map,
+        investigatorIds,
+        0,
+      );
     }
 
     case "fractured-reality": {
@@ -420,6 +796,21 @@ export function resolveMythosSpecial(
           ],
         },
       };
+    }
+
+    case "silver-twilight-aid": {
+      if (
+        mythos.id !== "silver-twilight-aid"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Silver Twilight Aid.`,
+        );
+      }
+
+      return createSilverTwilightAidChoice(
+        game,
+        0,
+      );
     }
     
     case "growing-madness-encounter": {

@@ -28,36 +28,55 @@ export function discardAsset(
     );
   }
 
-  /*
-   * Só pode descartar se não ganhou
-   * nenhum Asset.
-   */
+  const investigator =
+    game.investigators[
+      investigatorId
+    ];
 
-  const reserve =
-    game.board.assetReserve;
-
-  const asset =
-    reserve.find(
-      (item) => item.id === assetId,
-    );
-
-  if (!asset) {
+  if (!investigator) {
     throw new Error(
-      `Asset "${assetId}" is not in the Reserve.`,
+      `Investigator "${investigatorId}" does not exist.`,
     );
   }
 
   /*
-   * Retirar da Reserve
+   * The Asset must be owned by the Investigator.
    */
 
-  const remainingReserve =
-    reserve.filter(
-      (item) => item.id !== assetId,
+  if (
+    !investigator.assetIds.includes(
+      assetId,
+    )
+  ) {
+    throw new Error(
+      `Asset "${assetId}" is not owned by Investigator "${investigatorId}".`,
+    );
+  }
+
+  const asset =
+    game.assets[assetId];
+
+  if (!asset) {
+    throw new Error(
+      `Asset "${assetId}" does not exist.`,
+    );
+  }
+
+  /*
+   * Remove the Asset from the Investigator.
+   */
+
+  const assetIds =
+    investigator.assetIds.filter(
+      (id) =>
+        id !== assetId,
     );
 
   /*
-   * Adicionar ao discard
+   * Add the Asset to the discard pile.
+   *
+   * The Asset Reserve is NOT changed.
+   * This Asset was already owned by the Investigator.
    */
 
   const assetDiscard = [
@@ -65,47 +84,21 @@ export function discardAsset(
     asset,
   ];
 
-  /*
-   * Repor Reserve
-   */
-
-  const assetDeck = [
-    ...game.board.assetDeck,
-  ];
-
-  if (
-    remainingReserve.length < 4 &&
-    assetDeck.length > 0
-  ) {
-    const randomIndex =
-      Math.floor(
-        Math.random() *
-          assetDeck.length,
-      );
-
-    const nextAsset =
-      assetDeck.splice(
-        randomIndex,
-        1,
-      )[0];
-
-    if (nextAsset) {
-      remainingReserve.push(
-        nextAsset,
-      );
-    }
-  }
-
   return {
     ...game,
 
+    investigators: {
+      ...game.investigators,
+
+      [investigatorId]: {
+        ...investigator,
+
+        assetIds,
+      },
+    },
+
     board: {
       ...game.board,
-
-      assetDeck,
-
-      assetReserve:
-        remainingReserve,
 
       assetDiscard,
     },

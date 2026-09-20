@@ -1,6 +1,11 @@
 import type { EncounterEffect } from "./Encounter";
 import type { MonsterSpecialAbility } from "./Monster";
 
+export type ArrestsMadeResume = {
+  type: "mythos-arrests-made";
+  investigatorIds: string[];
+  currentInvestigatorIndex: number;
+};
 
 export type MonsterReckoningResume =
   | {
@@ -77,7 +82,10 @@ export type PendingDecision =
 
       onComplete?: EncounterEffect[];
 
-      resume?: MonsterReckoningResume;
+      resume?:
+        | MonsterReckoningResume
+        | DarkPowerResume
+        | ArrestsMadeResume;
     }
 
   | {
@@ -126,7 +134,10 @@ export type PendingDecision =
 
       onComplete?: EncounterEffect[];
 
-      resume?: MonsterReckoningResume;
+      resume?:
+        | MonsterReckoningResume
+        | DarkPowerResume
+        | ArrestsMadeResume;
     }
 
   | {
@@ -233,7 +244,10 @@ export type PendingDecision =
 
       investigatorId?: string;
 
-      resume?: MonsterReckoningResume;
+      resume?:
+        | MonsterReckoningResume
+        | DarkPowerResume
+        | ArrestsMadeResume;
     }
 
   | {
@@ -271,7 +285,9 @@ export type PendingDecision =
 
       source?: string;
 
-      resume?: MonsterReckoningResume;
+      resume?:
+        | MonsterReckoningResume
+        | DarkPowerResume;
     }
 
   | {
@@ -304,6 +320,8 @@ export type PendingDecision =
       monsterIds: string[];
 
       source?: string;
+      
+      investigatorId?: string;
 
       onMonsterSelected: EncounterEffect[];
 
@@ -371,7 +389,9 @@ export type PendingDecision =
 
       source?: string;
 
-      resume?: MonsterReckoningResume;
+      resume?:
+        | MonsterReckoningResume
+        | DarkPowerResume;
     }
   | {
       type: "mythos-reckoning-monsters";
@@ -400,6 +420,10 @@ export type PendingDecision =
       orderedMonsterIds: string[];
 
       source: "combat-order";
+
+      resume?:
+        | MonsterReckoningResume
+        | DarkPowerResume;
     }
   | {
       type: "mythos-ancient-one-reckoning";
@@ -522,6 +546,18 @@ export type PendingDecision =
 
       nextIconIndex: number;
     };
+
+export type DarkPowerResume = {
+  type: "mythos-dark-power";
+
+  investigatorIds: string[];
+
+  currentInvestigatorIndex: number;
+
+  monsterIds: string[];
+
+  resolvedMonsterIds: string[];
+};
 
 export interface PendingChoiceOption {
   id: string;

@@ -21,6 +21,13 @@ import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { resolveMythosSpecial } from "./resolveMythosSpecial";
 import { gainArtifact } from "./gainArtifact";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
+import { gainCondition } from "./gainCondition";
+import { CORE_MONSTERS } from "../../content/core/coreMonsters";
+import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
+import type { DarkPowerResume } from "../models/PendingDecision";
+import { startMonsterCombat } from "./startMonsterCombat";
+import { resolveMonsterToughness } from "./resolveMonsterToughness";
+import { spawnMonsterAtSpace } from "./spawnMonster";
 
 /*
  * ============================================================
@@ -40,7 +47,7 @@ const ALL_MYTHOS: MythosDefinition[] = [
  * ============================================================
  */
 
-function findMythos(
+export function getMythosById(
   mythosId: string,
 ): MythosDefinition {
   const mythos =
@@ -88,7 +95,7 @@ export function resolveMythos(
   }
 
   const mythos =
-    findMythos(
+    getMythosById(
       game.currentMythosId,
     );
 
@@ -341,6 +348,87 @@ export function resolveMythos(
         break;
       }
 
+      case "world-fights-back": {
+        const investigatorId =
+          currentGame.investigatorOrder[0];
+
+        if (!investigatorId) {
+          break;
+        }
+
+        const investigator =
+          currentGame.investigators[investigatorId];
+
+        if (!investigator) {
+          throw new Error(
+            `Investigator "${investigatorId}" does not exist.`,
+          );
+        }
+
+        const monsterIds =
+          investigator.spaceId
+            ? (
+                currentGame.board.spaces[
+                  investigator.spaceId
+                ]?.monsterIds ?? []
+              ).filter(
+                (monsterId) =>
+                  currentGame.monsters[monsterId] !==
+                  undefined,
+              )
+            : [];
+
+        const options = [
+          {
+            id: `world-fights-back:health:0`,
+            title: "Recover 2 Health",
+            description:
+              "Recover 2 Health.",
+          },
+          {
+            id: `world-fights-back:sanity:0`,
+            title: "Recover 2 Sanity",
+            description:
+              "Recover 2 Sanity.",
+          },
+        ];
+
+        if (monsterIds.length > 0) {
+          options.push({
+            id: `world-fights-back:monster:0`,
+            title: "Discard 1 Monster",
+            description:
+              "Choose 1 Monster on this Investigator's space to discard.",
+          });
+        }
+
+        options.push({
+          id: `world-fights-back:pass:0`,
+          title: "Do Nothing",
+          description:
+            "Do not use the effect.",
+        });
+
+        return {
+          ...currentGame,
+
+          pendingDecision: {
+            type: "choice",
+
+            title:
+              "The World Fights Back",
+
+            message:
+              "This Investigator may recover 2 Health, recover 2 Sanity, or discard 1 Monster from his space.",
+
+            options,
+
+            source:
+              `mythos:world-fights-back:0`,
+          },
+        };
+      }
+
       /*
        * --------------------------------------------------------
        * ROLL SINGLE DIE
@@ -520,6 +608,44 @@ export function resolveMythos(
 
         break;
       }
+
+      case "select-gate": {
+        const gateSpaceIds =
+          Object.entries(
+            currentGame.board.spaces,
+          )
+            .filter(
+              ([, space]) =>
+                space.gates.length > 0,
+            )
+            .map(([spaceId]) => spaceId);
+
+        if (gateSpaceIds.length === 0) {
+          break;
+        }
+
+        return {
+          ...currentGame,
+
+          pendingDecision: {
+            type: "select-space",
+
+            title:
+              "That Which Consumes",
+
+            message:
+              "As a group, choose 1 Gate on the game board to discard.",
+
+            spaceIds:
+              gateSpaceIds,
+
+            onSpaceSelected: [],
+
+            source:
+              "mythos:that-which-consumes",
+          },
+        };
+      }
       /*
        * --------------------------------------------------------
        * GAIN CONDITION
@@ -530,7 +656,329 @@ export function resolveMythos(
        */
 
       case "gain-condition": {
+        const investigatorId =
+          effect.investigator === "lead"
+            ? getLeadInvestigatorId(
+                currentGame,
+              )
+            : currentGame.activeInvestigatorId;
+
+        if (!investigatorId) {
+          throw new Error(
+            "No investigator available for Mythos Condition effect.",
+          );
+        }
+
+        if (!effect.conditionDefinitionId) {
+          throw new Error(
+            "Mythos Condition effect requires a conditionDefinitionId.",
+          );
+        }
+
+        currentGame =
+          gainCondition(
+            currentGame,
+            investigatorId,
+            effect.conditionDefinitionId,
+          );
+
         break;
+      }
+
+      /*
+       * --------------------------------------------------------
+       * SPAWN MONSTERS
+       * --------------------------------------------------------
+       *
+       * Spawn the specified number of Monsters at the
+       * requested Mythos location.
+       */
+
+      case "spawn-monsters": {
+        if (
+          effect.location ===
+          "active-expedition"
+        ) {
+          const activeExpeditionSpaceId =
+            currentGame.board.activeExpeditionSpaceId;
+
+          if (!activeExpeditionSpaceId) {
+            throw new Error(
+              "There is no Active Expedition space.",
+            );
+          }
+
+          for (
+            let i = 0;
+            i < effect.amount;
+            i++
+          ) {
+            currentGame =
+              spawnMonsterAtSpace(
+                currentGame,
+                activeExpeditionSpaceId,
+              );
+          }
+        }
+
+        break;
+      }
+
+      /*
+       * --------------------------------------------------------
+       * A DARK POWER
+       * --------------------------------------------------------
+       *
+       * Each Monster recovers all Health.
+       *
+       * Then each Investigator immediately encounters
+       * each Monster on his space, in the order of his choice.
+       */
+
+      case "mythos-dark-power": {
+        /*
+         * ------------------------------------------------------
+         * RECOVER ALL MONSTER HEALTH
+         * ------------------------------------------------------
+         */
+
+        const healedMonsters = {
+          ...currentGame.monsters,
+        };
+
+        for (
+          const monsterId of Object.keys(
+            healedMonsters,
+          )
+        ) {
+          const monster =
+            healedMonsters[monsterId];
+
+          if (!monster) {
+            continue;
+          }
+
+          const definition =
+            CORE_MONSTERS.find(
+              (monsterDefinition) =>
+                monsterDefinition.id ===
+                monster.definitionId,
+            ) ??
+            CORE_EPIC_MONSTERS.find(
+              (monsterDefinition) =>
+                monsterDefinition.id ===
+                monster.definitionId,
+            );
+
+          if (!definition) {
+            throw new Error(
+              `Monster definition "${monster.definitionId}" does not exist.`,
+            );
+          }
+
+          const toughness =
+            resolveMonsterToughness(
+              currentGame,
+              definition,
+            );
+
+          healedMonsters[monsterId] = {
+            ...monster,
+
+            health:
+              toughness,
+          };
+        }
+
+        currentGame = {
+          ...currentGame,
+
+          monsters:
+            healedMonsters,
+        };
+
+        /*
+         * ------------------------------------------------------
+         * FIND FIRST INVESTIGATOR WITH MONSTERS
+         * ------------------------------------------------------
+         */
+
+        const investigatorIds =
+          currentGame.investigatorOrder;
+
+        const firstInvestigatorIndex =
+          investigatorIds.findIndex(
+            (investigatorId) => {
+              const investigator =
+                currentGame.investigators[
+                  investigatorId
+                ];
+
+              if (!investigator?.spaceId) {
+                return false;
+              }
+
+              const space =
+                currentGame.board.spaces[
+                  investigator.spaceId
+                ];
+
+              if (!space) {
+                return false;
+              }
+
+              return space.monsterIds.some(
+                (monsterId) =>
+                  currentGame.monsters[
+                    monsterId
+                  ] !== undefined,
+              );
+            },
+          );
+
+        /*
+         * ------------------------------------------------------
+         * NO INVESTIGATORS WITH MONSTERS
+         * ------------------------------------------------------
+         */
+
+        if (
+          firstInvestigatorIndex === -1
+        ) {
+          return {
+            ...currentGame,
+
+            board: {
+              ...currentGame.board,
+
+              mythosDiscard: [
+                ...currentGame.board.mythosDiscard,
+                mythos,
+              ],
+            },
+
+            currentMythosId: null,
+
+            activeInvestigatorId: null,
+
+            pendingDecision: null,
+
+            combatOrder: null,
+          };
+        }
+
+        const investigatorId =
+          investigatorIds[
+            firstInvestigatorIndex
+          ];
+
+        if (!investigatorId) {
+          throw new Error(
+            "A Dark Power could not determine the first Investigator.",
+          );
+        }
+
+        const investigator =
+          currentGame.investigators[
+            investigatorId
+          ];
+
+        if (!investigator?.spaceId) {
+          throw new Error(
+            `Investigator "${investigatorId}" has no current space.`,
+          );
+        }
+
+        const monsterIds =
+          currentGame.board.spaces[
+            investigator.spaceId
+          ]?.monsterIds.filter(
+            (monsterId) =>
+              currentGame.monsters[
+                monsterId
+              ] !== undefined,
+          ) ?? [];
+
+        /*
+         * ------------------------------------------------------
+         * START A DARK POWER COMBAT SEQUENCE
+         * ------------------------------------------------------
+         */
+
+        const resume: DarkPowerResume = {
+          type:
+            "mythos-dark-power",
+
+          investigatorIds,
+
+          currentInvestigatorIndex:
+            firstInvestigatorIndex,
+
+          monsterIds,
+
+          resolvedMonsterIds: [],
+        };
+
+        const gameWithInvestigator =
+          {
+            ...currentGame,
+
+            activeInvestigatorId:
+              investigatorId,
+
+            combatOrder: null,
+          };
+
+        /*
+         * If there is only one Monster,
+         * there is no order choice to make.
+         */
+
+        if (monsterIds.length === 1) {
+          const firstMonsterId =
+            monsterIds[0];
+
+          if (!firstMonsterId) {
+            throw new Error(
+              "A Dark Power could not determine the Monster.",
+            );
+          }
+
+          return startMonsterCombat(
+            gameWithInvestigator,
+            firstMonsterId,
+            resume,
+          );
+        }
+
+        /*
+         * Multiple Monsters:
+         *
+         * The Investigator chooses their order.
+         */
+
+        return {
+          ...gameWithInvestigator,
+
+          pendingDecision: {
+            type: "combat-order",
+
+            title:
+              "A Dark Power — Combat Order",
+
+            message:
+              "Choose the order in which you will encounter the Monsters on your space.",
+
+            monsterIds,
+
+            orderedMonsterIds: [],
+
+            source:
+              "combat-order",
+
+            resume,
+          },
+        };
       }
 
       /*

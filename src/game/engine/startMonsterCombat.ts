@@ -4,12 +4,15 @@ import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
 import { resolveMonsterToughness } from "./resolveMonsterToughness";
 import { getMonsterCombatStartAbility } from "./monsterAbilities";
-import type { MonsterReckoningResume } from "../models/PendingDecision";
+import type {
+  MonsterReckoningResume,
+  DarkPowerResume,
+} from "../models/PendingDecision";
 
 export function startMonsterCombat(
   game: GameState,
   monsterId: string,
-  resume?: MonsterReckoningResume,
+  resume?: MonsterReckoningResume | DarkPowerResume,
 ): GameState {
   const monster =
     game.monsters[monsterId];
@@ -44,9 +47,14 @@ export function startMonsterCombat(
     resume?.type ===
       "monster-reckoning";
 
+  const isMythosDarkPowerCombat =
+    resume?.type ===
+      "mythos-dark-power";
+
   if (
     game.phase !== "encounter" &&
-    !isMonsterReckoningCombat
+    !isMonsterReckoningCombat &&
+    !isMythosDarkPowerCombat
   ) {
     throw new Error(
       "Combat can only start during the Encounter phase.",

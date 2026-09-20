@@ -1,9 +1,11 @@
 import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
+import { advanceDoom } from "./doomEngine";
 
 import { moveInvestigator } from "./moveInvestigator";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
 import { resumeDeepOnesAttack, resumeMysteryNearestClue } from "./resolveMysteryEnterPlay";
+import { getMythosById } from "./resolveMythos";
 
 export function resolveEncounterSpaceSelection(
   game: GameState,
@@ -451,6 +453,121 @@ export function resolveEncounterSpaceSelection(
       },
 
       pendingDecision: null,
+    };
+  }
+
+  /*
+  * ============================================================
+  * THAT WHICH CONSUMES
+  * ============================================================
+  */
+
+  if (
+    decision.source ===
+    "mythos:that-which-consumes"
+  ) {
+    const space =
+      game.board.spaces[spaceId];
+
+    if (!space) {
+      throw new Error(
+        `Space "${spaceId}" does not exist.`,
+      );
+    }
+
+    if (space.gates.length === 0) {
+      throw new Error(
+        `Space "${spaceId}" has no Gate.`,
+      );
+    }
+
+    const discardedGate =
+      space.gates[0];
+
+    if (!discardedGate) {
+      throw new Error(
+        `No Gate found at space "${spaceId}".`,
+      );
+    }
+
+    const currentOmenPosition =
+      game.ancientOne.omenPosition;
+
+    const currentOmen =
+      currentOmenPosition === 0
+        ? "green"
+        : currentOmenPosition === 2
+          ? "red"
+          : "blue";
+
+    let currentGame: GameState = {
+      ...game,
+
+      board: {
+        ...game.board,
+
+        spaces: {
+          ...game.board.spaces,
+
+          [spaceId]: {
+            ...space,
+
+            gates:
+              space.gates.slice(1),
+          },
+        },
+
+        gateDiscard: [
+          ...game.board.gateDiscard,
+          discardedGate,
+        ],
+      },
+
+      pendingDecision: null,
+    };
+
+    /*
+    * If the discarded Gate does not correspond
+    * to the current Omen, advance Doom by 1.
+    */
+    if (
+      discardedGate.omen !== currentOmen
+    ) {
+      currentGame =
+        advanceDoom(
+          currentGame,
+          1,
+        );
+    }
+
+    const mythosId =
+      currentGame.currentMythosId;
+
+    if (!mythosId) {
+      throw new Error(
+        "That Which Consumes is missing current Mythos.",
+      );
+    }
+
+    const mythos =
+      getMythosById(
+        mythosId,
+      );
+
+    return {
+      ...currentGame,
+
+      board: {
+        ...currentGame.board,
+
+        mythosDiscard: [
+          ...currentGame.board.mythosDiscard,
+          mythos,
+        ],
+      },
+
+      currentMythosId:
+        null,
     };
   }
 

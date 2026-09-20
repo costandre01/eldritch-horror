@@ -6,6 +6,9 @@ import { discardCondition } from "./discardCondition";
 import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
+import { resumeSilverTwilightAid } from "./resolveMythosSpecial";
+import { startArrestsMade } from "./resolveMythosSpecial";
+import { gainCondition } from "./gainCondition";
 
 export type CardSelectionResult =
   | {
@@ -230,7 +233,11 @@ export function resolveCardSelection(
           source:
             `combat:${monsterId}`,
 
-          resume: decision.resume,
+          resume:
+            decision.resume?.type ===
+              "mythos-arrests-made"
+              ? undefined
+              : decision.resume,
         },
       };
 
@@ -304,6 +311,91 @@ export function resolveCardSelection(
 
         pendingDecision:
           null,
+      };
+    }
+
+    /*
+    * ==========================================================
+    * SILVER TWILIGHT AID — GAIN SPELL
+    * ==========================================================
+    */
+
+    else if (
+      source.startsWith(
+        "mythos:silver-twilight-aid:spell:",
+      )
+    ) {
+      const selectedSpells =
+        selectedCardIds.filter(
+          (id) =>
+            currentGame.board.spellDeck.some(
+              (spell) =>
+                spell.id === id,
+            ) &&
+            currentGame.spells[
+              id
+            ] !== undefined,
+        );
+
+      if (
+        selectedSpells.length !== 1
+      ) {
+        return {
+          type: "ignore",
+          game,
+        };
+      }
+
+      const spellDeck =
+        currentGame.board.spellDeck.filter(
+          (spell) =>
+            !selectedSpells.includes(
+              spell.id,
+            ),
+        );
+
+      currentGame = {
+        ...currentGame,
+
+        board: {
+          ...currentGame.board,
+
+          spellDeck,
+        },
+
+        investigators: {
+          ...currentGame.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            spellIds: [
+              ...investigator.spellIds,
+              ...selectedSpells,
+            ],
+          },
+        },
+
+        pendingDecision: null,
+      };
+
+      const sourceParts =
+        source.split(":");
+
+      const currentIndex =
+        Number(
+          sourceParts[3] ?? "0",
+        );
+
+      return {
+        type: "state",
+
+        game:
+          resumeSilverTwilightAid(
+            currentGame,
+            map,
+            currentIndex + 1,
+          ),
       };
     }
 
@@ -912,7 +1004,11 @@ export function resolveCardSelection(
           source:
             `combat:${monsterId}`,
 
-          resume: decision.resume,
+          resume:
+            decision.resume?.type ===
+              "mythos-arrests-made"
+              ? undefined
+              : decision.resume,
         },
       };
 
@@ -1150,6 +1246,119 @@ export function resolveCardSelection(
         pendingDecision:
           null,
       };
+    }
+
+    /*
+    * ============================================================
+    * MYTHOS — ARRESTS MADE IN MURDER CASE!
+    * DISCARD WEAPON
+    * ============================================================
+    */
+
+    else if (
+      source.startsWith(
+        "mythos:arrests-made:weapon:",
+      )
+    ) {
+      /*
+      * Must select exactly 1 Weapon.
+      */
+
+      if (
+        selectedCardIds.length !== 1
+      ) {
+        return {
+          type: "ignore",
+          game,
+        };
+      }
+
+      const selectedAssetId =
+        selectedCardIds[0];
+
+      if (!selectedAssetId) {
+        return {
+          type: "ignore",
+          game,
+        };
+      }
+
+      const selectedAsset =
+        currentGame.assets[
+          selectedAssetId
+        ];
+
+      /*
+      * Verify that the selected Asset
+      * is a Weapon owned by this Investigator.
+      */
+
+      if (
+        !selectedAsset ||
+        !selectedAsset.traits.includes(
+          "weapon",
+        ) ||
+        !investigator.assetIds.includes(
+          selectedAssetId,
+        )
+      ) {
+        return {
+          type: "ignore",
+          game,
+        };
+      }
+
+      /*
+      * Discard the selected Weapon.
+      */
+
+      currentGame =
+        discardAsset(
+          currentGame,
+          selectedAssetId,
+        );
+
+      /*
+      * Gain Detained.
+      */
+
+      currentGame =
+        gainCondition(
+          currentGame,
+          investigatorId,
+          "condition-detained",
+        );
+
+      /*
+      * Continue with the original
+      * list of eligible Investigators.
+      */
+
+      const resume =
+        decision.resume;
+
+      if (
+        !resume ||
+        resume.type !==
+          "mythos-arrests-made"
+      ) {
+        throw new Error(
+          "Arrests Made Weapon selection is missing its resume.",
+        );
+      }
+
+      currentGame =
+        startArrestsMade(
+          {
+            ...currentGame,
+
+            pendingDecision:
+              null,
+          },
+          map,
+          resume.investigatorIds,
+          resume.currentInvestigatorIndex + 1,
+        );
     }
 
     /*

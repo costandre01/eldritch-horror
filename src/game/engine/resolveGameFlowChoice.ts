@@ -18,7 +18,7 @@ import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 import { gainCondition } from "./gainCondition";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
-import { resolveMythosSpecial } from "./resolveMythosSpecial";
+import { resolveMythosSpecial, resumeSilverTwilightAid } from "./resolveMythosSpecial";
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -34,6 +34,32 @@ export function resolveGameFlowChoice(
   ) {
     return game;
   }
+
+  const investigatorHasMonster = (
+    state: GameState,
+    investigatorId: string,
+  ): boolean => {
+    const investigator =
+      state.investigators[investigatorId];
+
+    if (!investigator?.spaceId) {
+      return false;
+    }
+
+    const space =
+      state.board.spaces[
+        investigator.spaceId
+      ];
+
+    if (!space) {
+      return false;
+    }
+
+    return space.monsterIds.some(
+      (monsterId) =>
+        state.monsters[monsterId] !== undefined,
+    );
+  };
 
   /*
   * ============================================================
@@ -879,6 +905,712 @@ export function resolveGameFlowChoice(
           `byakhee-move:${moveNumber + 1}`,
       },
     };
+  }
+
+  /*
+  * ============================================================
+  * SILVER TWILIGHT AID
+  * ============================================================
+  */
+
+  if (
+    decision.source?.startsWith(
+      "mythos:silver-twilight-aid:",
+    )
+  ) {
+    const sourceParts =
+      decision.source.split(":");
+
+    const investigatorIndex =
+      Number(
+        sourceParts[2] ?? "0",
+      );
+
+    if (
+      !Number.isInteger(
+        investigatorIndex,
+      ) ||
+      investigatorIndex < 0
+    ) {
+      return game;
+    }
+
+    const investigatorId =
+      game.investigatorOrder[
+        investigatorIndex
+      ];
+
+    if (!investigatorId) {
+      return game;
+    }
+
+    const investigator =
+      game.investigators[
+        investigatorId
+      ];
+
+    if (!investigator) {
+      return game;
+    }
+
+    /*
+    * ==========================================================
+    * GAIN CLUE
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `silver-twilight-aid:clue:${investigatorIndex}`
+    ) {
+      const updatedGame: GameState = {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            clues:
+              investigator.clues + 1,
+          },
+        },
+
+        pendingDecision: null,
+      };
+
+      return resumeSilverTwilightAid(
+        updatedGame,
+        map,
+        investigatorIndex + 1,
+      );
+    }
+
+    /*
+    * ==========================================================
+    * GAIN ASSET
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `silver-twilight-aid:asset:${investigatorIndex}`
+    ) {
+      if (
+        game.board.assetDeck.length === 0
+      ) {
+        return resumeSilverTwilightAid(
+          {
+            ...game,
+
+            pendingDecision: null,
+          },
+          map,
+          investigatorIndex + 1,
+        );
+      }
+
+      const assetDeck = [
+        ...game.board.assetDeck,
+      ];
+
+      const randomIndex =
+        Math.floor(
+          Math.random() *
+            assetDeck.length,
+        );
+
+      const selectedAsset =
+        assetDeck.splice(
+          randomIndex,
+          1,
+        )[0];
+
+      if (!selectedAsset) {
+        return resumeSilverTwilightAid(
+          {
+            ...game,
+
+            pendingDecision: null,
+          },
+          map,
+          investigatorIndex + 1,
+        );
+      }
+
+      const updatedGame: GameState = {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            assetIds: [
+              ...investigator.assetIds,
+              selectedAsset.id,
+            ],
+          },
+        },
+
+        board: {
+          ...game.board,
+
+          assetDeck,
+        },
+
+        pendingDecision: null,
+      };
+
+      return resumeSilverTwilightAid(
+        updatedGame,
+        map,
+        investigatorIndex + 1,
+      );
+    }
+
+    /*
+    * ==========================================================
+    * GAIN SPELL
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `silver-twilight-aid:spell:${investigatorIndex}`
+    ) {
+      if (
+        game.board.spellDeck.length === 0
+      ) {
+        return resumeSilverTwilightAid(
+          {
+            ...game,
+
+            pendingDecision: null,
+          },
+          map,
+          investigatorIndex + 1,
+        );
+      }
+
+      const spellIds =
+        game.board.spellDeck.map(
+          (spell) =>
+            spell.id,
+        );
+
+      return {
+        ...game,
+
+        pendingDecision: {
+          type: "select-card",
+
+          title:
+            "Silver Twilight Aid — Choose a Spell",
+
+          message:
+            "Choose 1 Spell.",
+
+          cardIds:
+            spellIds,
+
+          selectableCardIds:
+            spellIds,
+
+          minSelections: 1,
+
+          maxSelections: 1,
+
+          selectedCardIds: [],
+
+          source:
+            `mythos:silver-twilight-aid:spell:${investigatorIndex}`,
+
+          investigatorId,
+        },
+      };
+    }
+
+    /*
+    * ==========================================================
+    * DO NOTHING
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `silver-twilight-aid:pass:${investigatorIndex}`
+    ) {
+      return resumeSilverTwilightAid(
+        {
+          ...game,
+          pendingDecision: null,
+        },
+        map,
+        investigatorIndex + 1,
+      );
+    }
+
+    return game;
+  }
+
+  /*
+  * ============================================================
+  * THE WORLD FIGHTS BACK
+  * ============================================================
+  */
+
+  if (
+    decision.source?.startsWith(
+      "mythos:world-fights-back:",
+    )
+  ) {
+    const sourceParts =
+      decision.source.split(":");
+
+    const investigatorIndex =
+      Number(
+        sourceParts[2] ?? "0",
+      );
+
+    if (
+      !Number.isInteger(
+        investigatorIndex,
+      ) ||
+      investigatorIndex < 0
+    ) {
+      return game;
+    }
+
+    const investigatorId =
+      game.investigatorOrder[
+        investigatorIndex
+      ];
+
+    if (!investigatorId) {
+      return game;
+    }
+
+    const investigator =
+      game.investigators[
+        investigatorId
+      ];
+
+    if (!investigator) {
+      return game;
+    }
+
+    /*
+    * ==========================================================
+    * RECOVER 2 HEALTH
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `world-fights-back:health:${investigatorIndex}`
+    ) {
+      const updatedGame: GameState = {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            health: Math.min(
+              investigator.maxHealth,
+              investigator.health + 2,
+            ),
+          },
+        },
+
+        pendingDecision: null,
+      };
+
+      const nextIndex =
+        investigatorIndex + 1;
+
+      const nextInvestigatorId =
+        game.investigatorOrder[
+          nextIndex
+        ];
+
+      if (!nextInvestigatorId) {
+        return updatedGame;
+      }
+
+      return {
+        ...updatedGame,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "The World Fights Back",
+
+          message:
+            "This Investigator may recover 2 Health, recover 2 Sanity, or discard 1 Monster from his space.",
+
+          options:
+            [
+              {
+                id:
+                  `world-fights-back:health:${nextIndex}`,
+
+                title:
+                  "Recover 2 Health",
+
+                description:
+                  "Recover 2 Health.",
+              },
+
+              {
+                id:
+                  `world-fights-back:sanity:${nextIndex}`,
+
+                title:
+                  "Recover 2 Sanity",
+
+                description:
+                  "Recover 2 Sanity.",
+              },
+
+              ...(
+                investigatorHasMonster(
+                  updatedGame,
+                  nextInvestigatorId,
+                )
+                  ? [
+                      {
+                        id:
+                          `world-fights-back:monster:${nextIndex}`,
+
+                        title:
+                          "Discard 1 Monster",
+
+                        description:
+                          "Choose 1 Monster on this Investigator's space to discard.",
+                      },
+                    ]
+                  : []
+              ),
+
+              {
+                id:
+                  `world-fights-back:pass:${nextIndex}`,
+
+                title:
+                  "Do Nothing",
+
+                description:
+                  "Do not use the effect.",
+              },
+            ],
+
+          source:
+            `mythos:world-fights-back:${nextIndex}`,
+        },
+      };
+    }
+
+    /*
+    * ==========================================================
+    * RECOVER 2 SANITY
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `world-fights-back:sanity:${investigatorIndex}`
+    ) {
+      const updatedGame: GameState = {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            sanity: Math.min(
+              investigator.maxSanity,
+              investigator.sanity + 2,
+            ),
+          },
+        },
+
+        pendingDecision: null,
+      };
+
+      const nextIndex =
+        investigatorIndex + 1;
+
+      const nextInvestigatorId =
+        game.investigatorOrder[
+          nextIndex
+        ];
+
+      if (!nextInvestigatorId) {
+        return updatedGame;
+      }
+
+      return {
+        ...updatedGame,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "The World Fights Back",
+
+          message:
+            "This Investigator may recover 2 Health, recover 2 Sanity, or discard 1 Monster from his space.",
+
+          options:
+            [
+              {
+                id:
+                  `world-fights-back:health:${nextIndex}`,
+
+                title:
+                  "Recover 2 Health",
+
+                description:
+                  "Recover 2 Health.",
+              },
+
+              {
+                id:
+                  `world-fights-back:sanity:${nextIndex}`,
+
+                title:
+                  "Recover 2 Sanity",
+
+                description:
+                  "Recover 2 Sanity.",
+              },
+
+              ...(
+                investigatorHasMonster(
+                  updatedGame,
+                  nextInvestigatorId,
+                )
+                  ? [
+                      {
+                        id:
+                          `world-fights-back:monster:${nextIndex}`,
+
+                        title:
+                          "Discard 1 Monster",
+
+                        description:
+                          "Choose 1 Monster on this Investigator's space to discard.",
+                      },
+                    ]
+                  : []
+              ),
+
+              {
+                id:
+                  `world-fights-back:pass:${nextIndex}`,
+
+                title:
+                  "Do Nothing",
+
+                description:
+                  "Do not use the effect.",
+              },
+            ],
+
+          source:
+            `mythos:world-fights-back:${nextIndex}`,
+        },
+      };
+    }
+
+    /*
+    * ==========================================================
+    * DISCARD MONSTER
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `world-fights-back:monster:${investigatorIndex}`
+    ) {
+      const spaceId =
+        investigator.spaceId;
+
+      if (!spaceId) {
+        return game;
+      }
+
+      const space =
+        game.board.spaces[
+          spaceId
+        ];
+
+      if (!space) {
+        return game;
+      }
+
+      const monsterIds =
+        space.monsterIds.filter(
+          (id) =>
+            game.monsters[id] !==
+            undefined,
+        );
+
+      if (
+        monsterIds.length === 0
+      ) {
+        return game;
+      }
+
+      return {
+        ...game,
+
+        pendingDecision: {
+          type: "select-monster",
+
+          title:
+            "The World Fights Back — Choose Monster",
+
+          message:
+            "Choose 1 Monster on this Investigator's space to discard.",
+
+          monsterIds,
+
+          onMonsterSelected: [
+            {
+              type:
+                "discard-selected-monster",
+            },
+          ],
+
+          onComplete: [],
+
+          source:
+            `mythos:world-fights-back-monster:${investigatorIndex}`,
+
+          investigatorId,
+        },
+      };
+    }
+
+    /*
+    * ==========================================================
+    * DO NOTHING
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `world-fights-back:pass:${investigatorIndex}`
+    ) {
+      const nextIndex =
+        investigatorIndex + 1;
+
+      const nextInvestigatorId =
+        game.investigatorOrder[
+          nextIndex
+        ];
+
+      if (!nextInvestigatorId) {
+        return {
+          ...game,
+
+          pendingDecision: null,
+        };
+      }
+
+      const nextInvestigator =
+        game.investigators[
+          nextInvestigatorId
+        ];
+
+      if (!nextInvestigator) {
+        return game;
+      }
+
+      return {
+        ...game,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "The World Fights Back",
+
+          message:
+            "This Investigator may recover 2 Health, recover 2 Sanity, or discard 1 Monster from his space.",
+
+          options: [
+            {
+              id:
+                `world-fights-back:health:${nextIndex}`,
+
+              title:
+                "Recover 2 Health",
+
+              description:
+                "Recover 2 Health.",
+            },
+
+            {
+              id:
+                `world-fights-back:sanity:${nextIndex}`,
+
+              title:
+                "Recover 2 Sanity",
+
+              description:
+                "Recover 2 Sanity.",
+            },
+
+            ...(
+              investigatorHasMonster(
+                game,
+                nextInvestigatorId,
+              )
+                ? [
+                    {
+                      id:
+                        `world-fights-back:monster:${nextIndex}`,
+
+                      title:
+                        "Discard 1 Monster",
+
+                      description:
+                        "Choose 1 Monster on this Investigator's space to discard.",
+                    },
+                  ]
+                : []
+            ),
+
+            {
+              id:
+                `world-fights-back:pass:${nextIndex}`,
+
+              title:
+                "Do Nothing",
+
+              description:
+                "Do not use the effect.",
+            },
+          ],
+
+          source:
+            `mythos:world-fights-back:${nextIndex}`,
+        },
+      };
+    }
+
+    return game;
   }
 
   /*

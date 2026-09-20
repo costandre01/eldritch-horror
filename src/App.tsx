@@ -1669,6 +1669,7 @@ function App() {
         resolveCombatOrder(
           game,
           decision.orderedMonsterIds,
+          decision.resume,
         );
 
       setGame(updatedGame);
