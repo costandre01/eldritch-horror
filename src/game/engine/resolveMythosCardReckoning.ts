@@ -13,6 +13,7 @@ import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { advanceDoom } from "./doomEngine";
 import { spawnMonsterAtSpace } from "./spawnMonster";
 import { advanceOmen } from "./omenEngine";
+import { resolveEncounterEffects } from "./resolveEncounterEffects";
 
 const ALL_MYTHOS = [
   ...easyMythos,
@@ -56,6 +57,31 @@ export function resolveMythosCardReckoning(
    */
 
   if (!mythosId) {
+    const remainingPasses =
+        decision.remainingPasses ?? 1;
+
+    /*
+     * From Beyond:
+     *
+     * Se ainda existir uma segunda passagem,
+     * reiniciamos os Mythos que possuem Reckoning.
+     */
+
+    if (remainingPasses > 1) {
+        return {
+            ...game,
+
+            pendingDecision: {
+                ...decision,
+
+                resolvedMythosIds: [],
+
+                remainingPasses:
+                    remainingPasses - 1,
+            },
+        };
+    }
+
     const gameWithoutDecision: GameState = {
         ...game,
         pendingDecision: null,
@@ -66,7 +92,7 @@ export function resolveMythosCardReckoning(
         _map,
         decision.nextIconIndex,
     );
-    }
+  }
 
   const mythos =
     ALL_MYTHOS.find(
@@ -733,6 +759,77 @@ export function resolveMythosCardReckoning(
 
   if (
     mythos.reckoning?.type ===
+    "spreading-sickness"
+  ) {
+      const currentHealthTokens =
+          mythosInPlay.healthTokens ?? 0;
+
+      const healthTokens =
+          currentHealthTokens + 1;
+
+      const updatedMythosInPlay = [
+          ...game.board.mythosInPlay,
+      ];
+
+      updatedMythosInPlay[
+          mythosInPlayIndex
+      ] = {
+          ...mythosInPlay,
+
+          healthTokens,
+      };
+
+      let currentGame: GameState = {
+          ...game,
+
+          board: {
+              ...game.board,
+
+              mythosInPlay:
+                  updatedMythosInPlay,
+          },
+      };
+
+      /*
+      * Each investigator loses 1 Health
+      * for each Health token on the card.
+      */
+
+      for (
+          const investigatorId of
+              currentGame.investigatorOrder
+      ) {
+          currentGame =
+              resolveEncounterEffects(
+                  currentGame,
+                  investigatorId,
+                  [
+                      {
+                          type: "lose-health",
+                          amount:
+                              healthTokens,
+                      },
+                  ],
+                  _map,
+              );
+      }
+
+      return {
+          ...currentGame,
+
+          pendingDecision: {
+              ...decision,
+
+              resolvedMythosIds: [
+                  ...decision.resolvedMythosIds,
+                  mythosId,
+              ],
+          },
+      };
+  }
+
+  if (
+    mythos.reckoning?.type ===
     "discard-eldritch-token"
   ) {
     const eldritchTokens =
@@ -1122,6 +1219,51 @@ export function resolveMythosCardReckoning(
 
     return {
       ...advancedGame,
+
+      pendingDecision: {
+        ...decision,
+
+        resolvedMythosIds: [
+          ...decision.resolvedMythosIds,
+          mythosId,
+        ],
+      },
+    };
+  }
+
+  /*
+  * ============================================================
+  * STRANGE SIGHTINGS
+  * ============================================================
+  *
+  * Discard this Mythos card during Reckoning.
+  */
+
+  if (
+    mythos.reckoning?.type ===
+    "strange-sightings"
+  ) {
+    const remainingMythosInPlay =
+      game.board.mythosInPlay.filter(
+        (entry) =>
+          entry.definitionId !==
+          mythos.id,
+      );
+
+    return {
+      ...game,
+
+      board: {
+        ...game.board,
+
+        mythosInPlay:
+          remainingMythosInPlay,
+
+        mythosDiscard: [
+          ...game.board.mythosDiscard,
+          mythos,
+        ],
+      },
 
       pendingDecision: {
         ...decision,

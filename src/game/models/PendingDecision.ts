@@ -53,6 +53,8 @@ export type MonsterReckoningResume =
       nextIconIndex: number;
 
       resolvedMonsterIds: string[];
+
+      remainingPasses?: number;
     };
 
 export type AncientOneAwakeningResume =
@@ -439,6 +441,8 @@ export type PendingDecision =
       source: "mythos:reckoning-monsters";
 
       nextIconIndex: number;
+
+      remainingPasses?: number;
     }
   | {
       type: "combat-order";
@@ -507,6 +511,8 @@ export type PendingDecision =
       source: "mythos:card-reckoning";
 
       nextIconIndex: number;
+
+      remainingPasses?: number;
     }
   | {
       type: "mythos-yog-sothoth-spell";

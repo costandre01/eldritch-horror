@@ -81,6 +81,14 @@ export type MythosReckoning =
 
   | {
       type: "faded-from-society";
+    }
+
+  | { 
+      type: "spreading-sickness" 
+    }
+    
+  | {
+      type: "strange-sightings";
     };
 
 export interface MythosDefinition {

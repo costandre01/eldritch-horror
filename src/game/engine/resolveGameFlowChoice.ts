@@ -29,6 +29,7 @@ import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { returnRandomSolvedMysteryToDeck } from "./mysteryEngine";
 import { advanceDoom } from "./doomEngine";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
+import { startMythosCardReckoning } from "./startMythosCardReckoning";
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -2990,6 +2991,169 @@ export function resolveGameFlowChoice(
   }
 
   /*
+  * ============================================================
+  * FROM BEYOND
+  * ============================================================
+  */
+
+  if (
+    decision.source ===
+    "mythos:from-beyond"
+  ) {
+    const clueCost =
+      Math.ceil(
+        game.investigatorOrder.length /
+          2,
+      );
+
+    /*
+    * ==========================================================
+    * SPEND CLUES
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      "from-beyond:spend-clues"
+    ) {
+      const totalClues =
+        game.investigatorOrder.reduce(
+          (
+            total,
+            investigatorId,
+          ) =>
+            total +
+            (
+              game.investigators[
+                investigatorId
+              ]?.clues ?? 0
+            ),
+          0,
+        );
+
+      if (
+        totalClues <
+        clueCost
+      ) {
+        return game;
+      }
+
+      let remainingClues =
+        clueCost;
+
+      const updatedInvestigators = {
+        ...game.investigators,
+      };
+
+      for (
+        const investigatorId of
+          game.investigatorOrder
+      ) {
+        if (
+          remainingClues <=
+          0
+        ) {
+          break;
+        }
+
+        const investigator =
+          updatedInvestigators[
+            investigatorId
+          ];
+
+        if (!investigator) {
+          continue;
+        }
+
+        const spent =
+          Math.min(
+            investigator.clues,
+            remainingClues,
+          );
+
+        updatedInvestigators[
+          investigatorId
+        ] = {
+          ...investigator,
+
+          clues:
+            investigator.clues -
+            spent,
+        };
+
+        remainingClues -=
+          spent;
+      }
+
+      const fromBeyond =
+        [
+          ...easyMythos,
+          ...normalMythos,
+          ...hardMythos,
+        ].find(
+          (definition) =>
+            definition.id ===
+            "from-beyond",
+        );
+
+      if (!fromBeyond) {
+        return game;
+      }
+
+      return {
+        ...game,
+
+        investigators:
+          updatedInvestigators,
+
+        board: {
+          ...game.board,
+
+          mythosDiscard: [
+            ...game.board.mythosDiscard,
+            fromBeyond,
+          ],
+        },
+
+        currentMythosId:
+          null,
+
+        pendingDecision:
+          null,
+
+        activeInvestigatorId:
+          null,
+      };
+    }
+
+    /*
+    * ==========================================================
+    * DO NOT SPEND CLUES
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      "from-beyond:resolve-reckonings"
+    ) {
+      return startMythosCardReckoning(
+        {
+          ...game,
+
+          pendingDecision:
+            null,
+        },
+        map,
+        0,
+        2,
+      );
+    }
+
+    return game;
+  }
+
+
+  /*
    * ============================================================
    * ENCOUNTER DECK SELECTION
    * ============================================================
@@ -3182,6 +3346,102 @@ export function resolveGameFlowChoice(
             game,
             dimensionsCollide,
             "dimensions-collide-encounter",
+            map,
+        );
+    }
+
+    /*
+    * ============================================================
+    * MYSTERIOUS LIGHTS — MI-GO OUTPOST
+    * ============================================================
+    */
+
+    if (
+        choiceId ===
+        "mysterious-lights-encounter"
+    ) {
+        const mysteriousLights =
+            [
+                ...easyMythos,
+                ...normalMythos,
+                ...hardMythos,
+            ].find(
+                (definition) =>
+                    definition.id ===
+                        "mysterious-lights" &&
+                    definition.type ===
+                        "rumor",
+            );
+
+        if (!mysteriousLights) {
+            return game;
+        }
+
+        const isMysteriousLightsInPlay =
+            game.board.mythosInPlay.some(
+                (entry) =>
+                    entry.definitionId ===
+                    "mysterious-lights",
+            );
+
+        if (
+            !isMysteriousLightsInPlay
+        ) {
+            return game;
+        }
+
+        return resolveMythosSpecial(
+            game,
+            mysteriousLights,
+            "mysterious-lights-encounter",
+            map,
+        );
+    }
+
+    /*
+    * ============================================================
+    * SPREADING SICKNESS — BOMBAY DOCTORS
+    * ============================================================
+    */
+
+    if (
+        choiceId ===
+        "spreading-sickness-encounter"
+    ) {
+        const spreadingSickness =
+            [
+                ...easyMythos,
+                ...normalMythos,
+                ...hardMythos,
+            ].find(
+                (definition) =>
+                    definition.id ===
+                        "spreading-sickness" &&
+                    definition.type ===
+                        "rumor",
+            );
+
+        if (!spreadingSickness) {
+            return game;
+        }
+
+        const isSpreadingSicknessInPlay =
+            game.board.mythosInPlay.some(
+                (entry) =>
+                    entry.definitionId ===
+                    "spreading-sickness",
+            );
+
+        if (
+            !isSpreadingSicknessInPlay
+        ) {
+            return game;
+        }
+
+        return resolveMythosSpecial(
+            game,
+            spreadingSickness,
+            "spreading-sickness-encounter",
             map,
         );
     }

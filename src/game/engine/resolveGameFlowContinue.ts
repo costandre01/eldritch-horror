@@ -1140,6 +1140,180 @@ export function resolveGameFlowContinue(
 
     /*
     * ==========================================================
+    * EYES EVERYWHERE COMBAT
+    * ==========================================================
+    *
+    * The Investigator was defeated during the
+    * Eyes Everywhere Monster ambush.
+    *
+    * The ambush sequence must continue with the
+    * next Investigator instead of returning to
+    * the normal Encounter flow.
+    */
+
+    if (
+      decision.resume?.type ===
+      "eyes-everywhere"
+    ) {
+      const resume =
+        decision.resume;
+
+      const defeatedInvestigatorId =
+        decision.source.split(":")[1];
+
+      if (!defeatedInvestigatorId) {
+        throw new Error(
+          "Eyes Everywhere defeat decision is missing investigatorId.",
+        );
+      }
+
+      /*
+      * Mark the Investigator as defeated.
+      */
+
+      let gameAfterDefeat: GameState = {
+        ...finishedGame,
+
+        activeInvestigatorId:
+          null,
+
+        combatOrder:
+          null,
+
+        investigators: {
+          ...finishedGame.investigators,
+
+          [defeatedInvestigatorId]: {
+            ...finishedGame.investigators[
+              defeatedInvestigatorId
+            ],
+
+            isDefeated: true,
+          },
+        },
+      };
+
+      /*
+      * ----------------------------------------------------------
+      * FIND NEXT INVESTIGATOR
+      * ----------------------------------------------------------
+      */
+
+      const nextIndex =
+        resume.currentInvestigatorIndex + 1;
+
+      /*
+      * ----------------------------------------------------------
+      * MORE INVESTIGATORS
+      * ----------------------------------------------------------
+      */
+
+      if (
+        nextIndex <
+        resume.investigatorIds.length
+      ) {
+        const nextInvestigatorId =
+          resume.investigatorIds[
+            nextIndex
+          ];
+
+        if (!nextInvestigatorId) {
+          throw new Error(
+            "Eyes Everywhere could not determine the next Investigator.",
+          );
+        }
+
+        const mythos =
+          [
+            ...easyMythos,
+            ...normalMythos,
+            ...hardMythos,
+          ].find(
+            (definition) =>
+              definition.id ===
+              "eyes-everywhere",
+          );
+
+        if (!mythos) {
+          throw new Error(
+            'Mythos "eyes-everywhere" does not exist.',
+          );
+        }
+
+        return {
+          game:
+            startEyesEverywhere(
+              {
+                ...gameAfterDefeat,
+
+                pendingDecision:
+                  null,
+
+                activeInvestigatorId:
+                  nextInvestigatorId,
+              },
+              mythos,
+              nextIndex,
+            ),
+
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+
+      /*
+      * ----------------------------------------------------------
+      * ALL INVESTIGATORS FINISHED
+      * ----------------------------------------------------------
+      */
+
+      const eyesEverywhere =
+        [
+          ...easyMythos,
+          ...normalMythos,
+          ...hardMythos,
+        ].find(
+          (definition) =>
+            definition.id ===
+            "eyes-everywhere",
+        );
+
+      if (!eyesEverywhere) {
+        throw new Error(
+          'Mythos "eyes-everywhere" does not exist.',
+        );
+      }
+
+      return {
+        game: {
+          ...gameAfterDefeat,
+
+          board: {
+            ...gameAfterDefeat.board,
+
+            mythosDiscard: [
+              ...gameAfterDefeat.board.mythosDiscard,
+              eyesEverywhere,
+            ],
+          },
+
+          currentMythosId:
+            null,
+
+          activeInvestigatorId:
+            null,
+
+          pendingDecision:
+            null,
+        },
+
+        resetEncounterStartedForTurn:
+          false,
+      };
+    }
+
+    /*
+    * ==========================================================
     * A DARK POWER COMBAT
     * ==========================================================
     *

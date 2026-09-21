@@ -190,23 +190,10 @@ export const hardMythos: MythosDefinition[] = [
             "Resolve the Reckoning effect on each Mythos card in play twice unless investigators, as a group, spend Clues equal to half the number of investigators. If there are no Mythos cards in play with a Reckoning effect, advance Doom by 1.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Os investigadores, em grupo, podem gastar
-            * Clues igual a metade do número de investigadores.
-            *
-            * Se NÃO gastarem:
-            *
-            *   -> Resolver o efeito de Reckoning de
-            *      CADA Mythos em jogo.
-            *   -> Repetir esses efeitos uma segunda vez.
-            *
-            * Se NÃO houver nenhum Mythos em jogo com
-            * efeito de Reckoning:
-            *
-            *   -> Advance Doom by 1.
-            */
+            {
+                type: "mythos-special",
+                id: "from-beyond",
+            },
         ],
     },
 
@@ -239,33 +226,11 @@ export const hardMythos: MythosDefinition[] = [
             "Gates cannot be closed.\n\nAs an encounter, an investigator on space 13 may fly a plane over the arctic ice to scout for the source of these unusually intense northern lights. If he passes, he catches sight of an unoccupied mi-go outpost and attempts to turn off their bizarre devices; he may spend Clues equal to half the number of investigators to solve this Rumor.",
 
         effects: [
-            /*
-            * TODO: MYSTERIOUS LIGHTS
-            *
-            * While this Rumor is in play:
-            *
-            *   -> Gates cannot be closed.
-            *
-            * As an Encounter:
-            *
-            *   -> If an investigator is on Space 13,
-            *      he may attempt an Observation test.
-            *
-            *   -> If he passes:
-            *        He may spend Clues equal to half
-            *        the number of investigators.
-            *
-            *   -> If he spends the required Clues:
-            *        Solve this Rumor.
-            */
+            {
+                type: "mythos-special",
+                id: "mysterious-lights",
+            },
         ],
-
-        /*
-        * TODO: ONGOING RUMOR
-        *
-        * Prevent investigators from closing Gates
-        * while this Rumor is in play.
-        */
     },
 
     {
@@ -299,15 +264,10 @@ export const hardMythos: MythosDefinition[] = [
             "Move the Omen counterclockwise by 1. Then advance Doom by 1 for each Gate on the game board that corresponds to the current Omen.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Move the Omen counterclockwise by 1.
-            *
-            * Then:
-            *   -> Count Gates matching the current Omen.
-            *   -> Advance Doom by that amount.
-            */
+            {
+                type: "mythos-special",
+                id: "perplexing-stars",
+            },
         ],
     },
 
@@ -342,17 +302,10 @@ export const hardMythos: MythosDefinition[] = [
             "Resolve the Reckoning effect on each Monster on the game board twice. If there are no Monsters on the game board with a Reckoning effect, advance Doom by 1.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH Monster on the game board:
-            *
-            *   -> Resolve its Reckoning effect twice.
-            *
-            * If no Monster on the board has a Reckoning effect:
-            *
-            *   -> Advance Doom by 1.
-            */
+            {
+                type: "mythos-special",
+                id: "rising-terror",
+            },
         ],
     },
 
@@ -385,27 +338,15 @@ export const hardMythos: MythosDefinition[] = [
             "As an encounter, an investigator on space 17 may consult the Bombay doctors. He may spend Clues equal to the number of investigators to solve this Rumor. He may spend 1 fewer Clue for each Health token on this card.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * As an Encounter on Space 17:
-            *
-            *   -> The investigator may spend Clues equal to
-            *      the number of investigators to solve this Rumor.
-            *   -> Reduce the cost by 1 for each Health token
-            *      on this card.
-            *   -> If he pays the required Clues,
-            *      solve this Rumor.
-            */
+            {
+                type: "mythos-special",
+                id: "spreading-sickness",
+            },
         ],
 
-        /*
-        * TODO: RECKONING
-        *
-        *   -> Place 1 Health token on this card.
-        *   -> Each investigator loses 1 Health for each
-        *      Health token on this card.
-        */
+        reckoning: {
+            type: "spreading-sickness",
+        },
     },
 
     {
@@ -438,21 +379,11 @@ export const hardMythos: MythosDefinition[] = [
         text:
             "Investigators cannot perform Rest actions.",
 
-        effects: [
-            /*
-            * TODO:
-            *
-            * While this Mythos is in play:
-            *
-            *   -> Investigators cannot perform Rest actions.
-            */
-        ],
+        effects: [],
 
-        /*
-        * TODO: RECKONING
-        *
-        *   -> Discard this Mythos card.
-        */
+        reckoning: {
+            type: "strange-sightings",
+        },
     },
 
     {
@@ -486,19 +417,10 @@ export const hardMythos: MythosDefinition[] = [
             "Each investigator discards Clues equal to the number of Rumor Mythos cards in play. If there are no Rumor Mythos cards in play, draw and resolve 1 Rumor Mythos card from the game box.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH investigator:
-            *
-            *   -> Discard Clues equal to the number
-            *      of Rumor Mythos cards in play.
-            *
-            * If there are no Rumor Mythos cards in play:
-            *
-            *   -> Draw 1 Rumor Mythos from the game box.
-            *   -> Resolve it immediately.
-            */
+            {
+                type: "mythos-special",
+                id: "the-storm",
+            },
         ],
     },
 

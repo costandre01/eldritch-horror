@@ -1189,7 +1189,11 @@ export function resolveMythos(
    * Ongoing and Rumor cards remain in play.
    */
 
-  if (mythos.type === "event") {
+  if (
+    mythos.type === "event" &&
+    currentGame.currentMythosId ===
+      mythos.id
+  ) {
     currentGame = {
       ...currentGame,
 

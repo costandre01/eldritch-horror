@@ -9,6 +9,7 @@ import { gainCondition } from "./gainCondition";
 import { startMonsterCombat } from "./startMonsterCombat";
 import { spawnEpicMonsterAtSpace } from "./spawnEpicMonsterAtSpace";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
+import { startMonsterReckoning } from "./startMonsterReckoning";
 
 function getMonsterDefinition(
   definitionId: string,
@@ -73,6 +74,18 @@ export function resolveMonsterReckoning(
         ...game,
         pendingDecision: null,
       };
+
+      const remainingPasses =
+        decision.remainingPasses ?? 1;
+
+      if (remainingPasses > 1) {
+        return startMonsterReckoning(
+          gameWithoutDecision,
+          map,
+          decision.nextIconIndex,
+          remainingPasses - 1,
+        );
+      }
 
       return startAncientOneReckoning(
         gameWithoutDecision,
@@ -1647,6 +1660,9 @@ export function resolveMonsterReckoning(
 
               nextIconIndex:
                 decision.nextIconIndex,
+
+              remainingPasses:
+                decision.remainingPasses ?? 1,
             }
           );
         }
@@ -1720,6 +1736,9 @@ export function resolveMonsterReckoning(
 
             nextIconIndex:
               decision.nextIconIndex,
+
+            remainingPasses:
+              decision.remainingPasses ?? 1,
           },
         );
       }
@@ -1746,6 +1765,18 @@ export function resolveMonsterReckoning(
         ...updatedGame,
         pendingDecision: null,
       };
+
+      const remainingPasses =
+        decision.remainingPasses ?? 1;
+
+      if (remainingPasses > 1) {
+        return startMonsterReckoning(
+          gameWithoutDecision,
+          map,
+          decision.nextIconIndex,
+          remainingPasses - 1,
+        );
+      }
 
       return startAncientOneReckoning(
         gameWithoutDecision,

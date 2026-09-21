@@ -27,6 +27,7 @@ export function startMonsterReckoning(
   game: GameState,
   map: MapDefinition,
   nextIconIndex: number,
+  remainingPasses: number = 1,
 ): GameState {
   /*
    * Snapshot dos monstros que existem
@@ -93,6 +94,8 @@ export function startMonsterReckoning(
       resolvedMonsterIds: [],
 
       nextIconIndex,
+      
+      remainingPasses,
 
       source:
         "mythos:reckoning-monsters",

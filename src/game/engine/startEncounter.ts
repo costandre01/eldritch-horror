@@ -318,9 +318,32 @@ export function startEncounter(
         "dimensions-collide",
     );
 
+  const mysteriousLightsInPlay =
+    result.game.board.mythosInPlay.some(
+        (entry) =>
+            entry.definitionId ===
+            "mysterious-lights",
+    );
+
+  const canAttemptMysteriousLights =
+      currentSpace.id ===
+          "space-13" &&
+      mysteriousLightsInPlay;
+
   const canAttemptDimensionsCollide =
     currentSpace.id === "space-11" &&
     dimensionsCollideInPlay;
+
+  const spreadingSicknessInPlay =
+    result.game.board.mythosInPlay.some(
+        (entry) =>
+            entry.definitionId ===
+            "spreading-sickness",
+    );
+
+  const canAttemptSpreadingSickness =
+      currentSpace.id === "space-17" &&
+      spreadingSicknessInPlay;
 
   /*
    * ============================================================
@@ -387,6 +410,32 @@ export function startEncounter(
           }),
         ),
 
+        ...(canAttemptSpreadingSickness
+          ? [
+              {
+                  id:
+                      "spreading-sickness-encounter",
+
+                  title:
+                      "Spreading Sickness",
+
+                  description:
+                      "Consult the Bombay doctors about the spreading sickness.",
+
+                  image:
+                      [
+                          ...easyMythos,
+                          ...normalMythos,
+                          ...hardMythos,
+                      ].find(
+                          (definition) =>
+                              definition.id ===
+                              "spreading-sickness",
+                      )?.image,
+              },
+          ]
+          : []),
+
         ...(canAttemptGrowingMadness
           ? [
               {
@@ -437,6 +486,31 @@ export function startEncounter(
                   )?.image,
               },
             ]
+          : []),
+        ...(canAttemptMysteriousLights
+          ? [
+              {
+                  id:
+                      "mysterious-lights-encounter",
+
+                  title:
+                      "Mysterious Lights",
+
+                  description:
+                      "Fly over the arctic ice and scout for the source of the mysterious lights.",
+
+                  image:
+                      [
+                          ...easyMythos,
+                          ...normalMythos,
+                          ...hardMythos,
+                      ].find(
+                          (definition) =>
+                              definition.id ===
+                              "mysterious-lights",
+                      )?.image,
+              },
+          ]
           : []),
         ...(canAttemptDimensionsCollide
           ? [

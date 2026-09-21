@@ -4,6 +4,7 @@ import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { resolveMonsterToughness } from "./resolveMonsterToughness";
 import type { EncounterEffect } from "../models/Encounter";
 import { resolveMonsterSpawnAbilities } from "./resolveMonsterSpawnAbilities";
+import type { DarkPowerResume, EyesEverywhereResume, MonsterReckoningResume } from "../models/PendingDecision";
 
 export function startCombat(
   game: GameState,
@@ -11,6 +12,10 @@ export function startCombat(
   monsterDefinitionId: string,
   onDefeat: EncounterEffect[] = [],
   onNotDefeated: EncounterEffect[] = [],
+  resume?:
+    | MonsterReckoningResume
+    | DarkPowerResume
+    | EyesEverywhereResume,
 ): GameState {
   const investigator =
     game.investigators[investigatorId];
@@ -172,6 +177,8 @@ export function startCombat(
 
       source:
         `combat:${monster.id}`,
+
+      resume,
     },
   };
 }

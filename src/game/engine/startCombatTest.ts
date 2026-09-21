@@ -2,7 +2,13 @@ import type { GameState } from "../models/GameState";
 
 import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
-import type { DarkPowerResume, MonsterReckoningResume } from "../models/PendingDecision";
+import type {
+  ArrestsMadeResume,
+  DarkPowerResume,
+  EyesEverywhereResume,
+  MonsterReckoningResume,
+  PatrollingTheBorderResume,
+} from "../models/PendingDecision";
 
 type CombatTestStage =
   | "horror"
@@ -14,7 +20,10 @@ export function startCombatTest(
   stage: CombatTestStage,
   resume?:
     | MonsterReckoningResume
-    | DarkPowerResume,
+    | DarkPowerResume
+    | ArrestsMadeResume
+    | PatrollingTheBorderResume
+    | EyesEverywhereResume,
 ): GameState {
   const monster =
     game.monsters[monsterId];

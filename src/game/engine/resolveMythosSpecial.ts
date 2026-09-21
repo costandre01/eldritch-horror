@@ -1,4 +1,9 @@
 import { coreConditionDefinitions } from "../../content/core/coreConditions";
+import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
+import { CORE_MONSTERS } from "../../content/core/coreMonsters";
+import { easyMythos } from "../../content/core/mythos/easyMythos";
+import { hardMythos } from "../../content/core/mythos/hardMythos";
+import { normalMythos } from "../../content/core/mythos/normalMythos";
 import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 import type { MythosDefinition } from "../models/Mythos";
@@ -6,6 +11,7 @@ import { advanceDoom } from "./doomEngine";
 import { gainCondition } from "./gainCondition";
 import { getInvestigatorConditionsByCategory } from "./getInvestigatorConditions";
 import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
+import { hasMonsterReckoningAbility } from "./getMonsterReckoningAbilities";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { resolveConditionFrontEffects } from "./resolveConditionFrontEffects";
 
@@ -13,7 +19,14 @@ import { resolveEncounterEffects } from "./resolveEncounterEffects";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { spawnEpicMonsterAtSpace } from "./spawnEpicMonsterAtSpace";
 import { spawnMonsterAtSpace } from "./spawnMonster";
+import { startMonsterReckoning } from "./startMonsterReckoning";
 import { startOtherWorldEncounter } from "./startOtherWorldEncounter";
+
+const ALL_MYTHOS = [
+    ...easyMythos,
+    ...normalMythos,
+    ...hardMythos,
+];
 
 function createSilverTwilightAidChoice(
   game: GameState,
@@ -832,6 +845,661 @@ export function resolveMythosSpecial(
   map: MapDefinition,
 ): GameState {
   switch (specialId) {
+
+    case "spreading-sickness-encounter": {
+      if (
+          mythos.id !==
+          "spreading-sickness"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve Spreading Sickness Encounter.`,
+          );
+      }
+
+      const investigatorId =
+          game.activeInvestigatorId;
+
+      if (!investigatorId) {
+          throw new Error(
+              "There is no active investigator.",
+          );
+      }
+
+      const investigator =
+          game.investigators[
+              investigatorId
+          ];
+
+      if (!investigator) {
+          throw new Error(
+              `Investigator "${investigatorId}" does not exist.`,
+          );
+      }
+
+      if (
+          investigator.spaceId !==
+          "space-17"
+      ) {
+          return game;
+      }
+
+      const mythosInPlay =
+          game.board.mythosInPlay.find(
+              (entry) =>
+                  entry.definitionId ===
+                  "spreading-sickness",
+          );
+
+      if (!mythosInPlay) {
+          return game;
+      }
+
+      const investigatorCount =
+          game.investigatorOrder.length;
+
+      const healthTokens =
+          mythosInPlay.healthTokens ?? 0;
+
+      const clueCost =
+          Math.max(
+              0,
+              investigatorCount -
+                  healthTokens,
+          );
+
+      return {
+          ...game,
+
+          pendingDecision: {
+              type: "test",
+
+              title:
+                  mythos.name,
+
+              message:
+                  clueCost > 0
+                      ? `Consult the Bombay doctors. Pass an Observation test, then spend ${clueCost} Clue${
+                          clueCost === 1
+                              ? ""
+                              : "s"
+                      } to solve this Rumor.`
+                      : "Consult the Bombay doctors. Pass an Observation test to solve this Rumor.",
+
+              image:
+                  mythos.image,
+
+              skill:
+                  "observation",
+
+              modifier:
+                  0,
+
+              investigatorId,
+
+              onSuccess: [
+                  {
+                      type: "choice",
+
+                      choices:
+                          clueCost > 0
+                              ? [
+                                  {
+                                      text:
+                                          `Spend ${clueCost} Clue${
+                                              clueCost === 1
+                                                  ? ""
+                                                  : "s"
+                                          } to solve this Rumor.`,
+
+                                      requirement: {
+                                          type:
+                                              "clues",
+
+                                          amount:
+                                              clueCost,
+                                      },
+
+                                      effects: [
+                                          {
+                                              type:
+                                                  "lose-clues",
+
+                                              amount:
+                                                  clueCost,
+                                          },
+                                          {
+                                              type:
+                                                  "solve-mythos-rumor",
+
+                                              mythosId:
+                                                  "spreading-sickness",
+                                          },
+                                      ],
+                                  },
+                              ]
+                              : [
+                                  {
+                                      text:
+                                          "Solve this Rumor.",
+
+                                      requirement: {
+                                          type:
+                                              "clues",
+
+                                          amount:
+                                              0,
+                                      },
+
+                                      effects: [
+                                          {
+                                              type:
+                                                  "solve-mythos-rumor",
+
+                                              mythosId:
+                                                  "spreading-sickness",
+                                          },
+                                      ],
+                                  },
+                              ],
+                  },
+              ],
+
+              onFail: [],
+
+              minSuccesses:
+                  1,
+
+              onComplete: [],
+
+              source:
+                  "mythos:spreading-sickness-encounter",
+          },
+      };
+    }
+
+    case "rising-terror": {
+      if (
+        mythos.id !==
+        "rising-terror"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Rising Terror.`,
+        );
+      }
+
+      const monstersWithReckoning =
+        Object.values(
+          game.monsters,
+        ).filter(
+          (monster) => {
+            if (
+              monster.spaceId === null ||
+              monster.health <= 0
+            ) {
+              return false;
+            }
+
+            const definition =
+              CORE_MONSTERS.find(
+                (definition) =>
+                  definition.id ===
+                  monster.definitionId,
+              ) ??
+              CORE_EPIC_MONSTERS.find(
+                (definition) =>
+                  definition.id ===
+                  monster.definitionId,
+              );
+
+            if (!definition) {
+              return false;
+            }
+
+            return hasMonsterReckoningAbility(
+              definition,
+            );
+          },
+        );
+
+      /*
+      * If there are no Monsters with a
+      * Reckoning effect, advance Doom by 1.
+      */
+      if (
+        monstersWithReckoning.length === 0
+      ) {
+        const result =
+          advanceDoom(game, 1);
+
+        if (
+          !game.ancientOne.awakened &&
+          result.ancientOne.awakened
+        ) {
+          return resolveAncientOneAwakening(
+            result,
+            map,
+            mythos.icons.length,
+          );
+        }
+
+        return {
+          ...result,
+          currentMythosId: mythos.id,
+          pendingDecision: null,
+          activeInvestigatorId: null,
+        };
+      }
+
+      /*
+      * Resolve every Monster Reckoning twice.
+      */
+      return startMonsterReckoning(
+        game,
+        map,
+        mythos.icons.length,
+        2,
+      );
+    }
+
+    case "perplexing-stars": {
+      if (
+          mythos.id !==
+          "perplexing-stars"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve Perplexing Stars.`,
+          );
+      }
+
+      /*
+      * ==========================================================
+      * PERPLEXING STARS
+      * ==========================================================
+      *
+      * 1. Move the Omen counterclockwise by 1.
+      * 2. Count Gates matching the NEW Omen.
+      * 3. Advance Doom by 1 for each matching Gate.
+      */
+
+      /*
+      * Omen positions:
+      *
+      * 0 -> Green
+      * 1 -> Blue
+      * 2 -> Red
+      * 3 -> Blue
+      *
+      * Moving counterclockwise by 1 is equivalent to
+      * subtracting 1 from the current position.
+      */
+
+      const currentOmenPosition =
+          (
+              game.ancientOne.omenPosition %
+                  4 +
+              4
+          ) % 4;
+
+      const newOmenPosition =
+          (
+              currentOmenPosition - 1 + 4
+          ) % 4;
+
+      const omenByPosition: Record<
+          number,
+          "green" | "blue" | "red"
+      > = {
+          0: "green",
+          1: "blue",
+          2: "red",
+          3: "blue",
+      };
+
+      const currentOmen =
+          omenByPosition[
+              newOmenPosition
+          ];
+
+      if (!currentOmen) {
+          throw new Error(
+              "Could not determine the current Omen.",
+          );
+      }
+
+      /*
+      * Move the Omen counterclockwise.
+      */
+      let currentGame: GameState = {
+          ...game,
+
+          ancientOne: {
+              ...game.ancientOne,
+
+              omenPosition:
+                  newOmenPosition,
+          },
+      };
+
+      /*
+      * Count every Gate on the board that
+      * corresponds to the NEW Omen.
+      */
+      const matchingGateCount =
+          Object.values(
+              currentGame.board.spaces,
+          ).reduce(
+              (total, space) =>
+                  total +
+                  space.gates.filter(
+                      (gate) =>
+                          gate.omen ===
+                          currentOmen,
+                  ).length,
+              0,
+          );
+
+      /*
+      * Advance Doom by 1 for each matching Gate.
+      */
+      if (matchingGateCount > 0) {
+          const wasAwakened =
+              currentGame.ancientOne.awakened;
+
+          currentGame =
+              advanceDoom(
+                  currentGame,
+                  matchingGateCount,
+              );
+
+          /*
+          * If Doom caused the Ancient One
+          * to awaken, resolve the Awakening.
+          */
+          if (
+              !wasAwakened &&
+              currentGame.ancientOne.awakened
+          ) {
+              return resolveAncientOneAwakening(
+                  currentGame,
+                  map,
+                  mythos.icons.length,
+              );
+          }
+      }
+
+      /*
+      * Finish the Mythos card.
+      */
+      return {
+          ...currentGame,
+
+          currentMythosId:
+              null,
+
+          pendingDecision:
+              null,
+
+          activeInvestigatorId:
+              null,
+      };
+    }
+
+    case "mysterious-lights-encounter": {
+      if (
+          mythos.id !==
+          "mysterious-lights"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve Mysterious Lights Encounter.`,
+          );
+      }
+
+      const investigatorId =
+          game.activeInvestigatorId;
+
+      if (!investigatorId) {
+          throw new Error(
+              "There is no active investigator.",
+          );
+      }
+
+      const investigator =
+          game.investigators[
+              investigatorId
+          ];
+
+      if (!investigator) {
+          throw new Error(
+              `Investigator "${investigatorId}" does not exist.`,
+          );
+      }
+
+      if (
+          investigator.spaceId !==
+          "space-13"
+      ) {
+          return game;
+      }
+
+      const clueCost =
+          Math.ceil(
+              game.investigatorOrder.length /
+                  2,
+          );
+
+      return {
+          ...game,
+
+          pendingDecision: {
+              type: "test",
+
+              title:
+                  mythos.name,
+
+              message:
+                  "Fly a plane over the arctic ice and scout for the source of the mysterious lights.",
+
+              image:
+                  mythos.image,
+
+              skill:
+                  "observation",
+
+              modifier:
+                  0,
+
+              investigatorId,
+
+              onSuccess: [
+                  {
+                      type: "choice",
+
+                      choices: [
+                          {
+                              text:
+                                  `Spend ${clueCost} Clue${
+                                      clueCost === 1
+                                          ? ""
+                                          : "s"
+                                  } to solve this Rumor.`,
+
+                              requirement: {
+                                  type:
+                                      "clues",
+
+                                  amount:
+                                      clueCost,
+                              },
+
+                              effects: [
+                                  {
+                                      type:
+                                          "lose-clues",
+
+                                      amount:
+                                          clueCost,
+                                  },
+
+                                  {
+                                      type:
+                                          "solve-mythos-rumor",
+
+                                      mythosId:
+                                          "mysterious-lights",
+                                  },
+                              ],
+                          },
+                      ],
+                  },
+              ],
+
+              onFail: [],
+
+              minSuccesses:
+                  1,
+
+              onComplete: [],
+
+              source:
+                  "mythos:mysterious-lights-encounter",
+          },
+      };
+    }
+
+    case "from-beyond": {
+      if (
+          mythos.id !==
+          "from-beyond"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve From Beyond.`,
+          );
+      }
+
+      /*
+      * Find all Mythos currently in play
+      * that have a Reckoning effect.
+      */
+
+      const mythosWithReckoning =
+          game.board.mythosInPlay.filter(
+              (entry) => {
+                  const definition =
+                      ALL_MYTHOS.find(
+                          (item) =>
+                              item.id ===
+                              entry.definitionId,
+                      );
+
+                  return (
+                      definition?.reckoning !==
+                      undefined
+                  );
+              },
+          );
+
+      /*
+      * If there are no Mythos cards with
+      * a Reckoning effect, advance Doom by 1.
+      */
+
+      if (
+          mythosWithReckoning.length === 0
+      ) {
+          const wasAwakened =
+              game.ancientOne.awakened;
+
+          const advancedGame =
+              advanceDoom(
+                  game,
+                  1,
+              );
+
+          /*
+          * Doom reaching 0 awakens
+          * the Ancient One.
+          */
+
+          if (
+              !wasAwakened &&
+              advancedGame.ancientOne.awakened
+          ) {
+              return resolveAncientOneAwakening(
+                  advancedGame,
+                  map,
+                  mythos.icons.length,
+                  {
+                      type: "mythos",
+                      nextIconIndex:
+                          mythos.icons.length,
+                      mythosIds: [],
+                      resolvedMythosIds: [],
+                  },
+              );
+          }
+
+          return advancedGame;
+      }
+
+      /*
+      * Investigators may spend Clues as a group
+      * to prevent the Reckoning effects.
+      */
+
+      const clueCost =
+          Math.ceil(
+              game.investigatorOrder.length /
+                  2,
+          );
+
+      return {
+          ...game,
+
+          pendingDecision: {
+              type: "choice",
+
+              title:
+                  "From Beyond",
+
+              message:
+                  `The investigators may spend ${clueCost} Clue${
+                      clueCost === 1
+                          ? ""
+                          : "s"
+                  } as a group to prevent the Reckoning effects.`,
+
+              options: [
+                  {
+                      id:
+                          "from-beyond:spend-clues",
+
+                      title:
+                          "Spend Clues",
+
+                      description:
+                          `Spend ${clueCost} Clue${
+                              clueCost === 1
+                                  ? ""
+                                  : "s"
+                          } to prevent the Reckoning effects.`,
+                  },
+                  {
+                      id:
+                          "from-beyond:resolve-reckonings",
+
+                      title:
+                          "Resolve Reckonings",
+
+                      description:
+                          "Resolve the Reckoning effect on each Mythos card in play twice.",
+                  },
+              ],
+
+              source:
+                  "mythos:from-beyond",
+          },
+      };
+    }
 
     case "eyes-everywhere": {
       if (
@@ -3781,6 +4449,223 @@ export function resolveMythosSpecial(
           source:
             `mythos:tide-of-despair:${investigatorIndex}`,
         },
+      };
+    }
+
+    case "the-storm": {
+      if (mythos.id !== "the-storm") {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve The Storm.`,
+        );
+      }
+
+      /*
+      * ============================================================
+      * THE STORM
+      * ============================================================
+      *
+      * Each Investigator discards Clues equal to the
+      * number of Rumor Mythos cards currently in play.
+      */
+
+      const rumorCount =
+        game.board.mythosInPlay.filter(
+          (entry) => {
+            const definition =
+              [
+                ...easyMythos,
+                ...normalMythos,
+                ...hardMythos,
+              ].find(
+                (item) =>
+                  item.id ===
+                  entry.definitionId,
+              );
+
+            return (
+              definition?.type === "rumor"
+            );
+          },
+        ).length;
+
+      /*
+      * ============================================================
+      * RUMORS ALREADY IN PLAY
+      * ============================================================
+      */
+
+      if (rumorCount > 0) {
+        let currentGame = game;
+
+        for (
+          const investigatorId of
+            currentGame.investigatorOrder
+        ) {
+          const investigator =
+            currentGame.investigators[
+              investigatorId
+            ];
+
+          if (!investigator) {
+            continue;
+          }
+
+          currentGame = {
+            ...currentGame,
+
+            investigators: {
+              ...currentGame.investigators,
+
+              [investigatorId]: {
+                ...investigator,
+
+                clues: Math.max(
+                  0,
+                  investigator.clues -
+                    rumorCount,
+                ),
+              },
+            },
+          };
+        }
+
+        return {
+          ...currentGame,
+
+          currentMythosId: null,
+
+          pendingDecision: null,
+
+          activeInvestigatorId: null,
+        };
+      }
+
+      /*
+      * ============================================================
+      * NO RUMORS IN PLAY
+      * ============================================================
+      *
+      * Find Rumor Mythos cards that are still in the game box.
+      */
+
+      const allMythos = [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ];
+
+      const mythosInPlayIds =
+        new Set(
+          game.board.mythosInPlay.map(
+            (entry) =>
+              entry.definitionId,
+          ),
+        );
+
+      const mythosDeckIds =
+        new Set(
+          game.board.mythosDeck.map(
+            (definition) =>
+              definition.id,
+          ),
+        );
+
+      const mythosDiscardIds =
+        new Set(
+          game.board.mythosDiscard.map(
+            (definition) =>
+              definition.id,
+          ),
+        );
+
+      const rumorsInGameBox =
+        allMythos.filter(
+          (definition) =>
+            definition.type === "rumor" &&
+            !mythosInPlayIds.has(
+              definition.id,
+            ) &&
+            !mythosDeckIds.has(
+              definition.id,
+            ) &&
+            !mythosDiscardIds.has(
+              definition.id,
+            ),
+        );
+
+      /*
+      * No Rumors available in the game box.
+      */
+
+      if (rumorsInGameBox.length === 0) {
+        return {
+          ...game,
+
+          currentMythosId: null,
+
+          pendingDecision: null,
+
+          activeInvestigatorId: null,
+        };
+      }
+
+      /*
+      * Draw 1 random Rumor from the game box.
+      */
+
+      const randomIndex =
+        Math.floor(
+          Math.random() *
+            rumorsInGameBox.length,
+        );
+
+      const rumor =
+        rumorsInGameBox[randomIndex];
+
+      if (!rumor) {
+        return {
+          ...game,
+
+          currentMythosId: null,
+
+          pendingDecision: null,
+
+          activeInvestigatorId: null,
+        };
+      }
+
+      /*
+      * The Storm is an Event, so it is discarded.
+      * The selected Rumor becomes the current Mythos.
+      */
+
+      return {
+        ...game,
+
+        board: {
+          ...game.board,
+
+          mythosDiscard: [
+            ...game.board.mythosDiscard,
+            mythos,
+          ],
+        },
+
+        currentMythosId:
+          rumor.id,
+
+        pendingDecision: {
+          type: "continue",
+
+          title: "MYTHOS",
+
+          message:
+            "Resolve the Rumor Mythos card drawn from the game box.",
+
+          source: "mythos-card:0",
+        },
+
+        activeInvestigatorId: null,
       };
     }
 

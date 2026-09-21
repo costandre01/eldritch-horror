@@ -21,12 +21,14 @@ import { easyMythos } from "../../content/core/mythos/easyMythos";
 import { normalMythos } from "../../content/core/mythos/normalMythos";
 import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { solveMythosRumor } from "./solveMythosRumor";
+import type { EyesEverywhereResume } from "../models/PendingDecision";
 
 export function resolveEncounterEffects(
   game: GameState,
   investigatorId: string,
   effects: EncounterEffect[],
   map: MapDefinition,
+  combatResume?: EyesEverywhereResume,
 ): GameState {
   let currentGame = game;
 
@@ -2485,6 +2487,28 @@ export function resolveEncounterEffects(
           }
         }
 
+        /*
+        * ============================================================
+        * MYSTERIOUS LIGHTS
+        * ============================================================
+        *
+        * While Mysterious Lights is in play,
+        * Gates cannot be closed.
+        */
+
+        const mysteriousLightsInPlay =
+          currentGame.board.mythosInPlay.some(
+            (entry) =>
+              entry.definitionId ===
+              "mysterious-lights",
+          );
+
+        if (
+          mysteriousLightsInPlay
+        ) {
+          break;
+        }
+
         if (space.gates.length === 0) {
           break;
         }
@@ -3652,6 +3676,7 @@ export function resolveEncounterEffects(
             monster.definitionId,
             effect.onDefeat ?? [],
             effect.onNotDefeated ?? [],
+            combatResume,
           );
 
         return currentGame;

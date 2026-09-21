@@ -8,9 +8,10 @@ import type { MapDefinition } from "../models/MapDefinition";
 import { showMythosContinue } from "./showMythosContinue";
 
 export function startMythosCardReckoning(
-  game: GameState,
-  _map: MapDefinition,
-  nextIconIndex: number,
+    game: GameState,
+    _map: MapDefinition,
+    nextIconIndex: number,
+    remainingPasses: number = 1,
 ): GameState {
   /*
    * Snapshot dos Mythos que estão atualmente
@@ -82,6 +83,8 @@ export function startMythosCardReckoning(
         "mythos:card-reckoning",
 
       nextIconIndex,
+
+      remainingPasses,
     },
   };
 }

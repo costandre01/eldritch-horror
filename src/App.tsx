@@ -2323,56 +2323,29 @@ function App() {
         if (
           effects.length > 0
         ) {
+          const investigatorIndex =
+            Number(
+              decision.source?.split(":")[2],
+            );
+
           updatedGame =
             resolveEncounterEffects(
               updatedGame,
               investigatorId,
               effects,
               eldritchBaseMap,
+              isEyesEverywhere &&
+              singleDieRoll >= 3 &&
+              singleDieRoll <= 5
+                ? {
+                    type: "eyes-everywhere",
+                    investigatorIds:
+                      updatedGame.investigatorOrder,
+                    currentInvestigatorIndex:
+                      investigatorIndex,
+                  }
+                : undefined,
             );
-        }
-
-        /*
-        * ============================================================
-        * EYES EVERYWHERE — MONSTER AMBUSH
-        * ============================================================
-        *
-        * On 3-5 the effect creates a Combat decision.
-        *
-        * We must attach a resume so that when the Combat ends,
-        * the Mythos continues with the next Investigator.
-        */
-
-        if (
-          isEyesEverywhere &&
-          singleDieRoll >= 3 &&
-          singleDieRoll <= 5 &&
-          updatedGame.pendingDecision?.type ===
-            "combat"
-        ) {
-          const investigatorIndex =
-            Number(
-              decision.source?.split(":")[2],
-            );
-
-          updatedGame = {
-            ...updatedGame,
-
-            pendingDecision: {
-              ...updatedGame.pendingDecision,
-
-              resume: {
-                type:
-                  "eyes-everywhere",
-
-                investigatorIds:
-                  updatedGame.investigatorOrder,
-
-                currentInvestigatorIndex:
-                  investigatorIndex,
-              },
-            },
-          };
         }
 
         /*
@@ -3340,6 +3313,11 @@ function App() {
                     activeInvestigator.actionsPerformed.length < 2 &&
                     !activeInvestigator.actionsPerformed.includes(
                       "rest",
+                    ) &&
+                    !game.board.mythosInPlay.some(
+                      (entry) =>
+                        entry.definitionId ===
+                        "strange-sightings",
                     )
                   }
 

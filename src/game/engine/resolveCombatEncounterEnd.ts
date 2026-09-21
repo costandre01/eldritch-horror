@@ -18,6 +18,7 @@ import { easyMythos } from "../../content/core/mythos/easyMythos";
 import { normalMythos } from "../../content/core/mythos/normalMythos";
 import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { solveMythosRumor } from "./solveMythosRumor";
+import { startMonsterReckoning } from "./startMonsterReckoning";
 
 export function resolveCombatEncounterEnd(
   game: GameState,
@@ -103,6 +104,26 @@ export function resolveCombatEncounterEnd(
      */
 
     if (!nextMonsterId) {
+      const remainingPasses =
+        resume.remainingPasses ?? 1;
+
+      if (remainingPasses > 1) {
+        return startMonsterReckoning(
+          {
+            ...game,
+
+            pendingDecision:
+              null,
+
+            activeInvestigatorId:
+              null,
+          },
+          map,
+          resume.nextIconIndex,
+          remainingPasses - 1,
+        );
+      }
+
       return startAncientOneReckoning(
         {
           ...game,
@@ -148,6 +169,9 @@ export function resolveCombatEncounterEnd(
 
           nextIconIndex:
             resume.nextIconIndex,
+
+          remainingPasses:
+            resume.remainingPasses ?? 1,
         },
 
         activeInvestigatorId:

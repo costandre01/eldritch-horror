@@ -4,4 +4,6 @@ export interface MythosInPlay {
     eldritchTokens: number;
 
     monsterIds?: string[];
+
+    healthTokens?: number;
 }

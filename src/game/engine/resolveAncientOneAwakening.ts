@@ -41,6 +41,7 @@ export function resolveAncientOneAwakening(
         monsterIds: string[];
         resolvedMonsterIds: string[];
         nextIconIndex: number;
+        remainingPasses?: number;
       }
     | EncounterAwakeningResume,
 ): GameState {
@@ -158,6 +159,9 @@ export function resolveAncientOneAwakening(
 
                 resolvedMonsterIds:
                   resume.resolvedMonsterIds,
+
+                remainingPasses:
+                  resume.remainingPasses ?? 1,
 
                 nextIconIndex:
                   nextIconIndex,
