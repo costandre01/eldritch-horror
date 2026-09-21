@@ -13,21 +13,6 @@ export function discardAsset(
     );
   }
 
-  if (!game.lastTest) {
-    throw new Error(
-      "There is no active test.",
-    );
-  }
-
-  if (
-    game.lastTest.skill !==
-    "influence"
-  ) {
-    throw new Error(
-      "The current test is not an Influence test.",
-    );
-  }
-
   const investigator =
     game.investigators[
       investigatorId

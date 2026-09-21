@@ -15,10 +15,20 @@ import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { resolveByakheeDefeat } from "./resolveByakheeDefeat";
 import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 
-import { gainCondition } from "./gainCondition";
+import {
+  gainCondition,
+  gainConditionByCategory,
+} from "./gainCondition";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
 import { resolveMythosSpecial, resumeSilverTwilightAid } from "./resolveMythosSpecial";
+import { resolveCombatEncounterEnd } from "./resolveCombatEncounterEnd";
+import { resolveMonsterToughness } from "./resolveMonsterToughness";
+import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
+import { CORE_MONSTERS } from "../../content/core/coreMonsters";
+import { returnRandomSolvedMysteryToDeck } from "./mysteryEngine";
+import { advanceDoom } from "./doomEngine";
+import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -60,6 +70,279 @@ export function resolveGameFlowChoice(
         state.monsters[monsterId] !== undefined,
     );
   };
+
+  /*
+  * ============================================================
+  * RETURN OF THE ANCIENT ONES — MONSTER DEFEATED
+  * ============================================================
+  */
+
+  if (
+    decision.source?.startsWith(
+      "mythos:return-of-the-ancient-ones:monster-defeated:",
+    )
+  ) {
+    const monsterId =
+      decision.source.split(":")[3];
+
+    if (!monsterId) {
+      return game;
+    }
+
+    const investigatorId =
+      game.activeInvestigatorId;
+
+    if (!investigatorId) {
+      return game;
+    }
+
+    const investigator =
+      game.investigators[
+        investigatorId
+      ];
+
+    if (!investigator) {
+      return game;
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * DECLINE
+     * ----------------------------------------------------------
+     */
+
+    if (
+      choiceId ===
+      "return-of-the-ancient-ones:decline"
+    ) {
+      return resolveCombatEncounterEnd(
+        {
+          ...game,
+
+          pendingDecision:
+            null,
+        },
+        map,
+        monsterId,
+      );
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * SPEND 1 CLUE
+     * ----------------------------------------------------------
+     */
+
+    if (
+      choiceId !==
+      "return-of-the-ancient-ones:place"
+    ) {
+      return game;
+    }
+
+    if (
+      investigator.clues <= 0
+    ) {
+      return resolveCombatEncounterEnd(
+        {
+          ...game,
+
+          pendingDecision:
+            null,
+        },
+        map,
+        monsterId,
+      );
+    }
+
+    const mythosInPlayIndex =
+      game.board.mythosInPlay.findIndex(
+        (entry) =>
+          entry.definitionId ===
+          "return-of-the-ancient-ones",
+      );
+
+    if (
+      mythosInPlayIndex === -1
+    ) {
+      return resolveCombatEncounterEnd(
+        {
+          ...game,
+
+          pendingDecision:
+            null,
+        },
+        map,
+        monsterId,
+      );
+    }
+
+    const monster =
+      game.monsters[monsterId];
+
+    if (!monster) {
+      return game;
+    }
+
+    const monsterDefinition =
+      CORE_MONSTERS.find(
+        (definition) =>
+          definition.id ===
+          monster.definitionId,
+      ) ??
+      CORE_EPIC_MONSTERS.find(
+        (definition) =>
+          definition.id ===
+          monster.definitionId,
+      );
+
+    if (!monsterDefinition) {
+      throw new Error(
+        `Monster definition "${monster.definitionId}" does not exist.`,
+      );
+    }
+
+    const mythosInPlay =
+      game.board.mythosInPlay[
+        mythosInPlayIndex
+      ];
+
+    if (!mythosInPlay) {
+      return game;
+    }
+
+    const monsterIds =
+      [
+        ...(mythosInPlay.monsterIds ?? []),
+        monsterId,
+      ];
+
+    const updatedMythosInPlay =
+      [...game.board.mythosInPlay];
+
+    updatedMythosInPlay[
+      mythosInPlayIndex
+    ] = {
+      ...mythosInPlay,
+
+      monsterIds,
+    };
+
+    const gameWithMonster =
+      {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            clues:
+              investigator.clues - 1,
+          },
+        },
+
+        board: {
+          ...game.board,
+
+          mythosInPlay:
+            updatedMythosInPlay,
+        },
+
+        pendingDecision:
+          null,
+      };
+
+    /*
+     * ----------------------------------------------------------
+     * CHECK RUMOR SOLUTION
+     * ----------------------------------------------------------
+     */
+
+    const totalToughness =
+      monsterIds.reduce(
+        (total, id) => {
+          const storedMonster =
+            gameWithMonster.monsters[id];
+
+          if (!storedMonster) {
+            return total;
+          }
+
+          const definition =
+            CORE_MONSTERS.find(
+              (item) =>
+                item.id ===
+                storedMonster.definitionId,
+            ) ??
+            CORE_EPIC_MONSTERS.find(
+              (item) =>
+                item.id ===
+                storedMonster.definitionId,
+            );
+
+          if (!definition) {
+            return total;
+          }
+
+          return (
+            total +
+            resolveMonsterToughness(
+              gameWithMonster,
+              definition,
+            )
+          );
+        },
+        0,
+      );
+
+    const investigatorCount =
+      gameWithMonster.investigatorOrder.length;
+
+    const rumor =
+      [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ].find(
+        (definition) =>
+          definition.id ===
+          "return-of-the-ancient-ones",
+      );
+
+    if (!rumor) {
+      throw new Error(
+        "Return of the Ancient Ones Mythos definition does not exist.",
+      );
+    }
+
+    /*
+     * The Rumor is solved when total Toughness
+     * is equal to or greater than the number of Investigators.
+     */
+
+    const solvedGame =
+      totalToughness >=
+      investigatorCount
+        ? solveMythosRumor(
+            gameWithMonster,
+            rumor,
+          )
+        : gameWithMonster;
+
+    return resolveCombatEncounterEnd(
+      {
+        ...solvedGame,
+
+        pendingDecision:
+          null,
+      },
+      map,
+      monsterId,
+    );
+  }
+
 
   /*
   * ============================================================
@@ -374,6 +657,171 @@ export function resolveGameFlowChoice(
       pendingDecision:
         null,
     };
+  }
+
+  /*
+  * ============================================================
+  * ALL FOR NOTHING
+  * ============================================================
+  */
+
+  if (
+      decision.source ===
+      "mythos:all-for-nothing"
+  ) {
+      const clueCost =
+          Math.ceil(
+              game.investigatorOrder.length /
+                  2,
+          );
+
+      /*
+      * ==========================================================
+      * SPEND CLUES
+      * ==========================================================
+      */
+
+      if (
+          choiceId ===
+          "all-for-nothing:spend-clues"
+      ) {
+          const totalClues =
+              game.investigatorOrder.reduce(
+                  (
+                      total,
+                      investigatorId,
+                  ) =>
+                      total +
+                      (
+                          game.investigators[
+                              investigatorId
+                          ]?.clues ?? 0
+                      ),
+                  0,
+              );
+
+          /*
+          * Not enough Clues as a group.
+          */
+
+          if (
+              totalClues <
+              clueCost
+          ) {
+              return game;
+          }
+
+          let remainingClues =
+              clueCost;
+
+          const updatedInvestigators = {
+              ...game.investigators,
+          };
+
+          /*
+          * Spend the required Clues from the group.
+          */
+
+          for (
+              const investigatorId of
+                  game.investigatorOrder
+          ) {
+              if (
+                  remainingClues <=
+                  0
+              ) {
+                  break;
+              }
+
+              const investigator =
+                  updatedInvestigators[
+                      investigatorId
+                  ];
+
+              if (!investigator) {
+                  continue;
+              }
+
+              const spent =
+                  Math.min(
+                      investigator.clues,
+                      remainingClues,
+                  );
+
+              if (
+                  spent <= 0
+              ) {
+                  continue;
+              }
+
+              updatedInvestigators[
+                  investigatorId
+              ] = {
+                  ...investigator,
+
+                  clues:
+                      investigator.clues -
+                      spent,
+              };
+
+              remainingClues -=
+                  spent;
+          }
+
+          /*
+          * The Mythos card itself is finished.
+          */
+
+          return {
+              ...game,
+
+              investigators:
+                  updatedInvestigators,
+
+              currentMythosId:
+                  null,
+
+              pendingDecision:
+                  null,
+
+              activeInvestigatorId:
+                  null,
+          };
+      }
+
+      /*
+      * ==========================================================
+      * DO NOT SPEND
+      * ==========================================================
+      */
+
+      if (
+          choiceId ===
+          "all-for-nothing:do-not-spend"
+      ) {
+          const updatedMysteries =
+              returnRandomSolvedMysteryToDeck(
+                  game.mysteries,
+              );
+
+          return {
+              ...game,
+
+              mysteries:
+                  updatedMysteries,
+
+              currentMythosId:
+                  null,
+
+              pendingDecision:
+                  null,
+
+              activeInvestigatorId:
+                  null,
+          };
+      }
+
+      return game;
   }
 
   /*
@@ -1158,6 +1606,595 @@ export function resolveGameFlowChoice(
 
   /*
   * ============================================================
+  * HAUNTING NIGHTMARES
+  * ============================================================
+  */
+
+  if (
+    decision.source?.startsWith(
+      "mythos:haunting-nightmares:",
+    )
+  ) {
+    const sourceParts =
+      decision.source.split(":");
+
+    const investigatorIndex =
+      Number(
+        sourceParts[2] ?? "0",
+      );
+
+    if (
+      !Number.isInteger(
+        investigatorIndex,
+      ) ||
+      investigatorIndex < 0
+    ) {
+      return game;
+    }
+
+    const investigatorId =
+      game.investigatorOrder[
+        investigatorIndex
+      ];
+
+    if (!investigatorId) {
+      return {
+        ...game,
+
+        pendingDecision:
+          null,
+
+        activeInvestigatorId:
+          null,
+
+        currentMythosId:
+          null,
+      };
+    }
+
+    const investigator =
+      game.investigators[
+        investigatorId
+      ];
+
+    if (!investigator) {
+      return game;
+    }
+
+    /*
+    * ==========================================================
+    * SPEND 1 CLUE
+    * ==========================================================
+    *
+    * The Investigator avoids both effects.
+    */
+
+    if (
+      choiceId ===
+      `haunting-nightmares:spend-clue:${investigatorIndex}`
+    ) {
+      if (
+        investigator.clues <= 0
+      ) {
+        return game;
+      }
+
+      const updatedGame: GameState = {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            clues:
+              investigator.clues - 1,
+          },
+        },
+
+        pendingDecision:
+          null,
+      };
+
+      const nextIndex =
+        investigatorIndex + 1;
+
+      const nextInvestigatorId =
+        updatedGame.investigatorOrder[
+          nextIndex
+        ];
+
+      /*
+      * All Investigators have resolved
+      * Haunting Nightmares.
+      */
+
+      if (!nextInvestigatorId) {
+        return {
+          ...updatedGame,
+
+          currentMythosId:
+            null,
+
+          activeInvestigatorId:
+            null,
+
+          pendingDecision:
+            null,
+        };
+      }
+
+      const nextInvestigator =
+        updatedGame.investigators[
+          nextInvestigatorId
+        ];
+
+      if (!nextInvestigator) {
+        return updatedGame;
+      }
+
+      const nextOptions = [];
+
+      if (
+        nextInvestigator.clues > 0
+      ) {
+        nextOptions.push({
+          id:
+            `haunting-nightmares:spend-clue:${nextIndex}`,
+
+          title:
+            "Spend 1 Clue",
+
+          description:
+            "Spend 1 Clue to avoid losing Sanity and gaining a Madness Condition.",
+        });
+      }
+
+      nextOptions.push({
+        id:
+          `haunting-nightmares:do-not-spend:${nextIndex}`,
+
+        title:
+          "Do Not Spend Clue",
+
+        description:
+          "Lose 2 Sanity and gain 1 Madness Condition.",
+      });
+
+      return {
+        ...updatedGame,
+
+        activeInvestigatorId:
+          nextInvestigatorId,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "Haunting Nightmares",
+
+          message:
+            "This Investigator may spend 1 Clue to avoid losing 2 Sanity and gaining a Madness Condition.",
+
+          options:
+            nextOptions,
+
+          source:
+            `mythos:haunting-nightmares:${nextIndex}`,
+        },
+      };
+    }
+
+    /*
+    * ==========================================================
+    * DO NOT SPEND CLUE
+    * ==========================================================
+    *
+    * Lose 2 Sanity and gain 1 Madness Condition.
+    */
+
+    if (
+      choiceId ===
+      `haunting-nightmares:do-not-spend:${investigatorIndex}`
+    ) {
+      let currentGame =
+        gainConditionByCategory(
+          game,
+          investigatorId,
+          "madness",
+        );
+
+      currentGame =
+        resolveEncounterEffects(
+          currentGame,
+          investigatorId,
+          [
+            {
+              type:
+                "lose-sanity",
+
+              amount: 2,
+            },
+          ],
+          map,
+        );
+
+      currentGame = {
+        ...currentGame,
+
+        pendingDecision:
+          null,
+      };
+
+      const nextIndex =
+        investigatorIndex + 1;
+
+      const nextInvestigatorId =
+        currentGame.investigatorOrder[
+          nextIndex
+        ];
+
+      /*
+      * All Investigators have resolved
+      * Haunting Nightmares.
+      */
+
+      if (!nextInvestigatorId) {
+        return {
+          ...currentGame,
+
+          currentMythosId:
+            null,
+
+          activeInvestigatorId:
+            null,
+
+          pendingDecision:
+            null,
+        };
+      }
+
+      const nextInvestigator =
+        currentGame.investigators[
+          nextInvestigatorId
+        ];
+
+      if (!nextInvestigator) {
+        return currentGame;
+      }
+
+      const nextOptions = [];
+
+      if (
+        nextInvestigator.clues > 0
+      ) {
+        nextOptions.push({
+          id:
+            `haunting-nightmares:spend-clue:${nextIndex}`,
+
+          title:
+            "Spend 1 Clue",
+
+          description:
+            "Spend 1 Clue to avoid losing Sanity and gaining a Madness Condition.",
+        });
+      }
+
+      nextOptions.push({
+        id:
+          `haunting-nightmares:do-not-spend:${nextIndex}`,
+
+        title:
+          "Do Not Spend Clue",
+
+        description:
+          "Lose 2 Sanity and gain 1 Madness Condition.",
+      });
+
+      return {
+        ...currentGame,
+
+        activeInvestigatorId:
+          nextInvestigatorId,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "Haunting Nightmares",
+
+          message:
+            "This Investigator may spend 1 Clue to avoid losing 2 Sanity and gaining a Madness Condition.",
+
+          options:
+            nextOptions,
+
+          source:
+            `mythos:haunting-nightmares:${nextIndex}`,
+        },
+      };
+    }
+
+    return game;
+  }
+
+  /*
+  * ============================================================
+  * HEAT WAVE SINGES THE GLOBE
+  * ============================================================
+  */
+
+  if (
+    decision.source?.startsWith(
+      "mythos:heat-wave-singes-the-globe:",
+    )
+  ) {
+    const sourceParts =
+      decision.source.split(":");
+
+    const investigatorIndex =
+      Number(
+        sourceParts[2] ?? "0",
+      );
+
+    if (
+      !Number.isInteger(
+        investigatorIndex,
+      ) ||
+      investigatorIndex < 0
+    ) {
+      return game;
+    }
+
+    const investigatorId =
+      game.investigatorOrder[
+        investigatorIndex
+      ];
+
+    if (!investigatorId) {
+      return {
+        ...game,
+
+        pendingDecision:
+          null,
+
+        activeInvestigatorId:
+          null,
+
+        currentMythosId:
+          null,
+      };
+    }
+
+    const investigator =
+      game.investigators[
+        investigatorId
+      ];
+
+    if (!investigator) {
+      return game;
+    }
+
+    /*
+    * ==========================================================
+    * BECOME DELAYED
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `heat-wave-singes-the-globe:delayed:${investigatorIndex}`
+    ) {
+      const updatedGame: GameState = {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            isDelayed:
+              true,
+          },
+        },
+
+        pendingDecision:
+          null,
+      };
+
+      const nextIndex =
+        investigatorIndex + 1;
+
+      const nextInvestigatorId =
+        updatedGame.investigatorOrder[
+          nextIndex
+        ];
+
+      if (!nextInvestigatorId) {
+        return {
+          ...updatedGame,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      return {
+        ...updatedGame,
+
+        activeInvestigatorId:
+          nextInvestigatorId,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "Heat Wave Singes the Globe",
+
+          message:
+            "This Investigator may become Delayed to avoid losing 3 Health.",
+
+          options: [
+            ...(
+              !updatedGame.investigators[
+                nextInvestigatorId
+              ]?.isDelayed
+                ? [
+                    {
+                      id:
+                        `heat-wave-singes-the-globe:delayed:${nextIndex}`,
+
+                      title:
+                        "Become Delayed",
+
+                      description:
+                        "Become Delayed and do not lose Health.",
+                    },
+                  ]
+                : []
+            ),
+
+            {
+              id:
+                `heat-wave-singes-the-globe:health:${nextIndex}`,
+
+              title:
+                "Do Not Become Delayed",
+
+              description:
+                "Lose 3 Health.",
+            },
+          ],
+
+          source:
+            `mythos:heat-wave-singes-the-globe:${nextIndex}`,
+        },
+      };
+    }
+
+    /*
+    * ==========================================================
+    * DO NOT BECOME DELAYED
+    * ==========================================================
+    *
+    * Lose 3 Health.
+    */
+
+    if (
+      choiceId ===
+      `heat-wave-singes-the-globe:health:${investigatorIndex}`
+    ) {
+      let currentGame =
+        resolveEncounterEffects(
+          game,
+          investigatorId,
+          [
+            {
+              type:
+                "lose-health",
+
+              amount: 3,
+            },
+          ],
+          map,
+        );
+
+      currentGame = {
+        ...currentGame,
+
+        pendingDecision:
+          null,
+      };
+
+      const nextIndex =
+        investigatorIndex + 1;
+
+      const nextInvestigatorId =
+        currentGame.investigatorOrder[
+          nextIndex
+        ];
+
+      if (!nextInvestigatorId) {
+        return {
+          ...currentGame,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      return {
+        ...currentGame,
+
+        activeInvestigatorId:
+          nextInvestigatorId,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "Heat Wave Singes the Globe",
+
+          message:
+            "This Investigator may become Delayed to avoid losing 3 Health.",
+
+          options: [
+            ...(
+              !currentGame.investigators[
+                nextInvestigatorId
+              ]?.isDelayed
+                ? [
+                    {
+                      id:
+                        `heat-wave-singes-the-globe:delayed:${nextIndex}`,
+
+                      title:
+                        "Become Delayed",
+
+                      description:
+                        "Become Delayed and do not lose Health.",
+                    },
+                  ]
+                : []
+            ),
+
+            {
+              id:
+                `heat-wave-singes-the-globe:health:${nextIndex}`,
+
+              title:
+                "Do Not Become Delayed",
+
+              description:
+                "Lose 3 Health.",
+            },
+          ],
+
+          source:
+            `mythos:heat-wave-singes-the-globe:${nextIndex}`,
+        },
+      };
+    }
+
+    return game;
+  }
+
+  /*
+  * ============================================================
   * THE WORLD FIGHTS BACK
   * ============================================================
   */
@@ -1614,6 +2651,345 @@ export function resolveGameFlowChoice(
   }
 
   /*
+  * ============================================================
+  * TIDE OF DESPAIR
+  * ============================================================
+  */
+
+  if (
+    decision.source?.startsWith(
+      "mythos:tide-of-despair:",
+    )
+  ) {
+    const sourceParts =
+      decision.source.split(":");
+
+    const investigatorIndex =
+      Number(
+        sourceParts[2] ?? "0",
+      );
+
+    if (
+      !Number.isInteger(
+        investigatorIndex,
+      ) ||
+      investigatorIndex < 0
+    ) {
+      return game;
+    }
+
+    const investigatorId =
+      game.investigatorOrder[
+        investigatorIndex
+      ];
+
+    if (!investigatorId) {
+      return {
+        ...game,
+
+        currentMythosId:
+          null,
+
+        pendingDecision:
+          null,
+
+        activeInvestigatorId:
+          null,
+      };
+    }
+
+    const investigator =
+      game.investigators[
+        investigatorId
+      ];
+
+    if (!investigator) {
+      return game;
+    }
+
+    /*
+    * ==========================================================
+    * DISCARD BLESSED
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `tide-of-despair:discard-blessed:${investigatorIndex}`
+    ) {
+      const blessedConditionId =
+        investigator.conditionIds.find(
+          (conditionId) =>
+            game.conditions[
+              conditionId
+            ]?.definitionId ===
+            "condition-blessed",
+        );
+
+      if (!blessedConditionId) {
+        return game;
+      }
+
+      const updatedGame: GameState = {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            conditionIds:
+              investigator.conditionIds.filter(
+                (conditionId) =>
+                  conditionId !==
+                  blessedConditionId,
+              ),
+          },
+        },
+
+        pendingDecision:
+          null,
+      };
+
+      const nextIndex =
+        investigatorIndex + 1;
+
+      const nextInvestigatorId =
+        updatedGame.investigatorOrder[
+          nextIndex
+        ];
+
+      /*
+      * Todos os Investigators foram tratados.
+      */
+
+      if (!nextInvestigatorId) {
+        return {
+          ...updatedGame,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      return resolveMythosSpecial(
+        updatedGame,
+        [
+          ...easyMythos,
+          ...normalMythos,
+          ...hardMythos,
+        ].find(
+          (definition) =>
+            definition.id ===
+            "tide-of-despair",
+        )!,
+        `tide-of-despair:${nextIndex}`,
+        map,
+      );
+    }
+
+    /*
+    * ==========================================================
+    * KEEP BLESSED
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      `tide-of-despair:keep-blessed:${investigatorIndex}`
+    ) {
+      const newHealth =
+        Math.max(
+          0,
+          investigator.health - 2,
+        );
+
+      const newSanity =
+        Math.max(
+          0,
+          investigator.sanity - 2,
+        );
+
+      const updatedGame: GameState = {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            health:
+              newHealth,
+
+            sanity:
+              newSanity,
+
+            isDefeated:
+              newHealth <= 0 ||
+              newSanity <= 0,
+          },
+        },
+
+        pendingDecision:
+          null,
+      };
+
+      const nextIndex =
+        investigatorIndex + 1;
+
+      const nextInvestigatorId =
+        updatedGame.investigatorOrder[
+          nextIndex
+        ];
+
+      if (!nextInvestigatorId) {
+        return {
+          ...updatedGame,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      return resolveMythosSpecial(
+        updatedGame,
+        [
+          ...easyMythos,
+          ...normalMythos,
+          ...hardMythos,
+        ].find(
+          (definition) =>
+            definition.id ===
+            "tide-of-despair",
+        )!,
+        `tide-of-despair:${nextIndex}`,
+        map,
+      );
+    }
+
+    return game;
+  }
+
+  /*
+  * ============================================================
+  * DESPERATE TIMES
+  * ============================================================
+  */
+
+  if (
+      decision.source ===
+      "mythos:desperate-times"
+  ) {
+      const leadInvestigatorId =
+          getLeadInvestigatorId(game);
+
+      if (!leadInvestigatorId) {
+          return game;
+      }
+
+      /*
+      * ==========================================================
+      * GAIN DARK PACT
+      * ==========================================================
+      */
+
+      if (
+          choiceId ===
+          "desperate-times:dark-pact"
+      ) {
+          const updatedGame =
+              gainCondition(
+                  game,
+                  leadInvestigatorId,
+                  "condition-dark-pact",
+              );
+
+          return {
+              ...updatedGame,
+
+              currentMythosId:
+                  null,
+
+              pendingDecision:
+                  null,
+
+              activeInvestigatorId:
+                  null,
+          };
+      }
+
+      /*
+      * ==========================================================
+      * DOOM +2
+      * ==========================================================
+      */
+
+      if (
+          choiceId ===
+          "desperate-times:doom"
+      ) {
+          const wasAwakened =
+              game.ancientOne.awakened;
+
+          const updatedGame =
+              advanceDoom(
+                  game,
+                  2,
+              );
+
+          /*
+          * If advancing Doom awakens the Ancient One,
+          * let the normal Awakening flow handle it.
+          */
+
+          if (
+              !wasAwakened &&
+              updatedGame.ancientOne.awakened
+          ) {
+              return resolveAncientOneAwakening(
+                  {
+                      ...updatedGame,
+
+                      currentMythosId:
+                          game.currentMythosId,
+                  },
+                  map,
+                  0,
+              );
+          }
+
+          return {
+              ...updatedGame,
+
+              currentMythosId:
+                  null,
+
+              pendingDecision:
+                  null,
+
+              activeInvestigatorId:
+                  null,
+          };
+      }
+
+      return game;
+  }
+
+  /*
    * ============================================================
    * ENCOUNTER DECK SELECTION
    * ============================================================
@@ -1715,6 +3091,99 @@ export function resolveGameFlowChoice(
         "growing-madness-encounter",
         map,
       );
+    }
+
+    /*
+    * ==========================================================
+    * STARS ALIGNED — ASTRONOMICAL RESEARCH
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      "stars-aligned-encounter"
+    ) {
+      const starsAligned =
+        [
+          ...easyMythos,
+          ...normalMythos,
+          ...hardMythos,
+        ].find(
+          (definition) =>
+            definition.id ===
+              "stars-aligned" &&
+            definition.type === "rumor",
+        );
+
+      if (!starsAligned) {
+        return game;
+      }
+
+      const isStarsAlignedInPlay =
+        game.board.mythosInPlay.some(
+          (entry) =>
+            entry.definitionId ===
+            "stars-aligned",
+        );
+
+      if (!isStarsAlignedInPlay) {
+        return game;
+      }
+
+      return resolveMythosSpecial(
+        game,
+        starsAligned,
+        "stars-aligned-encounter",
+        map,
+      );
+    }
+
+    /*
+    * ==========================================================
+    * DIMENSIONS COLLIDE — HIDDEN TCHO-TCHO SECT
+    * ==========================================================
+    */
+
+    if (
+        choiceId ===
+        "dimensions-collide-encounter"
+    ) {
+        const dimensionsCollide =
+            [
+                ...easyMythos,
+                ...normalMythos,
+                ...hardMythos,
+            ].find(
+                (definition) =>
+                    definition.id ===
+                        "dimensions-collide" &&
+                    definition.type ===
+                        "rumor",
+            );
+
+        if (!dimensionsCollide) {
+            return game;
+        }
+
+        const isDimensionsCollideInPlay =
+            game.board.mythosInPlay.some(
+                (entry) =>
+                    entry.definitionId ===
+                    "dimensions-collide",
+            );
+
+        if (
+            !isDimensionsCollideInPlay
+        ) {
+            return game;
+        }
+
+        return resolveMythosSpecial(
+            game,
+            dimensionsCollide,
+            "dimensions-collide-encounter",
+            map,
+        );
     }
     
     const deckType =

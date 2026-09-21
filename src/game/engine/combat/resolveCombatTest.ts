@@ -184,7 +184,9 @@ export function resolveCombatTest(
 
   const resume =
     testDecision.resume?.type ===
-      "mythos-arrests-made"
+        "mythos-arrests-made" ||
+    testDecision.resume?.type ===
+        "mythos-patrolling-the-border"
       ? undefined
       : testDecision.resume;
 

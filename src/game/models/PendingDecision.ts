@@ -1,6 +1,22 @@
 import type { EncounterEffect } from "./Encounter";
 import type { MonsterSpecialAbility } from "./Monster";
 
+export type EyesEverywhereResume = {
+  type: "eyes-everywhere";
+
+  investigatorIds: string[];
+
+  currentInvestigatorIndex: number;
+};
+
+export type PatrollingTheBorderResume = {
+    type: "mythos-patrolling-the-border";
+
+    investigatorIds: string[];
+
+    currentInvestigatorIndex: number;
+};
+
 export type ArrestsMadeResume = {
   type: "mythos-arrests-made";
   investigatorIds: string[];
@@ -85,7 +101,9 @@ export type PendingDecision =
       resume?:
         | MonsterReckoningResume
         | DarkPowerResume
-        | ArrestsMadeResume;
+        | ArrestsMadeResume
+        | PatrollingTheBorderResume
+        | EyesEverywhereResume;
     }
 
   | {
@@ -137,7 +155,9 @@ export type PendingDecision =
       resume?:
         | MonsterReckoningResume
         | DarkPowerResume
-        | ArrestsMadeResume;
+        | ArrestsMadeResume
+        | PatrollingTheBorderResume
+        | EyesEverywhereResume;
     }
 
   | {
@@ -153,7 +173,11 @@ export type PendingDecision =
 
       onOneOrTwo?: EncounterEffect[];
 
+      onThreeToFive?: EncounterEffect[];
+
       onThreeToSix?: EncounterEffect[];
+
+      onSix?: EncounterEffect[];
 
       onComplete?: EncounterEffect[];
 
@@ -247,7 +271,9 @@ export type PendingDecision =
       resume?:
         | MonsterReckoningResume
         | DarkPowerResume
-        | ArrestsMadeResume;
+        | ArrestsMadeResume
+        | PatrollingTheBorderResume
+        | EyesEverywhereResume;
     }
 
   | {
@@ -287,7 +313,10 @@ export type PendingDecision =
 
       resume?:
         | MonsterReckoningResume
-        | DarkPowerResume;
+        | DarkPowerResume
+        | ArrestsMadeResume
+        | PatrollingTheBorderResume
+        | EyesEverywhereResume;
     }
 
   | {
@@ -391,7 +420,10 @@ export type PendingDecision =
 
       resume?:
         | MonsterReckoningResume
-        | DarkPowerResume;
+        | DarkPowerResume
+        | ArrestsMadeResume
+        | PatrollingTheBorderResume
+        | EyesEverywhereResume;
     }
   | {
       type: "mythos-reckoning-monsters";

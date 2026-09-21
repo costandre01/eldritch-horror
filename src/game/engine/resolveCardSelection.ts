@@ -6,9 +6,14 @@ import { discardCondition } from "./discardCondition";
 import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
-import { resumeSilverTwilightAid } from "./resolveMythosSpecial";
-import { startArrestsMade } from "./resolveMythosSpecial";
-import { gainCondition } from "./gainCondition";
+import {
+  resumeSilverTwilightAid,
+  startArrestsMade,
+  startBurdenOfGreed,
+  startTreacherousMagic,
+  startUnexpectedBetrayal,
+} from "./resolveMythosSpecial";
+import { gainCondition, gainConditionByCategory } from "./gainCondition";
 
 export type CardSelectionResult =
   | {
@@ -235,7 +240,9 @@ export function resolveCardSelection(
 
           resume:
             decision.resume?.type ===
-              "mythos-arrests-made"
+                "mythos-arrests-made" ||
+            decision.resume?.type ===
+                "mythos-patrolling-the-border"
               ? undefined
               : decision.resume,
         },
@@ -537,29 +544,38 @@ export function resolveCardSelection(
         ...currentGame.board.assetDeck,
       ];
 
-      while (
-        assetReserve.length < 4 &&
-        assetDeck.length > 0
-      ) {
-        const randomIndex =
-          Math.floor(
-            Math.random() *
-              assetDeck.length,
-          );
-
-        const nextAsset =
-          assetDeck.splice(
-            randomIndex,
-            1,
-          )[0];
-
-        if (!nextAsset) {
-          break;
-        }
-
-        assetReserve.push(
-          nextAsset,
+      const drivenToBankruptcyInPlay =
+        currentGame.board.mythosInPlay.some(
+          (entry) =>
+            entry.definitionId ===
+            "driven-to-bankruptcy",
         );
+
+      if (!drivenToBankruptcyInPlay) {
+        while (
+          assetReserve.length < 4 &&
+          assetDeck.length > 0
+        ) {
+          const randomIndex =
+            Math.floor(
+              Math.random() *
+                assetDeck.length,
+            );
+
+          const nextAsset =
+            assetDeck.splice(
+              randomIndex,
+              1,
+            )[0];
+
+          if (!nextAsset) {
+            break;
+          }
+
+          assetReserve.push(
+            nextAsset,
+          );
+        }
       }
 
       currentGame = {
@@ -659,29 +675,38 @@ export function resolveCardSelection(
         ...currentGame.board.assetDeck,
       ];
 
-      while (
-        assetReserve.length < 4 &&
-        assetDeck.length > 0
-      ) {
-        const randomIndex =
-          Math.floor(
-            Math.random() *
-              assetDeck.length,
-          );
-
-        const nextAsset =
-          assetDeck.splice(
-            randomIndex,
-            1,
-          )[0];
-
-        if (!nextAsset) {
-          break;
-        }
-
-        assetReserve.push(
-          nextAsset,
+      const drivenToBankruptcyInPlay =
+        currentGame.board.mythosInPlay.some(
+          (entry) =>
+            entry.definitionId ===
+            "driven-to-bankruptcy",
         );
+
+      if (!drivenToBankruptcyInPlay) {
+        while (
+          assetReserve.length < 4 &&
+          assetDeck.length > 0
+        ) {
+          const randomIndex =
+            Math.floor(
+              Math.random() *
+                assetDeck.length,
+            );
+
+          const nextAsset =
+            assetDeck.splice(
+              randomIndex,
+              1,
+            )[0];
+
+          if (!nextAsset) {
+            break;
+          }
+
+          assetReserve.push(
+            nextAsset,
+          );
+        }
       }
 
       currentGame = {
@@ -1006,7 +1031,9 @@ export function resolveCardSelection(
 
           resume:
             decision.resume?.type ===
-              "mythos-arrests-made"
+                "mythos-arrests-made" ||
+            decision.resume?.type ===
+                "mythos-patrolling-the-border"
               ? undefined
               : decision.resume,
         },
@@ -1016,6 +1043,101 @@ export function resolveCardSelection(
         type: "state",
         game: currentGame,
       };
+    }
+
+    else if (
+      source.startsWith(
+        "mythos:unexpected-betrayal:",
+      )
+    ) {
+        if (
+            selectedCardIds.length !== 1
+        ) {
+            return {
+                type: "ignore",
+                game,
+            };
+        }
+
+        const selectedAssetId =
+            selectedCardIds[0];
+
+        if (!selectedAssetId) {
+            return {
+                type: "ignore",
+                game,
+            };
+        }
+
+        const selectedAsset =
+            currentGame.assets[
+                selectedAssetId
+            ];
+
+        if (
+            !selectedAsset ||
+            selectedAsset.type !== "ally" ||
+            !investigator.assetIds.includes(
+                selectedAssetId,
+            )
+        ) {
+            return {
+                type: "ignore",
+                game,
+            };
+        }
+
+        /*
+        * Descarta o Ally escolhido.
+        */
+
+        currentGame =
+            discardAsset(
+                currentGame,
+                selectedAssetId,
+            );
+
+        /*
+        * Recupera o índice do Investigator
+        * que acabou de ser tratado.
+        */
+
+        const parts =
+            source.split(":");
+
+        const investigatorIndex =
+            Number(
+                parts[
+                    parts.length - 1
+                ],
+            );
+
+        if (
+            !Number.isInteger(
+                investigatorIndex,
+            )
+        ) {
+            return {
+                type: "ignore",
+                game,
+            };
+        }
+
+        /*
+        * Continua com o próximo Investigator
+        * que tenha Ally.
+        */
+
+        currentGame =
+            startUnexpectedBetrayal(
+                currentGame,
+                investigatorIndex + 1,
+            );
+
+        return {
+            type: "state",
+            game: currentGame,
+        };
     }
 
     /*
@@ -1359,6 +1481,361 @@ export function resolveCardSelection(
           resume.investigatorIds,
           resume.currentInvestigatorIndex + 1,
         );
+    }
+
+    /*
+    * ==========================================================
+    * MYTHOS — BURDEN OF GREED
+    * Discard any number of Item possessions,
+    * then lose 1 Health for each Item possession remaining.
+    * ==========================================================
+    */
+
+    else if (
+      source.startsWith(
+        "mythos:burden-of-greed:",
+      )
+    ) {
+      /*
+      * All selected cards must still be valid
+      * Item possessions owned by this Investigator.
+      */
+
+      const selectedItems =
+        selectedCardIds.filter(
+          (id) => {
+            const asset =
+              currentGame.assets[id];
+
+            return (
+              asset !== undefined &&
+              (
+                asset.type === "item" ||
+                asset.type === "trinket"
+              ) &&
+              investigator.assetIds.includes(
+                id,
+              )
+            );
+          },
+        );
+
+      /*
+      * The selection must contain only valid
+      * Item possessions.
+      */
+
+      if (
+        selectedItems.length !==
+        selectedCardIds.length
+      ) {
+        return {
+          type: "ignore",
+          game,
+        };
+      }
+
+      /*
+      * Discard every selected Item.
+      */
+
+      for (
+        const assetId of selectedItems
+      ) {
+        currentGame =
+          discardAsset(
+            currentGame,
+            assetId,
+          );
+      }
+
+      /*
+      * Re-read the Investigator because
+      * discardAsset() changed the state.
+      */
+
+      const currentInvestigator =
+        currentGame.investigators[
+          investigatorId
+        ];
+
+      if (!currentInvestigator) {
+        return {
+          type: "ignore",
+          game,
+        };
+      }
+
+      /*
+      * Count the Item possessions that remain.
+      */
+
+      const remainingItemCount =
+        currentInvestigator.assetIds.filter(
+          (id) => {
+            const asset =
+              currentGame.assets[id];
+
+            return (
+              asset !== undefined &&
+              (
+                asset.type === "item" ||
+                asset.type === "trinket"
+              )
+            );
+          },
+        ).length;
+
+      /*
+      * Clear the selection before applying
+      * the Health loss.
+      */
+
+      currentGame = {
+        ...currentGame,
+        pendingDecision: null,
+      };
+
+      /*
+      * Lose 1 Health for each Item remaining.
+      *
+      * Use the existing Encounter Effect system so
+      * Health loss and Investigator Defeat follow
+      * the same rules as everywhere else.
+      */
+
+      if (
+        remainingItemCount > 0
+      ) {
+        currentGame =
+          resolveEncounterEffects(
+            currentGame,
+            investigatorId,
+            [
+              {
+                type: "lose-health",
+                amount:
+                  remainingItemCount,
+              },
+            ],
+            map,
+          );
+      }
+
+      /*
+      * Continue with the next Investigator.
+      */
+
+      const sourceParts =
+        source.split(":");
+
+      const currentIndex =
+        Number(
+          sourceParts[3] ?? "0",
+        );
+
+      return {
+        type: "state",
+        game:
+          startBurdenOfGreed(
+            currentGame,
+            currentIndex + 1,
+          ),
+      };
+    }
+
+    /*
+    * ==========================================================
+    * MYTHOS — TREACHEROUS MAGIC
+    * Discard any number of Spells,
+    * then lose 1 Sanity for each Spell remaining.
+    *
+    * If the Investigator lost Sanity from this effect,
+    * he gains 1 Madness Condition.
+    * ==========================================================
+    */
+
+    else if (
+      source.startsWith(
+        "mythos:treacherous-magic:",
+      )
+    ) {
+      /*
+      * Every selected card must be a Spell
+      * owned by this Investigator.
+      */
+
+      const selectedSpells =
+        selectedCardIds.filter(
+          (spellId) =>
+            investigator.spellIds.includes(
+              spellId,
+            ) &&
+            currentGame.spells[
+              spellId
+            ] !== undefined,
+        );
+
+      /*
+      * Reject the selection if any selected
+      * card is not a valid Spell.
+      */
+
+      if (
+        selectedSpells.length !==
+        selectedCardIds.length
+      ) {
+        return {
+          type: "ignore",
+          game,
+        };
+      }
+
+      /*
+      * Discard every selected Spell.
+      */
+
+      for (
+        const spellId of selectedSpells
+      ) {
+        const spell =
+          currentGame.spells[
+            spellId
+          ];
+
+        if (!spell) {
+          continue;
+        }
+
+        currentGame = {
+          ...currentGame,
+
+          investigators: {
+            ...currentGame.investigators,
+
+            [investigatorId]: {
+              ...currentGame.investigators[
+                investigatorId
+              ],
+
+              spellIds:
+                currentGame.investigators[
+                  investigatorId
+                ].spellIds.filter(
+                  (id) =>
+                    id !== spellId,
+                ),
+            },
+          },
+
+          board: {
+            ...currentGame.board,
+
+            spellDiscard: [
+              ...currentGame.board
+                .spellDiscard,
+
+              spell,
+            ],
+          },
+        };
+      }
+
+      /*
+      * Re-read the Investigator after
+      * discarding the selected Spells.
+      */
+
+      const currentInvestigator =
+        currentGame.investigators[
+          investigatorId
+        ];
+
+      if (!currentInvestigator) {
+        return {
+          type: "ignore",
+          game,
+        };
+      }
+
+      /*
+      * Count the Spells that remain.
+      */
+
+      const remainingSpellCount =
+        currentInvestigator.spellIds.filter(
+          (spellId) =>
+            currentGame.spells[
+              spellId
+            ] !== undefined,
+        ).length;
+
+      /*
+      * The selection is finished.
+      */
+
+      currentGame = {
+        ...currentGame,
+
+        pendingDecision: null,
+      };
+
+      /*
+      * The Investigator loses 1 Sanity
+      * for each Spell remaining.
+      *
+      * If at least one Spell remains,
+      * he lost Sanity and therefore gains
+      * a Madness Condition.
+      */
+
+      if (
+        remainingSpellCount > 0
+      ) {
+        currentGame =
+          resolveEncounterEffects(
+            currentGame,
+            investigatorId,
+            [
+              {
+                type: "lose-sanity",
+
+                amount:
+                  remainingSpellCount,
+              },
+            ],
+            map,
+          );
+
+        currentGame =
+          gainConditionByCategory(
+              currentGame,
+              investigatorId,
+              "madness",
+          );
+      }
+
+      /*
+      * Continue with the next Investigator.
+      */
+
+      const sourceParts =
+        source.split(":");
+
+      const currentIndex =
+        Number(
+          sourceParts[3] ?? "0",
+        );
+
+      return {
+        type: "state",
+
+        game:
+          startTreacherousMagic(
+            currentGame,
+            currentIndex + 1,
+          ),
+      };
     }
 
     /*

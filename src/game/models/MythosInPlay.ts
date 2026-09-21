@@ -1,5 +1,7 @@
 export interface MythosInPlay {
-  definitionId: string;
+    definitionId: string;
 
-  eldritchTokens: number;
+    eldritchTokens: number;
+
+    monsterIds?: string[];
 }

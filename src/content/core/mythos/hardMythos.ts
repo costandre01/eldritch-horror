@@ -32,22 +32,10 @@ export const hardMythos: MythosDefinition[] = [
             "Shuffle a solved Mystery back into the deck unless investigators as a group spend Clues equal to half the number of investigators. If there were no solved Mysteries, advance Doom by 1 instead.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Se existir pelo menos 1 Mystery resolvido:
-            *
-            *   -> Os investigadores, em grupo, podem gastar
-            *      Clues igual a metade do número de investigadores.
-            *
-            *   -> Se não gastarem esses Clues:
-            *        escolher 1 Mystery resolvido
-            *        e colocá-lo novamente no deck de Mysteries.
-            *
-            * Se NÃO existir nenhum Mystery resolvido:
-            *
-            *   -> Advance Doom by 1.
-            */
+            {
+                type: "mythos-special",
+                id: "all-for-nothing",
+            },
         ],
     },
 
@@ -82,19 +70,10 @@ export const hardMythos: MythosDefinition[] = [
             "Doom advances by 2 unless the Lead Investigator gains a Dark Pact Condition.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * O Lead Investigator escolhe:
-            *
-            * -> Ganhar uma Dark Pact Condition
-            *    e evitar o avanço de Doom.
-            *
-            * OU
-            *
-            * -> Não ganhar Dark Pact.
-            *    Nesse caso, Doom avança 2.
-            */
+            {
+                type: "mythos-special",
+                id: "desperate-times",
+            },
         ],
     },
 
@@ -131,35 +110,15 @@ export const hardMythos: MythosDefinition[] = [
             "As an encounter, an investigator on space 11 may attempt to infiltrate a hidden sect of Tcho-Tchos that is destabilizing the fabric of reality by invoking Chaugnar Faugn [observation]. If he passes, he puts an end to their rituals; he may spend Clues equal to half the number of investigators to solve this Rumor. When there are no Eldritch tokens on this card, investigators lose the game.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Durante um Encounter:
-            *
-            *   -> Um investigador em Space 11 pode fazer
-            *      um teste de observation.
-            *
-            *   -> Se passar, pode gastar Clues igual a
-            *      metade do número de investigadores.
-            *
-            *   -> Se gastar os Clues, resolve este Rumor.
-            *
-            *
-            * SE NÃO HOUVER ELDritch TOKENS:
-            *
-            *   -> Os investigadores perdem imediatamente o jogo.
-            */
+            {
+                type: "mythos-special",
+                id: "dimensions-collide",
+            },
         ],
 
-        /*
-        * TODO:
-        *
-        * RECKONING:
-        *
-        *   -> Contar o número de Gates no tabuleiro.
-        *   -> Descartar Eldritch tokens deste Rumor
-        *      igual a metade desse número.
-        */
+        reckoning: {
+            type: "dimensions-collide",
+        },
     },
 
     {
@@ -193,24 +152,10 @@ export const hardMythos: MythosDefinition[] = [
             "Each investigator rolls 1 die and resolves the matching effect: 1-2: He is assaulted and loses 2 Health and 2 Sanity. 3-5: A Monster ambushes him. 6: No effect.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Para CADA investigador:
-            *
-            * -> Rolar 1 die.
-            *
-            * Resultado 1-2:
-            *   -> Perde 2 Health.
-            *   -> Perde 2 Sanity.
-            *
-            * Resultado 3-5:
-            *   -> Um Monster faz uma emboscada
-            *      ao investigador.
-            *
-            * Resultado 6:
-            *   -> Nenhum efeito.
-            */
+            {
+                type: "mythos-special",
+                id: "eyes-everywhere",
+            },
         ],
     },
 

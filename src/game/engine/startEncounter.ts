@@ -281,6 +281,48 @@ export function startEncounter(
     growingMadnessInPlay;
 
   /*
+  * ============================================================
+  * STARS ALIGNED — ASTRONOMICAL RESEARCH
+  * ============================================================
+  *
+  * If Stars Aligned is in play and the Investigator
+  * is on Space 7, he may attempt the Rumor instead
+  * of choosing a normal Encounter deck.
+  */
+
+  const starsAlignedInPlay =
+    result.game.board.mythosInPlay.some(
+      (entry) =>
+        entry.definitionId ===
+        "stars-aligned",
+    );
+
+  const canAttemptStarsAligned =
+    currentSpace.id === "space-7" &&
+    starsAlignedInPlay;
+
+  /*
+  * ============================================================
+  * DIMENSIONS COLLIDE — HIDDEN TCHO-TCHO SECT
+  * ============================================================
+  *
+  * If Dimensions Collide is in play and the investigator
+  * is on Space 11, he may attempt the Rumor instead
+  * of choosing a normal Encounter deck.
+  */
+
+  const dimensionsCollideInPlay =
+    result.game.board.mythosInPlay.some(
+      (entry) =>
+        entry.definitionId ===
+        "dimensions-collide",
+    );
+
+  const canAttemptDimensionsCollide =
+    currentSpace.id === "space-11" &&
+    dimensionsCollideInPlay;
+
+  /*
    * ============================================================
    * ENCOUNTER DECK SELECTION
    * ============================================================
@@ -370,6 +412,58 @@ export function startEncounter(
               },
             ]
           : []),
+        
+        ...(canAttemptStarsAligned
+          ? [
+              {
+                id:
+                  "stars-aligned-encounter",
+
+                title:
+                  "Stars Aligned",
+
+                description:
+                  "Attempt to find the strangers studying the stars.",
+
+                image:
+                  [
+                    ...easyMythos,
+                    ...normalMythos,
+                    ...hardMythos,
+                  ].find(
+                    (definition) =>
+                      definition.id ===
+                      "stars-aligned",
+                  )?.image,
+              },
+            ]
+          : []),
+        ...(canAttemptDimensionsCollide
+          ? [
+              {
+                id:
+                  "dimensions-collide-encounter",
+
+                title:
+                  "Dimensions Collide",
+
+                description:
+                  "Attempt to infiltrate the hidden Tcho-Tcho sect.",
+
+                image:
+                  [
+                    ...easyMythos,
+                    ...normalMythos,
+                    ...hardMythos,
+                  ].find(
+                    (definition) =>
+                      definition.id ===
+                      "dimensions-collide",
+                  )?.image,
+              },
+            ]
+          : []),
+          
         ...(canAttemptSecretsOfThePast
           ? [
               {

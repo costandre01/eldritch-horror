@@ -24,7 +24,9 @@ import { startMonsterCombat } from "./startMonsterCombat";
 import { easyMythos } from "../../content/core/mythos/easyMythos";
 import { normalMythos } from "../../content/core/mythos/normalMythos";
 import { hardMythos } from "../../content/core/mythos/hardMythos";
-import { startArrestsMade } from "./resolveMythosSpecial";
+import { startArrestsMade, startEyesEverywhere } from "./resolveMythosSpecial";
+import { gainCondition } from "./gainCondition";
+import { solveMythosRumor } from "./solveMythosRumor";
 
 export interface GameFlowContinueResult {
   game: GameState;
@@ -423,6 +425,227 @@ export function resolveGameFlowContinue(
       resetEncounterStartedForTurn:
         false,
     };
+  }
+
+  /*
+  * ============================================================
+  * MYTHOS — PATROLLING THE BORDER
+  * TEST RESULT
+  * ============================================================
+  */
+
+  if (
+      decision.type === "continue" &&
+      decision.source?.startsWith(
+          "mythos:patrolling-the-border:test-result:",
+      )
+  ) {
+      const resume =
+          decision.resume;
+
+      if (
+          !resume ||
+          resume.type !==
+              "mythos-patrolling-the-border"
+      ) {
+          throw new Error(
+              "Patrolling the Border test result is missing its resume.",
+          );
+      }
+
+      const result =
+          decision.source.split(":")[5];
+
+      const investigatorId =
+          resume.investigatorIds[
+              resume.currentInvestigatorIndex
+          ];
+
+      if (!investigatorId) {
+          throw new Error(
+              "Patrolling the Border could not determine the current Investigator.",
+          );
+      }
+
+      let currentGame =
+          game;
+
+      const mythos =
+          normalMythos.find(
+              (definition) =>
+                  definition.id ===
+                  "patrolling-the-border",
+          );
+
+      if (!mythos) {
+          throw new Error(
+              'Mythos "patrolling-the-border" does not exist.',
+          );
+      }
+
+      /*
+      * ========================================================
+      * FAIL
+      * ========================================================
+      *
+      * Failed investigators become Delayed
+      * and gain Detained.
+      */
+
+      if (
+          result === "fail"
+      ) {
+          const investigator =
+              currentGame.investigators[
+                  investigatorId
+              ];
+
+          if (!investigator) {
+              throw new Error(
+                  `Investigator "${investigatorId}" does not exist.`,
+              );
+          }
+
+          currentGame = {
+              ...currentGame,
+
+              investigators: {
+                  ...currentGame.investigators,
+
+                  [investigatorId]: {
+                      ...investigator,
+
+                      isDelayed: true,
+                  },
+              },
+          };
+
+          currentGame =
+              gainCondition(
+                  currentGame,
+                  investigatorId,
+                  "condition-detained",
+              );
+      }
+
+      /*
+      * ========================================================
+      * NEXT INVESTIGATOR
+      * ========================================================
+      */
+
+      const nextIndex =
+          resume.currentInvestigatorIndex +
+          1;
+
+      if (
+          nextIndex <
+          resume.investigatorIds.length
+      ) {
+          const nextInvestigatorId =
+              resume.investigatorIds[
+                  nextIndex
+              ];
+
+          if (!nextInvestigatorId) {
+              throw new Error(
+                  "Patrolling the Border could not determine the next Investigator.",
+              );
+          }
+
+          return {
+              game: {
+                  ...currentGame,
+
+                  activeInvestigatorId:
+                      nextInvestigatorId,
+
+                  pendingDecision: {
+                      type: "test",
+
+                      title:
+                          "Patrolling the Border",
+
+                      message:
+                          "Test Observation.",
+
+                      image:
+                          mythos.image,
+
+                      skill:
+                          "observation",
+
+                      modifier:
+                          0,
+
+                      investigatorId:
+                          nextInvestigatorId,
+
+                      source:
+                          `mythos:patrolling-the-border:test:${nextInvestigatorId}:${nextIndex}`,
+
+                      resume: {
+                          type:
+                              "mythos-patrolling-the-border",
+
+                          investigatorIds:
+                              resume.investigatorIds,
+
+                          currentInvestigatorIndex:
+                              nextIndex,
+                      },
+                  },
+              },
+
+              resetEncounterStartedForTurn:
+                  false,
+          };
+      }
+
+      /*
+      * ========================================================
+      * ALL CITY INVESTIGATORS HAVE BEEN TESTED
+      * ========================================================
+      *
+      * Discard Patrolling the Border.
+      */
+
+      const updatedMythosInPlay =
+          currentGame.board.mythosInPlay.filter(
+              (entry) =>
+                  entry.definitionId !==
+                  "patrolling-the-border",
+          );
+
+      return {
+          game: {
+              ...currentGame,
+
+              board: {
+                  ...currentGame.board,
+
+                  mythosInPlay:
+                      updatedMythosInPlay,
+
+                  mythosDiscard: [
+                      ...currentGame.board.mythosDiscard,
+                      mythos,
+                  ],
+              },
+
+              currentMythosId:
+                  null,
+
+              activeInvestigatorId:
+                  null,
+
+              pendingDecision:
+                  null,
+          },
+
+          resetEncounterStartedForTurn:
+              false,
+      };
   }
 
   /*
@@ -1260,6 +1483,69 @@ export function resolveGameFlowContinue(
       };
 
     /*
+     * ==========================================================
+     * THE WIND-WALKER
+     * ==========================================================
+     *
+     * If the defeated Monster is the Wind-Walker and the
+     * corresponding Rumor is still in play, solve the Rumor.
+     */
+
+    const defeatedMonster =
+      finishedGame.monsters[
+        monsterId
+      ];
+
+    const windWalkerRumor =
+      [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ].find(
+        (definition) =>
+          definition.id ===
+          "the-wind-walker",
+      );
+
+    const windWalkerInPlay =
+      finishedGame.board.mythosInPlay.some(
+        (entry) =>
+          entry.definitionId ===
+          "the-wind-walker",
+      );
+
+    if (
+      defeatedMonster?.definitionId ===
+        "wind-walker" &&
+      windWalkerRumor &&
+      windWalkerInPlay
+    ) {
+      const solvedGame =
+        solveMythosRumor(
+          finishedGame,
+          windWalkerRumor,
+        );
+
+      /*
+       * Continue the normal combat flow using
+       * the solved game state.
+       */
+
+      const nextGame =
+        resolveCombatEncounterEnd(
+          solvedGame,
+          map,
+          monsterId,
+        );
+
+      return {
+        game: nextGame,
+        resetEncounterStartedForTurn:
+          false,
+      };
+    }
+
+    /*
     * ==========================================================
     * SHUB-NIGGURATH RECKONING COMBAT
     * ==========================================================
@@ -1394,6 +1680,233 @@ export function resolveGameFlowContinue(
 
       return {
         game: nextGame,
+
+        resetEncounterStartedForTurn:
+          false,
+      };
+    }
+
+    /*
+    * ==========================================================
+    * RETURN OF THE ANCIENT ONES
+    * ==========================================================
+    *
+    * If the Investigator defeated a Monster on Space 19,
+    * he may spend 1 Clue to place that Monster on the Rumor.
+    */
+
+    if (
+      decision.resume === undefined
+    ) {
+      const investigatorId =
+        finishedGame.activeInvestigatorId;
+
+      const investigator =
+        investigatorId
+          ? finishedGame.investigators[
+              investigatorId
+            ]
+          : undefined;
+
+      const returnOfAncientOnes =
+        finishedGame.board.mythosInPlay.some(
+          (entry) =>
+            entry.definitionId ===
+            "return-of-the-ancient-ones",
+        );
+
+      if (
+        investigator &&
+        investigator.spaceId ===
+          "space-19" &&
+        investigator.clues > 0 &&
+        returnOfAncientOnes
+      ) {
+        return {
+          game: {
+            ...finishedGame,
+
+            pendingDecision: {
+              type: "choice",
+
+              title:
+                "Return of the Ancient Ones",
+
+              message:
+                "You may spend 1 Clue to place the defeated Monster on this Rumor.",
+
+              options: [
+                {
+                  id:
+                    "return-of-the-ancient-ones:place",
+
+                  title:
+                    "Spend 1 Clue",
+
+                  description:
+                    "Spend 1 Clue and place the defeated Monster on Return of the Ancient Ones.",
+                },
+
+                {
+                  id:
+                    "return-of-the-ancient-ones:decline",
+
+                  title:
+                    "Do Not Spend",
+
+                  description:
+                    "Do not place the defeated Monster on the Rumor.",
+                },
+              ],
+
+              source:
+                `mythos:return-of-the-ancient-ones:monster-defeated:${monsterId}`,
+
+              image:
+                "/cards/Mythos/Mythos/Medium - Return of the Ancient Ones.jpg",
+            },
+          },
+
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+    }
+
+    /*
+    * ==========================================================
+    * EYES EVERYWHERE
+    * ==========================================================
+    *
+    * The Monster was defeated during the Eyes Everywhere
+    * ambush.
+    *
+    * The combat itself is finished, but the Mythos card is
+    * NOT finished yet.
+    *
+    * Continue with the next Investigator.
+    */
+
+    if (
+      decision.resume?.type ===
+      "eyes-everywhere"
+    ) {
+      const resume =
+        decision.resume;
+
+      /*
+      * The current Investigator has finished
+      * his Eyes Everywhere ambush.
+      */
+      const nextIndex =
+        resume.currentInvestigatorIndex + 1;
+
+      /*
+      * ----------------------------------------------------------
+      * MORE INVESTIGATORS
+      * ----------------------------------------------------------
+      */
+
+      if (
+        nextIndex <
+        resume.investigatorIds.length
+      ) {
+        const nextInvestigatorId =
+          resume.investigatorIds[
+            nextIndex
+          ];
+
+        if (!nextInvestigatorId) {
+          throw new Error(
+            "Eyes Everywhere could not determine the next Investigator.",
+          );
+        }
+
+        const mythos =
+          [
+            ...easyMythos,
+            ...normalMythos,
+            ...hardMythos,
+          ].find(
+            (definition) =>
+              definition.id ===
+              "eyes-everywhere",
+          );
+
+        if (!mythos) {
+          throw new Error(
+            'Mythos "eyes-everywhere" does not exist.',
+          );
+        }
+
+        return {
+          game:
+            startEyesEverywhere(
+              {
+                ...finishedGame,
+
+                pendingDecision:
+                  null,
+
+                activeInvestigatorId:
+                  nextInvestigatorId,
+              },
+              mythos,
+              nextIndex,
+            ),
+
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+
+      /*
+      * ----------------------------------------------------------
+      * ALL INVESTIGATORS FINISHED
+      * ----------------------------------------------------------
+      *
+      * Only now is Eyes Everywhere discarded.
+      */
+
+      const eyesEverywhere =
+        [
+          ...easyMythos,
+          ...normalMythos,
+          ...hardMythos,
+        ].find(
+          (definition) =>
+            definition.id ===
+            "eyes-everywhere",
+        );
+
+      if (!eyesEverywhere) {
+        throw new Error(
+          'Mythos "eyes-everywhere" does not exist.',
+        );
+      }
+
+      return {
+        game: {
+          ...finishedGame,
+
+          board: {
+            ...finishedGame.board,
+
+            mythosDiscard: [
+              ...finishedGame.board.mythosDiscard,
+              eyesEverywhere,
+            ],
+          },
+
+          currentMythosId:
+            null,
+
+          activeInvestigatorId:
+            null,
+
+          pendingDecision:
+            null,
+        },
 
         resetEncounterStartedForTurn:
           false,

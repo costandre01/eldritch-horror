@@ -12,7 +12,9 @@ import type {
 export function startMonsterCombat(
   game: GameState,
   monsterId: string,
-  resume?: MonsterReckoningResume | DarkPowerResume,
+  resume?:
+    | MonsterReckoningResume
+    | DarkPowerResume,
 ): GameState {
   const monster =
     game.monsters[monsterId];

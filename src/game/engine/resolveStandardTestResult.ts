@@ -59,6 +59,76 @@ export function resolveStandardTestResult(
   ];
 
   /*
+  * ==========================================================
+  * MYTHOS — PATROLLING THE BORDER
+  * ==========================================================
+  */
+
+  if (
+      testDecision.source?.startsWith(
+          "mythos:patrolling-the-border:test:",
+      )
+  ) {
+      const sourceParts =
+          testDecision.source.split(":");
+
+      const investigatorId =
+          sourceParts[3];
+
+      const investigatorIndex =
+          Number(
+              sourceParts[4],
+          );
+
+      if (
+          !investigatorId ||
+          !Number.isInteger(
+              investigatorIndex,
+          )
+      ) {
+          throw new Error(
+              "Patrolling the Border test has an invalid source.",
+          );
+      }
+
+      return {
+          type: "state",
+
+          game: {
+              ...game,
+
+              pendingDecision: {
+                  type: "continue",
+
+                  title:
+                      passed
+                          ? "PASS"
+                          : "FAIL",
+
+                  message:
+                      passed
+                          ? "The Observation test was successful."
+                          : "The Observation test failed.",
+
+                  image:
+                      testDecision.image,
+
+                  onComplete: [],
+
+                  source:
+                      `mythos:patrolling-the-border:test-result:${investigatorId}:${investigatorIndex}:${passed ? "pass" : "fail"}`,
+
+                  resume:
+                      testDecision.resume,
+              },
+
+              lastTest:
+                  diceTest,
+          },
+      };
+  }
+
+  /*
   * ============================================================
   * MYTHOS — ARRESTS MADE IN MURDER CASE!
   * ============================================================

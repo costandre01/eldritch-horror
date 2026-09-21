@@ -1,13 +1,18 @@
+import { coreConditionDefinitions } from "../../content/core/coreConditions";
 import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 import type { MythosDefinition } from "../models/Mythos";
 import { advanceDoom } from "./doomEngine";
+import { gainCondition } from "./gainCondition";
+import { getInvestigatorConditionsByCategory } from "./getInvestigatorConditions";
 import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
+import { resolveConditionFrontEffects } from "./resolveConditionFrontEffects";
 
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { spawnEpicMonsterAtSpace } from "./spawnEpicMonsterAtSpace";
+import { spawnMonsterAtSpace } from "./spawnMonster";
 import { startOtherWorldEncounter } from "./startOtherWorldEncounter";
 
 function createSilverTwilightAidChoice(
@@ -270,6 +275,556 @@ export function startArrestsMade(
   };
 }
 
+export function startUnexpectedBetrayal(
+    game: GameState,
+    investigatorIndex: number,
+): GameState {
+    while (
+        investigatorIndex <
+        game.investigatorOrder.length
+    ) {
+        const investigatorId =
+            game.investigatorOrder[
+                investigatorIndex
+            ];
+
+        if (!investigatorId) {
+            investigatorIndex++;
+            continue;
+        }
+
+        const investigator =
+            game.investigators[
+                investigatorId
+            ];
+
+        if (!investigator) {
+            investigatorIndex++;
+            continue;
+        }
+
+        const allyIds =
+            investigator.assetIds.filter(
+                (assetId) =>
+                    game.assets[
+                        assetId
+                    ]?.type === "ally",
+            );
+
+        /*
+         * Sem Ally: passa ao próximo Investigator.
+         */
+        if (allyIds.length === 0) {
+            investigatorIndex++;
+            continue;
+        }
+
+        /*
+         * Perde 3 Health.
+         */
+        const newHealth =
+            Math.max(
+                0,
+                investigator.health - 3,
+            );
+
+        const isDefeated =
+            newHealth <= 0 ||
+            investigator.sanity <= 0;
+
+        const updatedGame: GameState = {
+            ...game,
+
+            activeInvestigatorId:
+                investigatorId,
+
+            investigators: {
+                ...game.investigators,
+
+                [investigatorId]: {
+                    ...investigator,
+
+                    health:
+                        newHealth,
+
+                    isDefeated,
+                },
+            },
+        };
+
+        /*
+         * Se a perda de Health derrotou o Investigator,
+         * não pode continuar a escolher um Ally.
+         *
+         * Passa diretamente ao próximo Investigator.
+         */
+        if (isDefeated) {
+            return startUnexpectedBetrayal(
+                updatedGame,
+                investigatorIndex + 1,
+            );
+        }
+
+        /*
+         * O Investigator continua ativo e escolhe
+         * exatamente 1 Ally para descartar.
+         */
+        return {
+            ...updatedGame,
+
+            pendingDecision: {
+                type: "select-card",
+
+                title:
+                    "Unexpected Betrayal",
+
+                message:
+                    "Choose 1 Ally Asset to discard.",
+
+                cardIds:
+                    allyIds,
+
+                selectableCardIds:
+                    allyIds,
+
+                minSelections: 1,
+
+                maxSelections: 1,
+
+                selectedCardIds: [],
+
+                investigatorId,
+
+                source:
+                    `mythos:unexpected-betrayal:${investigatorIndex}`,
+            },
+        };
+    }
+
+    /*
+     * Todos os Investigators foram tratados.
+     */
+    return {
+        ...game,
+
+        currentMythosId:
+            null,
+
+        pendingDecision:
+            null,
+
+        activeInvestigatorId:
+            null,
+    };
+}
+
+function getItemIds(
+  game: GameState,
+  investigatorId: string,
+): string[] {
+  const investigator =
+    game.investigators[investigatorId];
+
+  if (!investigator) {
+    return [];
+  }
+
+  return investigator.assetIds.filter(
+    (assetId) => {
+      const asset =
+        game.assets[assetId];
+
+      return (
+        asset !== undefined &&
+        (
+          asset.type === "item" ||
+          asset.type === "trinket"
+        )
+      );
+    },
+  );
+}
+
+export function startBurdenOfGreed(
+  game: GameState,
+  investigatorIndex: number,
+): GameState {
+  const investigatorId =
+    game.investigatorOrder[
+      investigatorIndex
+    ];
+
+  /*
+   * All Investigators have resolved
+   * Burden of Greed.
+   */
+
+  if (!investigatorId) {
+    return {
+      ...game,
+
+      currentMythosId: null,
+
+      pendingDecision: null,
+
+      activeInvestigatorId: null,
+    };
+  }
+
+  const investigator =
+    game.investigators[
+      investigatorId
+    ];
+
+  if (!investigator) {
+    throw new Error(
+      `Investigator "${investigatorId}" does not exist.`,
+    );
+  }
+
+  const itemIds =
+    getItemIds(
+      game,
+      investigatorId,
+    );
+
+  /*
+   * This Investigator has no Items.
+   *
+   * He loses 0 Health and we immediately
+   * continue with the next Investigator.
+   */
+
+  if (itemIds.length === 0) {
+    return startBurdenOfGreed(
+      game,
+      investigatorIndex + 1,
+    );
+  }
+
+  return {
+    ...game,
+
+    activeInvestigatorId:
+      investigatorId,
+
+    pendingDecision: {
+      type: "select-card",
+
+      title:
+        "Burden of Greed",
+
+      message:
+        "Choose any number of Item possessions to discard, then finish.",
+
+      cardIds:
+        itemIds,
+
+      selectableCardIds:
+        itemIds,
+
+      minSelections: 0,
+
+      maxSelections:
+        itemIds.length,
+
+      selectedCardIds: [],
+
+      investigatorId,
+
+      source:
+        `mythos:burden-of-greed:${investigatorIndex}`,
+    },
+  };
+}
+
+function getSpellIds(
+  game: GameState,
+  investigatorId: string,
+): string[] {
+  const investigator =
+    game.investigators[investigatorId];
+
+  if (!investigator) {
+    return [];
+  }
+
+  return investigator.spellIds.filter(
+    (spellId) =>
+      game.spells[spellId] !== undefined,
+  );
+}
+
+export function startTreacherousMagic(
+  game: GameState,
+  investigatorIndex: number,
+): GameState {
+  const investigatorId =
+    game.investigatorOrder[
+      investigatorIndex
+    ];
+
+  /*
+   * All Investigators have resolved
+   * Treacherous Magic.
+   */
+
+  if (!investigatorId) {
+    return {
+      ...game,
+
+      currentMythosId: null,
+
+      pendingDecision: null,
+
+      activeInvestigatorId: null,
+    };
+  }
+
+  const investigator =
+    game.investigators[
+      investigatorId
+    ];
+
+  if (!investigator) {
+    throw new Error(
+      `Investigator "${investigatorId}" does not exist.`,
+    );
+  }
+
+  const spellIds =
+    getSpellIds(
+      game,
+      investigatorId,
+    );
+
+  /*
+   * This Investigator has no Spells.
+   *
+   * He loses 0 Sanity and we immediately
+   * continue with the next Investigator.
+   */
+
+  if (spellIds.length === 0) {
+    return startTreacherousMagic(
+      game,
+      investigatorIndex + 1,
+    );
+  }
+
+  return {
+    ...game,
+
+    activeInvestigatorId:
+      investigatorId,
+
+    pendingDecision: {
+      type: "select-card",
+
+      title:
+        "Treacherous Magic",
+
+      message:
+        "Choose any number of Spell possessions to discard, then finish.",
+
+      cardIds:
+        spellIds,
+
+      selectableCardIds:
+        spellIds,
+
+      minSelections: 0,
+
+      maxSelections:
+        spellIds.length,
+
+      selectedCardIds: [],
+
+      investigatorId,
+
+      source:
+        `mythos:treacherous-magic:${investigatorIndex}`,
+    },
+  };
+}
+
+export function startPatrollingTheBorder(
+    game: GameState,
+): GameState {
+    const investigatorIds =
+        game.investigatorOrder.filter(
+            (investigatorId) =>
+                game.investigators[
+                    investigatorId
+                ] !== undefined,
+        );
+
+    if (investigatorIds.length === 0) {
+        return {
+            ...game,
+            currentMythosId: null,
+            pendingDecision: null,
+        };
+    }
+
+    return {
+        ...game,
+
+        pendingDecision: {
+            type: "choice",
+
+            title:
+                "Patrolling the Border",
+
+            message:
+                "The Lead Investigator chooses 1 investigator to become Delayed.",
+
+            image:
+                "/cards/Mythos/Mythos/Medium - Patrolling the Border.jpg",
+
+            options:
+              investigatorIds.map(
+                  (investigatorId) => ({
+                      id:
+                          `patrolling-the-border:${investigatorId}`,
+
+                      title:
+                          investigatorId,
+
+                      description:
+                          "Become Delayed.",
+                  }),
+              ),
+
+            source:
+                "mythos:patrolling-the-border:choose-investigator",
+        },
+    };
+}
+
+export function startEyesEverywhere(
+  game: GameState,
+  mythos: MythosDefinition,
+  investigatorIndex: number,
+): GameState {
+  /*
+   * ============================================================
+   * ALL INVESTIGATORS RESOLVED
+   * ============================================================
+   */
+
+  if (
+    investigatorIndex >=
+    game.investigatorOrder.length
+  ) {
+    return {
+      ...game,
+
+      board: {
+        ...game.board,
+
+        mythosDiscard: [
+          ...game.board.mythosDiscard,
+          mythos,
+        ],
+      },
+
+      currentMythosId: null,
+
+      pendingDecision: null,
+
+      activeInvestigatorId: null,
+
+      combatOrder: null,
+    };
+  }
+
+  const investigatorId =
+    game.investigatorOrder[
+      investigatorIndex
+    ];
+
+  if (!investigatorId) {
+    return startEyesEverywhere(
+      game,
+      mythos,
+      investigatorIndex + 1,
+    );
+  }
+
+  const investigator =
+    game.investigators[
+      investigatorId
+    ];
+
+  if (!investigator) {
+    return startEyesEverywhere(
+      game,
+      mythos,
+      investigatorIndex + 1,
+    );
+  }
+
+  /*
+   * A defeated Investigator no longer resolves
+   * the remaining effects of the Mythos card.
+   */
+
+  if (investigator.isDefeated) {
+    return startEyesEverywhere(
+      game,
+      mythos,
+      investigatorIndex + 1,
+    );
+  }
+
+  return {
+    ...game,
+
+    activeInvestigatorId:
+      investigatorId,
+
+    pendingDecision: {
+      type: "single-die-roll",
+
+      title:
+        "Eyes Everywhere",
+
+      message:
+        "Roll 1 die: 1-2 lose 2 Health and 2 Sanity; 3-5 are ambushed by a Monster; 6 has no effect.",
+
+      image:
+        mythos.image,
+
+      investigatorId,
+
+      onOneOrTwo: [
+        {
+          type: "lose-health",
+          amount: 2,
+        },
+        {
+          type: "lose-sanity",
+          amount: 2,
+        },
+      ],
+
+      onThreeToFive: [
+        {
+          type: "combat-random-monster",
+        },
+      ],
+
+      onSix: [],
+
+      onComplete: [],
+
+      source:
+        `mythos:eyes-everywhere:${investigatorIndex}`,
+    },
+  };
+}
+
 export function resolveMythosSpecial(
   game: GameState,
   mythos: MythosDefinition,
@@ -277,6 +832,1011 @@ export function resolveMythosSpecial(
   map: MapDefinition,
 ): GameState {
   switch (specialId) {
+
+    case "eyes-everywhere": {
+      if (
+        mythos.id !==
+        "eyes-everywhere"
+      ) {
+        throw new Error(
+          "Invalid Mythos for Eyes Everywhere.",
+        );
+      }
+
+      return startEyesEverywhere(
+        game,
+        mythos,
+        0,
+      );
+    }
+
+    case "dimensions-collide-encounter": {
+      if (
+          mythos.id !==
+          "dimensions-collide"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve Dimensions Collide Encounter.`,
+          );
+      }
+
+      const investigatorId =
+          game.activeInvestigatorId;
+
+      if (!investigatorId) {
+          throw new Error(
+              "There is no active investigator.",
+          );
+      }
+
+      const investigator =
+          game.investigators[
+              investigatorId
+          ];
+
+      if (!investigator) {
+          throw new Error(
+              `Investigator "${investigatorId}" does not exist.`,
+          );
+      }
+
+      /*
+      * Dimensions Collide can only be researched
+      * on Space 11.
+      */
+
+      if (
+          investigator.spaceId !==
+          "space-11"
+      ) {
+          return game;
+      }
+
+      const investigatorCount =
+          game.investigatorOrder.length;
+
+      const clueCost =
+          Math.ceil(
+              investigatorCount / 2,
+          );
+
+      return {
+          ...game,
+
+          pendingDecision: {
+              type: "test",
+
+              title:
+                  mythos.name,
+
+              message:
+                  "Attempt to infiltrate the hidden sect of Tcho-Tchos destabilizing the fabric of reality.",
+
+              image:
+                  mythos.image,
+
+              skill:
+                  "observation",
+
+              modifier:
+                  0,
+
+              investigatorId,
+
+              onSuccess: [
+                  {
+                      type: "choice",
+
+                      choices: [
+                          {
+                              text:
+                                  `Spend ${clueCost} Clue${
+                                      clueCost === 1
+                                          ? ""
+                                          : "s"
+                                  } to solve this Rumor.`,
+
+                              requirement: {
+                                  type:
+                                      "clues",
+
+                                  amount:
+                                      clueCost,
+                              },
+
+                              effects: [
+                                  {
+                                      type:
+                                          "lose-clues",
+
+                                      amount:
+                                          clueCost,
+                                  },
+                                  {
+                                      type:
+                                          "solve-mythos-rumor",
+
+                                      mythosId:
+                                          "dimensions-collide",
+                                  },
+                              ],
+                          },
+                      ],
+                  },
+              ],
+
+              onFail: [],
+
+              minSuccesses:
+                  1,
+
+              onComplete: [],
+
+              source:
+                  "mythos:dimensions-collide-encounter",
+          },
+      };
+    }
+
+    case "dimensions-collide": {
+      if (
+          mythos.id !==
+          "dimensions-collide"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve Dimensions Collide.`,
+          );
+      }
+
+      const mythosInPlay =
+          game.board.mythosInPlay.find(
+              (entry) =>
+                  entry.definitionId ===
+                  "dimensions-collide",
+          );
+
+      if (!mythosInPlay) {
+          return game;
+      }
+
+      /*
+      * ==========================================================
+      * DIMENSIONS COLLIDE — 0 ELDRITCH TOKENS
+      * ==========================================================
+      *
+      * When there are no Eldritch Tokens on this Rumor,
+      * the investigators immediately lose the game.
+      */
+
+      if (
+          mythosInPlay.eldritchTokens === 0
+      ) {
+          return {
+              ...game,
+
+              status:
+                  "defeat",
+
+              pendingDecision:
+                  null,
+
+              activeInvestigatorId:
+                  null,
+          };
+      }
+
+      return game;
+    }
+
+    case "desperate-times": {
+      if (
+          mythos.id !==
+          "desperate-times"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve Desperate Times.`,
+          );
+      }
+
+      const leadInvestigatorId =
+          getLeadInvestigatorId(game);
+
+      if (!leadInvestigatorId) {
+          return {
+              ...game,
+
+              currentMythosId:
+                  null,
+
+              pendingDecision:
+                  null,
+
+              activeInvestigatorId:
+                  null,
+          };
+      }
+
+      /*
+      * ==========================================================
+      * DESPERATE TIMES
+      * ==========================================================
+      *
+      * The Lead Investigator chooses:
+      *
+      * -> Gain a Dark Pact Condition and prevent Doom
+      *    from advancing.
+      *
+      * OR
+      *
+      * -> Do not gain Dark Pact and Doom advances by 2.
+      */
+
+      return {
+          ...game,
+
+          activeInvestigatorId:
+              leadInvestigatorId,
+
+          pendingDecision: {
+              type: "choice",
+
+              title:
+                  "Desperate Times",
+
+              message:
+                  "The Lead Investigator must choose whether to gain a Dark Pact Condition or allow Doom to advance by 2.",
+
+              options: [
+                  {
+                      id:
+                          "desperate-times:dark-pact",
+
+                      title:
+                          "Gain Dark Pact",
+
+                      description:
+                          "Gain a Dark Pact Condition and prevent Doom from advancing.",
+                  },
+
+                  {
+                      id:
+                          "desperate-times:doom",
+
+                      title:
+                          "Do Not Gain Dark Pact",
+
+                      description:
+                          "Do not gain Dark Pact. Doom advances by 2.",
+                  },
+              ],
+
+              source:
+                  "mythos:desperate-times",
+          },
+      };
+    }
+
+    case "all-for-nothing": {
+      if (
+          mythos.id !==
+          "all-for-nothing"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve All For Nothing.`,
+          );
+      }
+
+      /*
+      * ==========================================================
+      * ALL FOR NOTHING
+      * ==========================================================
+      *
+      * If there are no solved Mysteries:
+      *   -> Advance Doom by 1.
+      *
+      * Otherwise:
+      *   -> Investigators may collectively spend Clues
+      *      equal to half the number of investigators.
+      *   -> If they do not, return 1 solved Mystery to
+      *      the Mystery deck.
+      */
+
+      const solvedMysteryIds =
+          game.mysteries.solvedMysteryIds;
+
+      /*
+      * ==========================================================
+      * NO SOLVED MYSTERIES
+      * ==========================================================
+      */
+
+      if (
+          solvedMysteryIds.length === 0
+      ) {
+          const wasAwakened =
+              game.ancientOne.awakened;
+
+          const updatedGame =
+              advanceDoom(
+                  game,
+                  1,
+              );
+
+          /*
+          * If Doom awakened the Ancient One,
+          * continue through the normal Awakening flow.
+          */
+
+          if (
+              !wasAwakened &&
+              updatedGame.ancientOne.awakened
+          ) {
+              return resolveAncientOneAwakening(
+                  {
+                      ...updatedGame,
+
+                      currentMythosId:
+                          mythos.id,
+                  },
+                  map,
+                  mythos.icons.length,
+              );
+          }
+
+          return {
+              ...updatedGame,
+
+              currentMythosId:
+                  null,
+
+              pendingDecision:
+                  null,
+
+              activeInvestigatorId:
+                  null,
+          };
+      }
+
+      /*
+      * ==========================================================
+      * SOLVED MYSTERY EXISTS
+      * ==========================================================
+      *
+      * Half the number of investigators, rounded up.
+      */
+
+      const clueCost =
+          Math.ceil(
+              game.investigatorOrder.length /
+                  2,
+          );
+
+      return {
+          ...game,
+
+          pendingDecision: {
+              type: "choice",
+
+              title:
+                  "All For Nothing",
+
+              message:
+                  `The investigators may collectively spend ${clueCost} Clue${
+                      clueCost === 1
+                          ? ""
+                          : "s"
+                  } to prevent a solved Mystery from returning to the deck.`,
+
+              options: [
+                  {
+                      id:
+                          "all-for-nothing:spend-clues",
+
+                      title:
+                          `Spend ${clueCost} Clue${
+                              clueCost === 1
+                                  ? ""
+                                  : "s"
+                          }`,
+
+                      description:
+                          "Spend the required Clues as a group.",
+                  },
+
+                  {
+                      id:
+                          "all-for-nothing:do-not-spend",
+
+                      title:
+                          "Do Not Spend",
+
+                      description:
+                          "Shuffle a solved Mystery back into the Mystery deck.",
+                  },
+              ],
+
+              source:
+                  "mythos:all-for-nothing",
+          },
+      };
+    }
+
+    case "unexpected-betrayal": {
+      if (
+          mythos.id !==
+          "unexpected-betrayal"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve Unexpected Betrayal.`,
+          );
+      }
+
+      return startUnexpectedBetrayal(
+          game,
+          0,
+      );
+    }
+
+    case "patrolling-the-border": {
+      if (
+          mythos.id !==
+          "patrolling-the-border"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve Patrolling the Border.`,
+          );
+      }
+
+      return startPatrollingTheBorder(
+          game,
+      );
+    }
+
+    case "haunting-nightmares": {
+      if (
+        mythos.id !==
+        "haunting-nightmares"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Haunting Nightmares.`,
+        );
+      }
+
+      const investigatorId =
+        game.investigatorOrder[0];
+
+      if (!investigatorId) {
+        return {
+          ...game,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      const investigator =
+        game.investigators[
+          investigatorId
+        ];
+
+      if (!investigator) {
+        throw new Error(
+          `Investigator "${investigatorId}" does not exist.`,
+        );
+      }
+
+      const options = [];
+
+      /*
+      * The Investigator may spend 1 Clue
+      * to avoid the effect.
+      */
+
+      if (investigator.clues > 0) {
+        options.push({
+          id:
+            `haunting-nightmares:spend-clue:0`,
+
+          title:
+            "Spend 1 Clue",
+
+          description:
+            "Spend 1 Clue to avoid losing Sanity and gaining a Madness Condition.",
+        });
+      }
+
+      /*
+      * Otherwise the Investigator suffers
+      * the full effect.
+      */
+
+      options.push({
+        id:
+          "haunting-nightmares:do-not-spend:0",
+
+        title:
+          "Do Not Spend Clue",
+
+        description:
+          "Lose 2 Sanity and gain 1 Madness Condition.",
+      });
+
+      return {
+        ...game,
+
+        activeInvestigatorId:
+          investigatorId,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "Haunting Nightmares",
+
+          message:
+            "This Investigator may spend 1 Clue to avoid losing 2 Sanity and gaining a Madness Condition.",
+
+          options,
+
+          source:
+            "mythos:haunting-nightmares:0",
+        },
+      };
+    }
+
+    case "no-peace-for-the-fallen": {
+      if (
+          mythos.id !==
+          "no-peace-for-the-fallen"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve No Peace For the Fallen.`,
+          );
+      }
+
+      /*
+      * ==========================================================
+      * FIND DEFEATED INVESTIGATORS
+      * ==========================================================
+      */
+
+      const defeatedInvestigatorIds =
+          game.investigatorOrder.filter(
+              (investigatorId) =>
+                  game.investigators[
+                      investigatorId
+                  ]?.isDefeated === true,
+          );
+
+      /*
+      * ==========================================================
+      * DISCARD ALL POSSESSIONS
+      * ==========================================================
+      *
+      * Possessions include:
+      * - Assets
+      * - Spells
+      * - Artifacts
+      */
+
+      let currentGame =
+          game;
+
+      for (
+          const investigatorId of
+              defeatedInvestigatorIds
+      ) {
+          const investigator =
+              currentGame.investigators[
+                  investigatorId
+              ];
+
+          if (!investigator) {
+              continue;
+          }
+
+          /*
+          * ------------------------------------------------------
+          * ASSETS
+          * ------------------------------------------------------
+          */
+
+          const discardedAssets =
+              investigator.assetIds
+                  .map(
+                      (assetId) =>
+                          currentGame.assets[
+                              assetId
+                          ],
+                  )
+                  .filter(
+                      (
+                          asset,
+                      ): asset is NonNullable<
+                          typeof asset
+                      > =>
+                          asset !==
+                          undefined,
+                  );
+
+          /*
+          * ------------------------------------------------------
+          * SPELLS
+          * ------------------------------------------------------
+          */
+
+          const discardedSpells =
+              investigator.spellIds
+                  .map(
+                      (spellId) =>
+                          currentGame.spells[
+                              spellId
+                          ],
+                  )
+                  .filter(
+                      (
+                          spell,
+                      ): spell is NonNullable<
+                          typeof spell
+                      > =>
+                          spell !==
+                          undefined,
+                  );
+
+          /*
+          * ------------------------------------------------------
+          * ARTIFACTS
+          * ------------------------------------------------------
+          */
+
+          const discardedArtifacts =
+              investigator.artifactIds
+                  .map(
+                      (artifactId) =>
+                          currentGame.artifacts[
+                              artifactId
+                          ],
+                  )
+                  .filter(
+                      (
+                          artifact,
+                      ): artifact is NonNullable<
+                          typeof artifact
+                      > =>
+                          artifact !==
+                          undefined,
+                  );
+
+          /*
+          * Add all possessions to their respective
+          * discard piles.
+          */
+
+          currentGame = {
+              ...currentGame,
+
+              board: {
+                  ...currentGame.board,
+
+                  assetDiscard: [
+                      ...currentGame.board
+                          .assetDiscard,
+                      ...discardedAssets,
+                  ],
+
+                  spellDiscard: [
+                      ...currentGame.board
+                          .spellDiscard,
+                      ...discardedSpells,
+                  ],
+
+                  artifactDiscard: [
+                      ...currentGame.board
+                          .artifactDiscard,
+                      ...discardedArtifacts,
+                  ],
+              },
+          };
+      }
+
+      /*
+      * ==========================================================
+      * REMOVE DEFEATED INVESTIGATORS
+      * ==========================================================
+      *
+      * Returning the Investigator token and sheet to the
+      * game box means they are no longer part of the game.
+      */
+
+      if (
+          defeatedInvestigatorIds.length >
+          0
+      ) {
+          const remainingInvestigatorIds =
+              currentGame.investigatorOrder.filter(
+                  (investigatorId) =>
+                      !defeatedInvestigatorIds.includes(
+                          investigatorId,
+                      ),
+              );
+
+          const remainingInvestigators = {
+              ...currentGame.investigators,
+          };
+
+          for (
+              const investigatorId of
+                  defeatedInvestigatorIds
+          ) {
+              delete remainingInvestigators[
+                  investigatorId
+              ];
+          }
+
+          currentGame = {
+              ...currentGame,
+
+              investigators:
+                  remainingInvestigators,
+
+              investigatorOrder:
+                  remainingInvestigatorIds,
+
+              activeInvestigatorId:
+                  null,
+          };
+
+          /*
+          * If the Lead Investigator was one of the
+          * defeated investigators, pass the Lead
+          * Investigator token to a remaining investigator.
+          */
+
+          if (
+              !currentGame.investigators[
+                  currentGame.leadInvestigatorId ??
+                  ""
+              ]
+          ) {
+              currentGame = {
+                  ...currentGame,
+
+                  leadInvestigatorId:
+                      remainingInvestigatorIds[0] ??
+                      null,
+              };
+          }
+      }
+
+      /*
+      * ==========================================================
+      * LEAD INVESTIGATOR GAINS CURSED
+      * ==========================================================
+      */
+
+      const leadInvestigatorId =
+          getLeadInvestigatorId(
+              currentGame,
+          );
+
+      if (
+          leadInvestigatorId
+      ) {
+          currentGame =
+              gainCondition(
+                  currentGame,
+                  leadInvestigatorId,
+                  "condition-cursed",
+              );
+      }
+
+      return currentGame;
+    }
+
+    case "legitimate-banking": {
+      if (
+          mythos.id !==
+          "legitimate-banking"
+      ) {
+          throw new Error(
+              `Mythos "${mythos.id}" cannot resolve Legitimate Banking.`,
+          );
+      }
+
+      const investigatorId =
+          getLeadInvestigatorId(
+              game,
+          );
+
+      if (!investigatorId) {
+          throw new Error(
+              "Legitimate Banking could not determine the Lead Investigator.",
+          );
+      }
+
+      const investigator =
+          game.investigators[
+              investigatorId
+          ];
+
+      if (!investigator) {
+          throw new Error(
+              `Investigator "${investigatorId}" does not exist.`,
+          );
+      }
+
+      /*
+      * The card checks whether the Lead Investigator
+      * already had a Debt BEFORE gaining the new one.
+      */
+      const existingDebtId =
+          investigator.conditionIds.find(
+              (conditionId) =>
+                  game.conditions[
+                      conditionId
+                  ]?.definitionId ===
+                  "condition-debt",
+          );
+
+      /*
+      * The Lead Investigator gains a Debt Condition.
+      */
+      let currentGame =
+          gainCondition(
+              game,
+              investigatorId,
+              "condition-debt",
+          );
+
+      /*
+      * If he already had Debt, resolve the Reckoning
+      * effect on that existing Debt card.
+      */
+      if (existingDebtId) {
+          const debtDefinition =
+              coreConditionDefinitions.find(
+                  (definition) =>
+                      definition.id ===
+                      "condition-debt",
+              );
+
+          if (!debtDefinition) {
+              throw new Error(
+                  'Condition definition "condition-debt" does not exist.',
+              );
+          }
+
+          const reckoningEffect =
+              debtDefinition.frontEffects.find(
+                  (effect) =>
+                      effect.type ===
+                      "on-reckoning",
+              );
+
+          if (!reckoningEffect) {
+              throw new Error(
+                  'Condition "condition-debt" has no Reckoning effect.',
+              );
+          }
+
+          const result =
+              resolveConditionFrontEffects(
+                  currentGame,
+                  investigatorId,
+                  existingDebtId,
+                  reckoningEffect,
+              );
+
+          currentGame =
+              result.game;
+      }
+
+      return currentGame;
+    }
+
+    case "from-bad-to-worse": {
+      if (
+        mythos.id !==
+        "from-bad-to-worse"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve From Bad to Worse.`,
+        );
+      }
+
+      /*
+      * ==========================================================
+      * FROM BAD TO WORSE
+      * ==========================================================
+      *
+      * Each Investigator:
+      *
+      *   -> loses 1 Health for each Injury Condition;
+      *   -> loses 1 Sanity for each Madness Condition;
+      *   -> discards 1 Clue for each Deal Condition.
+      */
+
+      let currentGame = game;
+
+      for (
+        const investigatorId of
+          currentGame.investigatorOrder
+      ) {
+        const injuryCount =
+          getInvestigatorConditionsByCategory(
+            currentGame,
+            investigatorId,
+            "Injury",
+          ).length;
+
+        const madnessCount =
+          getInvestigatorConditionsByCategory(
+            currentGame,
+            investigatorId,
+            "madness",
+          ).length;
+
+        const dealCount =
+          getInvestigatorConditionsByCategory(
+            currentGame,
+            investigatorId,
+            "Deal",
+          ).length;
+
+        const effects = [];
+
+        if (injuryCount > 0) {
+          effects.push({
+            type: "lose-health" as const,
+            amount: injuryCount,
+          });
+        }
+
+        if (madnessCount > 0) {
+          effects.push({
+            type: "lose-sanity" as const,
+            amount: madnessCount,
+          });
+        }
+
+        if (dealCount > 0) {
+          effects.push({
+            type: "lose-clues" as const,
+            amount: dealCount,
+          });
+        }
+
+        if (effects.length > 0) {
+          currentGame =
+            resolveEncounterEffects(
+              currentGame,
+              investigatorId,
+              effects,
+              map,
+            );
+        }
+      }
+
+      return {
+        ...currentGame,
+
+        currentMythosId:
+          null,
+
+        pendingDecision:
+          null,
+
+        activeInvestigatorId:
+          null,
+      };
+    }
+
     case "growing-madness": {
       if (mythos.id !== "growing-madness") {
         throw new Error(
@@ -395,6 +1955,19 @@ export function resolveMythosSpecial(
       };
     }
 
+    case "burden-of-greed": {
+      if (mythos.id !== "burden-of-greed") {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Burden of Greed.`,
+        );
+      }
+
+      return startBurdenOfGreed(
+        game,
+        0,
+      );
+    }
+
     case "blood-flows": {
       if (mythos.id !== "blood-flows") {
         throw new Error(
@@ -483,6 +2056,288 @@ export function resolveMythosSpecial(
           source:
             "mythos:blood-flows",
         },
+      };
+    }
+
+    case "calling-the-elder-things": {
+      if (
+        mythos.id !==
+        "calling-the-elder-things"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Calling the Elder Things.`,
+        );
+      }
+
+      /*
+      * ==========================================================
+      * CALLING THE ELDER THINGS
+      * ==========================================================
+      *
+      * Spawn 1 Monster on each space that contains
+      * a Cultist Monster.
+      *
+      * Each space is processed only once, regardless
+      * of how many Cultists are present there.
+      */
+
+      const cultistSpaceIds =
+        Object.entries(
+          game.board.spaces,
+        )
+          .filter(
+            ([, space]) =>
+              space.monsterIds.some(
+                (monsterId) =>
+                  game.monsters[
+                    monsterId
+                  ]?.definitionId ===
+                  "cultist",
+              ),
+          )
+          .map(
+            ([spaceId]) =>
+              spaceId,
+          );
+
+      /*
+      * No spaces contain a Cultist.
+      */
+
+      if (
+        cultistSpaceIds.length === 0
+      ) {
+        return {
+          ...game,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      /*
+      * Spawn exactly 1 Monster on each
+      * Cultist-containing space.
+      */
+
+      let currentGame = game;
+
+      for (
+        const spaceId of
+          cultistSpaceIds
+      ) {
+        currentGame =
+          spawnMonsterAtSpace(
+            currentGame,
+            spaceId,
+          );
+      }
+
+      return {
+        ...currentGame,
+
+        currentMythosId:
+          null,
+
+        pendingDecision:
+          null,
+
+        activeInvestigatorId:
+          null,
+      };
+    }
+
+    case "dimensional-instability": {
+      if (
+        mythos.id !==
+        "dimensional-instability"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Dimensional Instability.`,
+        );
+      }
+
+      /*
+      * ==========================================================
+      * DETERMINE CURRENT OMEN
+      * ==========================================================
+      *
+      * Omen track:
+      *
+      * 0 -> Green
+      * 1 -> Blue
+      * 2 -> Red
+      * 3 -> Blue
+      */
+
+      const omenByPosition: Record<
+        number,
+        "green" | "blue" | "red"
+      > = {
+        0: "green",
+        1: "blue",
+        2: "red",
+        3: "blue",
+      };
+
+      const currentOmen =
+        omenByPosition[
+          (
+            (
+              game.ancientOne.omenPosition %
+              4
+            ) + 4
+          ) % 4
+        ];
+
+      if (!currentOmen) {
+        throw new Error(
+          "Could not determine the current Omen.",
+        );
+      }
+
+      /*
+      * ==========================================================
+      * FIND AND DISCARD MATCHING GATES
+      * ==========================================================
+      */
+
+      const updatedSpaces = {
+        ...game.board.spaces,
+      };
+
+      const discardedGates =
+        [];
+
+      for (
+        const [
+          spaceId,
+          space,
+        ] of Object.entries(
+          game.board.spaces,
+        )
+      ) {
+        const matchingGates =
+          space.gates.filter(
+            (gate) =>
+              gate.omen ===
+              currentOmen,
+          );
+
+        if (
+          matchingGates.length === 0
+        ) {
+          continue;
+        }
+
+        const remainingGates =
+          space.gates.filter(
+            (gate) =>
+              gate.omen !==
+              currentOmen,
+          );
+
+        updatedSpaces[spaceId] = {
+          ...space,
+
+          gates:
+            remainingGates,
+        };
+
+        discardedGates.push(
+          ...matchingGates,
+        );
+      }
+
+      /*
+      * ==========================================================
+      * ADVANCE DOOM
+      * ==========================================================
+      *
+      * Doom advances by 1 for each
+      * Gate discarded.
+      */
+
+      const wasAwakened =
+        game.ancientOne.awakened;
+
+      let resolvedGame: GameState = {
+        ...game,
+
+        board: {
+          ...game.board,
+
+          spaces:
+            updatedSpaces,
+
+          gateDiscard: [
+            ...game.board.gateDiscard,
+            ...discardedGates,
+          ],
+        },
+      };
+
+      if (
+        discardedGates.length > 0
+      ) {
+        resolvedGame =
+          advanceDoom(
+            resolvedGame,
+            discardedGates.length,
+          );
+      }
+
+      /*
+      * ==========================================================
+      * ANCIENT ONE AWAKENING
+      * ==========================================================
+      *
+      * If this card caused the Ancient One
+      * to awaken, resolve the Awakening effect
+      * before continuing the Mythos.
+      */
+
+      if (
+        !wasAwakened &&
+        resolvedGame.ancientOne.awakened
+      ) {
+        return resolveAncientOneAwakening(
+          {
+            ...resolvedGame,
+
+            currentMythosId:
+              mythos.id,
+          },
+
+          map,
+
+          mythos.icons.length,
+        );
+      }
+
+      /*
+      * ==========================================================
+      * FINISH MYTHOS
+      * ==========================================================
+      */
+
+      return {
+        ...resolvedGame,
+
+        currentMythosId:
+          null,
+
+        pendingDecision:
+          null,
+
+        activeInvestigatorId:
+          null,
       };
     }
 
@@ -812,6 +2667,130 @@ export function resolveMythosSpecial(
         0,
       );
     }
+
+    case "faded-from-society-encounter": {
+      if (
+        mythos.id !==
+        "faded-from-society"
+      ) {
+        throw new Error(
+          `Mythos "${specialId}" cannot resolve Faded From Society.`,
+        );
+      }
+
+      const investigatorId =
+        game.activeInvestigatorId;
+
+      if (!investigatorId) {
+        throw new Error(
+          "There is no active investigator.",
+        );
+      }
+
+      const investigator =
+        game.investigators[
+          investigatorId
+        ];
+
+      if (!investigator) {
+        throw new Error(
+          `Investigator "${investigatorId}" does not exist.`,
+        );
+      }
+
+      /*
+       * Faded From Society can only be researched
+       * on Space 16.
+       */
+
+      if (
+        investigator.spaceId !==
+        "space-16"
+      ) {
+        return game;
+      }
+
+      const investigatorCount =
+        game.investigatorOrder.length;
+
+      const clueCost =
+        Math.ceil(
+          investigatorCount / 2,
+        );
+
+      return {
+        ...game,
+
+        pendingDecision: {
+          type: "test",
+
+          title:
+            mythos.name,
+
+          message:
+            "Research similar occurrences from the past.",
+
+          image:
+            mythos.image,
+
+          skill:
+            "observation",
+
+          modifier: 0,
+
+          investigatorId,
+
+          onSuccess: [
+            {
+              type: "choice",
+
+              choices: [
+                {
+                  text:
+                    `Spend ${clueCost} Clue${
+                      clueCost === 1
+                        ? ""
+                        : "s"
+                    } to solve this Rumor.`,
+
+                  requirement: {
+                    type: "clues",
+                    amount:
+                      clueCost,
+                  },
+
+                  effects: [
+                    {
+                      type:
+                        "lose-clues",
+
+                      amount:
+                        clueCost,
+                    },
+                    {
+                      type:
+                        "solve-mythos-rumor",
+
+                      mythosId:
+                        "faded-from-society",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+
+          onFail: [],
+
+          minSuccesses: 1,
+
+          onComplete: [],
+
+          source:
+            "mythos:faded-from-society-encounter",
+        },
+      };
+    }
     
     case "growing-madness-encounter": {
       if (mythos.id !== "growing-madness") {
@@ -925,6 +2904,889 @@ export function resolveMythosSpecial(
         },
       };
     }
+
+    case "heat-wave-singes-the-globe": {
+      if (
+        mythos.id !==
+        "heat-wave-singes-the-globe"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Heat Wave Singes the Globe.`,
+        );
+      }
+
+      const investigatorId =
+        game.investigatorOrder[0];
+
+      if (!investigatorId) {
+        return {
+          ...game,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      const investigator =
+        game.investigators[
+          investigatorId
+        ];
+
+      if (!investigator) {
+        throw new Error(
+          `Investigator "${investigatorId}" does not exist.`,
+        );
+      }
+
+      const options = [];
+
+      /*
+      * An Investigator who is already Delayed
+      * cannot become Delayed again.
+      */
+
+      if (!investigator.isDelayed) {
+        options.push({
+          id:
+            "heat-wave-singes-the-globe:delayed:0",
+
+          title:
+            "Become Delayed",
+
+          description:
+            "Become Delayed and do not lose Health.",
+        });
+      }
+
+      options.push({
+        id:
+          "heat-wave-singes-the-globe:health:0",
+
+        title:
+          "Do Not Become Delayed",
+
+        description:
+          "Lose 3 Health.",
+      });
+
+      return {
+        ...game,
+
+        activeInvestigatorId:
+          investigatorId,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "Heat Wave Singes the Globe",
+
+          message:
+            "This Investigator may become Delayed to avoid losing 3 Health.",
+
+          options,
+
+          source:
+            "mythos:heat-wave-singes-the-globe:0",
+        },
+      };
+    }
+
+        case "return-of-the-ancient-ones": {
+      if (
+        mythos.id !==
+        "return-of-the-ancient-ones"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Return of the Ancient Ones.`,
+        );
+      }
+
+      return {
+        ...game,
+
+        currentMythosId:
+          null,
+
+        pendingDecision:
+          null,
+
+        activeInvestigatorId:
+          null,
+      };
+    }
+
+    case "stars-aligned-encounter": {
+      if (
+        mythos.id !==
+        "stars-aligned"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Stars Aligned.`,
+        );
+      }
+
+      const investigatorId =
+        game.activeInvestigatorId;
+
+      if (!investigatorId) {
+        throw new Error(
+          "There is no active investigator.",
+        );
+      }
+
+      const investigator =
+        game.investigators[
+          investigatorId
+        ];
+
+      if (!investigator) {
+        throw new Error(
+          `Investigator "${investigatorId}" does not exist.`,
+        );
+      }
+
+      /*
+      * Stars Aligned can only be researched
+      * on Space 7.
+      */
+
+      if (
+        investigator.spaceId !==
+        "space-7"
+      ) {
+        return game;
+      }
+
+      const investigatorCount =
+        game.investigatorOrder.length;
+
+      const clueCost =
+        Math.ceil(
+          investigatorCount / 2,
+        );
+
+      return {
+        ...game,
+
+        pendingDecision: {
+          type: "test",
+
+          title:
+            mythos.name,
+
+          message:
+            "Attempt to find the strangers based on your observations of the stars.",
+
+          image:
+            mythos.image,
+
+          skill:
+            "observation",
+
+          modifier:
+            0,
+
+          investigatorId,
+
+          onSuccess: [
+            {
+              type: "choice",
+
+              choices: [
+                {
+                  text:
+                    `Spend ${clueCost} Clue${
+                      clueCost === 1
+                        ? ""
+                        : "s"
+                    } to solve this Rumor.`,
+
+                  requirement: {
+                    type: "clues",
+
+                    amount:
+                      clueCost,
+                  },
+
+                  effects: [
+                    {
+                      type:
+                        "lose-clues",
+
+                      amount:
+                        clueCost,
+                    },
+                    {
+                      type:
+                        "solve-mythos-rumor",
+
+                      mythosId:
+                        "stars-aligned",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+
+          onFail: [],
+
+          minSuccesses: 1,
+
+          onComplete: [],
+
+          source:
+            "mythos:stars-aligned-encounter",
+        },
+      };
+    }
+
+    /*
+     * ============================================================
+     * THE BERMUDA TRIANGLE
+     * ============================================================
+     *
+     * Each Investigator rolls 1 die.
+     *
+     * On 1-2:
+     *   -> Move to Space 8.
+     *   -> Become Delayed.
+     */
+
+    case "the-bermuda-triangle": {
+      const investigatorIds =
+        game.investigatorOrder;
+
+      if (
+        investigatorIds.length === 0
+      ) {
+        return {
+          ...game,
+          currentMythosId: null,
+          pendingDecision: null,
+          activeInvestigatorId: null,
+        };
+      }
+
+      /*
+       * The first call starts at Investigator 0.
+       *
+       * Subsequent calls use:
+       *
+       *   the-bermuda-triangle:1
+       *   the-bermuda-triangle:2
+       *   ...
+       */
+
+      let investigatorIndex = 0;
+
+      if (
+        specialId.includes(":")
+      ) {
+        const parsedIndex =
+          Number(
+            specialId.split(":")[1],
+          );
+
+        if (
+          Number.isInteger(
+            parsedIndex,
+          )
+        ) {
+          investigatorIndex =
+            parsedIndex;
+        }
+      }
+
+      const investigatorId =
+        investigatorIds[
+          investigatorIndex
+        ];
+
+      if (!investigatorId) {
+        return {
+          ...game,
+          currentMythosId: null,
+          pendingDecision: null,
+          activeInvestigatorId: null,
+        };
+      }
+
+      return {
+        ...game,
+
+        activeInvestigatorId:
+          investigatorId,
+
+        pendingDecision: {
+          type: "single-die-roll",
+
+          title:
+            mythos.name,
+
+          message:
+            "Roll 1 die. On a 1 or 2, move to Space 8 and become Delayed.",
+
+          image:
+            mythos.image,
+
+          investigatorId,
+
+          onOneOrTwo: [],
+
+          onThreeToSix: [],
+
+          onComplete: [],
+
+          source:
+            `mythos:the-bermuda-triangle:${investigatorIndex}`,
+        },
+      };
+    }
+
+    /*
+     * ============================================================
+     * THE WIND-WALKER
+     * ============================================================
+     *
+     * When the Rumor enters play:
+     *   -> Spawn the Wind-Walker Epic Monster on Space 4.
+     *
+     * When there are no Eldritch Tokens:
+     *   -> Each Investigator becomes Delayed.
+     *   -> Each Investigator loses 6 Health.
+     *   -> Solve the Rumor.
+     */
+
+    case "the-wind-walker": {
+      if (
+        mythos.id !== "the-wind-walker"
+      ) {
+        throw new Error(
+          `Invalid Mythos for The Wind-Walker: "${mythos.id}".`,
+        );
+      }
+
+      const mythosInPlay =
+        game.board.mythosInPlay.find(
+          (entry) =>
+            entry.definitionId ===
+            "the-wind-walker",
+        );
+
+      if (!mythosInPlay) {
+        return game;
+      }
+
+      /*
+       * ==========================================================
+       * ENTERS PLAY
+       * ==========================================================
+       *
+       * The Rumor starts with 4 Eldritch Tokens.
+       * Spawn the Wind-Walker on Space 4.
+       */
+
+      if (
+        mythosInPlay.eldritchTokens > 0
+      ) {
+        return spawnEpicMonsterAtSpace(
+          game,
+          map,
+          "space-4",
+          "wind-walker",
+        );
+      }
+
+      /*
+       * ==========================================================
+       * 0 ELDRITCH TOKENS
+       * ==========================================================
+       *
+       * Each Investigator becomes Delayed
+       * and loses 6 Health.
+       */
+
+      let currentGame =
+        game;
+
+      for (
+        const investigatorId of
+          currentGame.investigatorOrder
+      ) {
+        const investigator =
+          currentGame.investigators[
+            investigatorId
+          ];
+
+        if (!investigator) {
+          continue;
+        }
+
+        currentGame = {
+          ...currentGame,
+
+          investigators: {
+            ...currentGame.investigators,
+
+            [investigatorId]: {
+              ...investigator,
+
+              isDelayed: true,
+
+              health: Math.max(
+                0,
+                investigator.health - 6,
+              ),
+
+              isDefeated:
+                investigator.health - 6 <=
+                  0 ||
+                investigator.sanity <= 0,
+            },
+          },
+        };
+      }
+
+      return solveMythosRumor(
+        currentGame,
+        mythos,
+      );
+    }
+
+    /*
+     * ============================================================
+     * THE WORLD SHAKES
+     * ============================================================
+     *
+     * Each Investigator on the Active Expedition space or an
+     * adjacent space:
+     *
+     *   -> Loses 2 Health.
+     *   -> Becomes Delayed.
+     *
+     * Then remove every Expedition Encounter belonging to the
+     * Active Expedition from the Expedition Encounter deck and
+     * shuffle the remaining deck.
+     */
+
+    case "the-world-shakes": {
+      const activeExpeditionSpaceId =
+        game.board.activeExpeditionSpaceId;
+
+      if (!activeExpeditionSpaceId) {
+        return game;
+      }
+
+      const activeExpeditionSpace =
+        map.spaces.find(
+          (space) =>
+            space.id ===
+            activeExpeditionSpaceId,
+        );
+
+      if (!activeExpeditionSpace) {
+        throw new Error(
+          `Active Expedition space "${activeExpeditionSpaceId}" does not exist.`,
+        );
+      }
+
+      /*
+       * ==========================================================
+       * AFFECTED SPACES
+       * ==========================================================
+       *
+       * The Active Expedition space itself plus every space
+       * directly connected to it.
+       */
+
+      const affectedSpaceIds = new Set<string>([
+        activeExpeditionSpace.id,
+        ...activeExpeditionSpace.connectedSpaceIds,
+      ]);
+
+      /*
+       * ==========================================================
+       * AFFECT INVESTIGATORS
+       * ==========================================================
+       */
+
+      const updatedInvestigators = {
+        ...game.investigators,
+      };
+
+      for (
+        const investigatorId of
+          game.investigatorOrder
+      ) {
+        const investigator =
+          game.investigators[
+            investigatorId
+          ];
+
+        if (!investigator) {
+          continue;
+        }
+
+        if (
+          !investigator.spaceId ||
+          !affectedSpaceIds.has(
+            investigator.spaceId,
+          )
+        ) {
+          continue;
+        }
+
+        const newHealth =
+          Math.max(
+            0,
+            investigator.health - 2,
+          );
+
+        updatedInvestigators[
+          investigatorId
+        ] = {
+          ...investigator,
+
+          health:
+            newHealth,
+
+          isDelayed:
+            true,
+
+          isDefeated:
+            newHealth <= 0 ||
+            investigator.sanity <= 0,
+        };
+      }
+
+      /*
+       * ==========================================================
+       * REMOVE ACTIVE EXPEDITION ENCOUNTERS
+       * ==========================================================
+       *
+       * Expedition Encounter cards are identified by the name
+       * of the Expedition space.
+       *
+       * They are returned to the game box, so they are removed
+       * from the deck and are NOT added to the discard pile.
+       */
+
+      const expeditionDeck =
+        game.board.encounterDecks.expedition;
+
+      const remainingExpeditionDeck =
+        expeditionDeck.filter(
+          (encounterId) =>
+            game.encounters[
+              encounterId
+            ]?.name !==
+            activeExpeditionSpace.name,
+        );
+
+      /*
+       * ==========================================================
+       * SHUFFLE
+       * ==========================================================
+       */
+
+      const shuffledExpeditionDeck =
+        [...remainingExpeditionDeck];
+
+      for (
+        let i =
+          shuffledExpeditionDeck.length - 1;
+        i > 0;
+        i--
+      ) {
+        const j =
+          Math.floor(
+            Math.random() * (i + 1),
+          );
+
+        const current =
+          shuffledExpeditionDeck[i];
+
+        shuffledExpeditionDeck[i] =
+          shuffledExpeditionDeck[j];
+
+        shuffledExpeditionDeck[j] =
+          current;
+      }
+
+      return {
+        ...game,
+
+        investigators:
+          updatedInvestigators,
+
+        board: {
+          ...game.board,
+
+          encounterDecks: {
+            ...game.board.encounterDecks,
+
+            expedition:
+              shuffledExpeditionDeck,
+          },
+        },
+      };
+    }
+
+    case "treacherous-magic": {
+      if (
+        mythos.id !== "treacherous-magic"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Treacherous Magic.`,
+        );
+      }
+
+      return startTreacherousMagic(
+        game,
+        0,
+      );
+    }
+
+    case "tide-of-despair": {
+      if (
+        mythos.id !== "tide-of-despair"
+      ) {
+        throw new Error(
+          `Mythos "${mythos.id}" cannot resolve Tide of Despair.`,
+        );
+      }
+
+      const investigatorIds =
+        game.investigatorOrder;
+
+      if (
+        investigatorIds.length === 0
+      ) {
+        return {
+          ...game,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      /*
+      * The first Investigator is index 0.
+      *
+      * Subsequent Investigators use:
+      *
+      * tide-of-despair:1
+      * tide-of-despair:2
+      * ...
+      */
+
+      let investigatorIndex = 0;
+
+      if (
+        specialId.includes(":")
+      ) {
+        const parsedIndex =
+          Number(
+            specialId.split(":")[1],
+          );
+
+        if (
+          Number.isInteger(
+            parsedIndex,
+          )
+        ) {
+          investigatorIndex =
+            parsedIndex;
+        }
+      }
+
+      const investigatorId =
+        investigatorIds[
+          investigatorIndex
+        ];
+
+      if (!investigatorId) {
+        return {
+          ...game,
+
+          currentMythosId:
+            null,
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      const investigator =
+        game.investigators[
+          investigatorId
+        ];
+
+      if (!investigator) {
+        throw new Error(
+          `Investigator "${investigatorId}" does not exist.`,
+        );
+      }
+
+      /*
+      * Find a Blessed Condition.
+      */
+
+      const blessedConditionId =
+        investigator.conditionIds.find(
+          (conditionId) =>
+            game.conditions[
+              conditionId
+            ]?.definitionId ===
+            "condition-blessed",
+        );
+
+      /*
+      * No Blessed:
+      *
+      * Lose 2 Health and 2 Sanity immediately.
+      */
+
+      if (!blessedConditionId) {
+        const newHealth =
+          Math.max(
+            0,
+            investigator.health - 2,
+          );
+
+        const newSanity =
+          Math.max(
+            0,
+            investigator.sanity - 2,
+          );
+
+        const updatedGame: GameState = {
+          ...game,
+
+          investigators: {
+            ...game.investigators,
+
+            [investigatorId]: {
+              ...investigator,
+
+              health:
+                newHealth,
+
+              sanity:
+                newSanity,
+
+              isDefeated:
+                newHealth <= 0 ||
+                newSanity <= 0,
+            },
+          },
+        };
+
+        const nextIndex =
+          investigatorIndex + 1;
+
+        const nextInvestigatorId =
+          updatedGame.investigatorOrder[
+            nextIndex
+          ];
+
+        /*
+        * Last Investigator.
+        */
+
+        if (!nextInvestigatorId) {
+          return {
+            ...updatedGame,
+
+            currentMythosId:
+              null,
+
+            pendingDecision:
+              null,
+
+            activeInvestigatorId:
+              null,
+          };
+        }
+
+        return resolveMythosSpecial(
+          updatedGame,
+          mythos,
+          `tide-of-despair:${nextIndex}`,
+          map,
+        );
+      }
+
+      /*
+      * Investigator has Blessed:
+      * give him the choice.
+      */
+
+      return {
+        ...game,
+
+        activeInvestigatorId:
+          investigatorId,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "Tide of Despair",
+
+          message:
+            "Discard your Blessed Condition to avoid losing 2 Health and 2 Sanity.",
+
+          options: [
+            {
+              id:
+                `tide-of-despair:discard-blessed:${investigatorIndex}`,
+
+              title:
+                "Discard Blessed",
+
+              description:
+                "Discard the Blessed Condition and avoid losing Health and Sanity.",
+            },
+
+            {
+              id:
+                `tide-of-despair:keep-blessed:${investigatorIndex}`,
+
+              title:
+                "Keep Blessed",
+
+              description:
+                "Keep the Blessed Condition and lose 2 Health and 2 Sanity.",
+            },
+          ],
+
+          source:
+            `mythos:tide-of-despair:${investigatorIndex}`,
+        },
+      };
+    }
+
+    /*
+    * No supported special effect.
+    */
 
     default:
       throw new Error(

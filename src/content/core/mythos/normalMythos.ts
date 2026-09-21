@@ -186,15 +186,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator may discard any number of Item possessions, then he loses 1 Health for each Item possession he has.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH investigator:
-            *
-            *   -> May discard any number of Item possessions.
-            *   -> Count his remaining Item possessions.
-            *   -> Lose 1 Health for each Item possession.
-            */
+            {
+                type: "mythos-special",
+                id: "burden-of-greed",
+            },
         ],
     },
 
@@ -229,13 +224,10 @@ export const normalMythos: MythosDefinition[] = [
             "Spawn 1 Monster on each space that contains a Cultist Monster.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Find every space containing a Cultist Monster.
-            *
-            * -> Spawn 1 Monster on each of those spaces.
-            */
+            {
+                type: "mythos-special",
+                id: "calling-the-elder-things",
+            },
         ],
     },
 
@@ -270,14 +262,10 @@ export const normalMythos: MythosDefinition[] = [
             "Discard each Gate that corresponds to the current Omen and advance Doom by 1 for each Gate discarded.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Find all Gates that correspond to the current Omen.
-            *
-            * -> Discard each matching Gate.
-            * -> Advance Doom by 1 for each Gate discarded.
-            */
+            {
+                type: "mythos-special",
+                id: "dimensional-instability",
+            },
         ],
     },
 
@@ -312,26 +300,16 @@ export const normalMythos: MythosDefinition[] = [
             "When this card enters play, discard all cards from the reserve. Cards cannot be placed in the reserve.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * When this card enters play:
-            *
-            *   -> Discard all cards from the Reserve.
-            *
-            * While this card is in play:
-            *
-            *   -> Cards cannot be placed in the Reserve.
-            */
+            {
+                type: "mythos-special",
+                id: "driven-to-bankruptcy",
+            },
         ],
 
-        /*
-        * TODO: RECKONING
-        *
-        *   -> Discard this card.
-        *   -> Place the top 4 cards of the Asset deck
-        *      in the Reserve.
-        */
+        reckoning: {
+            type:
+                "discard-self-and-place-assets",
+        },
     },
 
     {
@@ -367,34 +345,15 @@ export const normalMythos: MythosDefinition[] = [
             "As an encounter, an investigator on space 16 may attempt to research similar occurrences from the past. If he passes, he learns about a Russian folktale where children go missing; he may spend Clues equal to half the number of investigators to solve this Rumor.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * An investigator on Space 16 may:
-            *
-            *   -> Test Observation.
-            *
-            * If he passes:
-            *
-            *   -> He may spend Clues equal to half
-            *      the number of investigators.
-            *   -> If he does, solve this Rumor.
-            */
+            {
+                type: "mythos-special",
+                id: "faded-from-society-encounter",
+            },
         ],
 
-        /*
-        * TODO: RECKONING
-        *
-        *   -> Search the Asset deck, discard pile, and Reserve
-        *      for all Assets with value >= the number of
-        *      Eldritch tokens on this card.
-        *   -> Return those Assets to the game box.
-        *   -> Discard 1 Eldritch token from this card.
-        *
-        *   If there are no Eldritch tokens on this card:
-        *
-        *   -> Solve this Rumor.
-        */
+        reckoning: {
+            type: "faded-from-society",
+        },
     },
 
     {
@@ -428,15 +387,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator loses 1 Health for each Injury Condition he has, loses 1 Sanity for each Madness Condition he has, and discards 1 Clue for each Deal Condition he has.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH investigator:
-            *
-            *   -> Lose 1 Health for each Injury Condition.
-            *   -> Lose 1 Sanity for each Madness Condition.
-            *   -> Discard 1 Clue for each Deal Condition.
-            */
+            {
+                type: "mythos-special",
+                id: "from-bad-to-worse",
+            },
         ],
     },
 
@@ -471,17 +425,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator loses 2 Sanity and gains a Madness Condition unless he spends 1 Clue.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH investigator:
-            *
-            *   -> May spend 1 Clue.
-            *
-            *   If he does not:
-            *     -> Lose 2 Sanity.
-            *     -> Gain a Madness Condition.
-            */
+            {
+                type: "mythos-special",
+                id: "haunting-nightmares",
+            },
         ],
     },
 
@@ -516,16 +463,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator loses 3 Health unless he becomes Delayed.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH investigator:
-            *
-            *   -> May become Delayed.
-            *
-            *   If he does not become Delayed:
-            *     -> Lose 3 Health.
-            */
+            {
+                type: "mythos-special",
+                id: "heat-wave-singes-the-globe",
+            },
         ],
     },
 
@@ -560,16 +501,10 @@ export const normalMythos: MythosDefinition[] = [
             "The Lead Investigator gains a Debt Condition. If the Lead Investigator already had a Debt Condition, he resolves the reckoning effect on that card, treating all die rolls as 1s.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * The Lead Investigator gains a Debt Condition.
-            *
-            * If he already had a Debt Condition:
-            *
-            *   -> Resolve the Reckoning effect on that Debt.
-            *   -> Treat all die rolls as 1.
-            */
+            {
+                type: "mythos-special",
+                id: "legitimate-banking",
+            },
         ],
     },
 
@@ -604,18 +539,10 @@ export const normalMythos: MythosDefinition[] = [
             "Discard all possessions on defeated investigators' sheets and return all defeated investigator tokens and sheets to the game box. Then the Lead Investigator gains a Cursed Condition.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For each defeated investigator:
-            *
-            *   -> Discard all possessions.
-            *   -> Return investigator token and sheet to game box.
-            *
-            * Then:
-            *
-            *   -> Lead Investigator gains Cursed Condition.
-            */
+            {
+                type: "mythos-special",
+                id: "no-peace-for-the-fallen",
+            },
         ],
     },
 
@@ -650,26 +577,15 @@ export const normalMythos: MythosDefinition[] = [
             "When this card enters play, the Lead Investigator chooses 1 investigator to become Delayed.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * When this card enters play:
-            *
-            *   -> Lead Investigator chooses 1 investigator.
-            *   -> That investigator becomes Delayed.
-            *
-            * Reckoning:
-            *
-            *   -> Each investigator on a City space
-            *      tests Observation.
-            *
-            *   -> If he fails:
-            *      - Becomes Delayed.
-            *      - Gains a Detained Condition.
-            *
-            *   -> Discard this card.
-            */
+            {
+                type: "mythos-special",
+                id: "patrolling-the-border",
+            },
         ],
+
+        reckoning: {
+            type: "city-investigators-test-observation",
+        },
     },
 
     {
@@ -701,28 +617,15 @@ export const normalMythos: MythosDefinition[] = [
             "When an investigator on space 19 defeats a Monster, he may spend 1 Clue to place that Monster on this card. When the total toughness of Monsters on this card is equal to or greater than the number of investigators, solve this Rumor.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * When an investigator on Space 19 defeats a Monster:
-            *
-            *   -> He may spend 1 Clue.
-            *   -> If he does, place that Monster on this card.
-            *
-            * When total Monster Toughness on this card
-            * reaches the number of investigators:
-            *
-            *   -> Solve this Rumor.
-            *
-            * Reckoning:
-            *
-            *   -> Spawn 1 Monster on Space 19.
-            *
-            *   -> If Space 19 has 4 or more Monsters:
-            *      - Set Doom to 0.
-            *      - Solve this Rumor.
-            */
+            {
+                type: "mythos-special",
+                id: "return-of-the-ancient-ones",
+            },
         ],
+
+        reckoning: {
+            type: "return-of-the-ancient-ones",
+        },
     },
 
     {
@@ -754,23 +657,15 @@ export const normalMythos: MythosDefinition[] = [
             "As an encounter, an investigator on space 7 may attempt to find these strangers based on his observations of the stars. If he passes, he may spend Clues equal to half the number of investigators to solve this Rumor.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Investigator on Space 7:
-            *
-            *   -> May test Observation.
-            *
-            *   -> If he passes:
-            *      - May spend Clues equal to half
-            *        the number of investigators.
-            *      - If he does, solve this Rumor.
-            *
-            * Reckoning:
-            *
-            *   -> Advance the Omen by 1.
-            */
+            {
+                type: "mythos-special",
+                id: "stars-aligned-encounter",
+            },
         ],
+
+        reckoning: {
+            type: "stars-aligned",
+        },
     },
 
     {
@@ -804,17 +699,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator rolls 1 die. On a 1 or 2, he moves to space 8 and becomes Delayed.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For each investigator:
-            *
-            *   -> Roll 1 die.
-            *
-            *   -> On 1-2:
-            *      - Move to Space 8.
-            *      - Become Delayed.
-            */
+            {
+                type: "mythos-special",
+                id: "the-bermuda-triangle",
+            },
         ],
     },
 
@@ -847,28 +735,14 @@ export const normalMythos: MythosDefinition[] = [
             "When this card enters play, spawn the Wind-Walker Epic Monster on space 4. When it is defeated, solve this Rumor.\n\nWhen there are no Eldritch tokens on this card, each investigator becomes Delayed and loses 6 Health, then solve this Rumor.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * When this card enters play:
-            *
-            *   -> Spawn the Wind-Walker Epic Monster on Space 4.
-            *
-            * When it is defeated:
-            *
-            *   -> Solve this Rumor.
-            *
-            * When there are no Eldritch tokens:
-            *
-            *   -> Each investigator becomes Delayed.
-            *   -> Each investigator loses 6 Health.
-            *   -> Solve this Rumor.
-            *
-            * Reckoning:
-            *
-            *   -> Discard 1 Eldritch token from this card.
-            */
+            {
+                type: "mythos-special",
+                id: "the-wind-walker",
+            },
         ],
+        reckoning: {
+            type: "wind-walker",
+        },
     },
 
     {
@@ -902,22 +776,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator on the Active Expedition space or an adjacent space loses 2 Health and becomes Delayed. Then search the Expedition Encounter deck for each card corresponding to the Active Expedition and return it to the game box. Then shuffle the Expedition Encounter deck.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * Each investigator on the Active Expedition space
-            * or an adjacent space:
-            *
-            *   -> Loses 2 Health.
-            *   -> Becomes Delayed.
-            *
-            * Then:
-            *
-            *   -> Find all Expedition Encounter cards
-            *      matching the Active Expedition.
-            *   -> Return them to the game box.
-            *   -> Shuffle the Expedition Encounter deck.
-            */
+            {
+                type: "mythos-special",
+                id: "the-world-shakes",
+            },
         ],
     },
 
@@ -952,17 +814,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator loses 2 Health and 2 Sanity unless he discards a Blessed Condition.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For each investigator:
-            *
-            *   -> May discard a Blessed Condition.
-            *
-            *   -> If he does not:
-            *      - Lose 2 Health.
-            *      - Lose 2 Sanity.
-            */
+            {
+                type: "mythos-special",
+                id: "tide-of-despair",
+            },
         ],
     },
 
@@ -997,18 +852,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator may discard any number of Spells, then he loses 1 Sanity for each Spell he has. Each investigator that lost Sanity from this effect also gains a Madness Condition.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For each investigator:
-            *
-            *   -> May discard any number of Spells.
-            *   -> Lose 1 Sanity for each Spell still held.
-            *
-            * If he lost Sanity:
-            *
-            *   -> Gain a Madness Condition.
-            */
+            {
+                type: "mythos-special",
+                id: "treacherous-magic",
+            },
         ],
     },
 
@@ -1043,14 +890,10 @@ export const normalMythos: MythosDefinition[] = [
             "Each investigator with at least 1 Ally Asset loses 3 Health and discards 1 Ally Asset.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For each investigator with at least 1 Ally:
-            *
-            *   -> Lose 3 Health.
-            *   -> Discard 1 Ally Asset.
-            */
+            {
+                type: "mythos-special",
+                id: "unexpected-betrayal",
+            },
         ],
     },
 ]

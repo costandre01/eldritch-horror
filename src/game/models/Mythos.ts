@@ -59,7 +59,28 @@ export type MythosReckoning =
     }
 
   | {
+      type: "stars-aligned";
+    }
+
+  | {
+      type: "wind-walker";
+    }
+
+  | {
+      type: "dimensions-collide";
+  }
+
+  | {
+      type:
+          "return-of-the-ancient-ones";
+    }
+
+  | {
       type: "discard-self";
+    }
+
+  | {
+      type: "faded-from-society";
     };
 
 export interface MythosDefinition {
@@ -169,4 +190,7 @@ export type MythosEffect =
 
       location:
         | "active-expedition";
+    }
+  | {
+      type: "burden-of-greed";
     };

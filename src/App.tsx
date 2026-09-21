@@ -89,6 +89,10 @@ import { normalMythos } from "./content/core/mythos/normalMythos";
 import { hardMythos } from "./content/core/mythos/hardMythos";
 import { setLeadInvestigator } from "./game/engine/setLeadInvestigator";
 import { resolveEncounterEffects } from "./game/engine/resolveEncounterEffects";
+import {
+  resolveMythosSpecial,
+  startEyesEverywhere,
+} from "./game/engine/resolveMythosSpecial";
 
 
 function App() {
@@ -2077,16 +2081,25 @@ function App() {
 
       /*
       * ============================================================
-      * MYTHOS — SINGLE DIE
+      * THE BERMUDA TRIANGLE — SINGLE DIE
       * ============================================================
       */
 
       if (
         decision.type === "single-die-roll" &&
         decision.source?.startsWith(
-          "mythos:single-die-roll:",
+          "mythos:the-bermuda-triangle:",
         )
       ) {
+        const source =
+          decision.source;
+
+        const parts =
+          source.split(":");
+
+        const investigatorIndex =
+          Number(parts[2]);
+
         const investigatorId =
           decision.investigatorId;
 
@@ -2095,6 +2108,201 @@ function App() {
           singleDieRoll <= 2
             ? decision.onOneOrTwo ?? []
             : decision.onThreeToSix ?? [];
+
+        let updatedGame: GameState = {
+          ...game,
+
+          pendingDecision: null,
+        };
+
+        /*
+        * On 1-2 the Investigator moves directly
+        * to Space 8 and becomes Delayed.
+        *
+        * We do the movement here because Space 8
+        * is a fixed destination, not a player choice.
+        */
+
+        if (
+          singleDieRoll >= 1 &&
+          singleDieRoll <= 2
+        ) {
+          const investigator =
+            updatedGame.investigators[
+              investigatorId
+            ];
+
+          if (investigator) {
+            updatedGame = {
+              ...updatedGame,
+
+              investigators: {
+                ...updatedGame.investigators,
+
+                [investigatorId]: {
+                  ...investigator,
+
+                  spaceId: "space-8",
+
+                  isDelayed: true,
+                },
+              },
+            };
+          }
+        }
+
+        /*
+        * Resolve any normal effects associated
+        * with the die result.
+        */
+
+        if (effects.length > 0) {
+          updatedGame =
+            resolveEncounterEffects(
+              updatedGame,
+              investigatorId,
+              effects,
+              eldritchBaseMap,
+            );
+        }
+
+        /*
+        * Find the next Investigator.
+        */
+
+        const nextIndex =
+          investigatorIndex + 1;
+
+        const investigatorIds =
+          updatedGame.investigatorOrder;
+
+        /*
+        * All Investigators have rolled.
+        * The Mythos event is finished.
+        */
+
+        if (
+          nextIndex >=
+          investigatorIds.length
+        ) {
+          const mythosId =
+            updatedGame.currentMythosId;
+
+          if (mythosId) {
+            const mythos =
+              [
+                ...easyMythos,
+                ...normalMythos,
+                ...hardMythos,
+              ].find(
+                (definition) =>
+                  definition.id ===
+                  mythosId,
+              );
+
+            if (mythos) {
+              updatedGame = {
+                ...updatedGame,
+
+                board: {
+                  ...updatedGame.board,
+
+                  mythosDiscard: [
+                    ...updatedGame.board
+                      .mythosDiscard,
+                    mythos,
+                  ],
+                },
+
+                currentMythosId:
+                  null,
+
+                activeInvestigatorId:
+                  null,
+
+                pendingDecision:
+                  null,
+              };
+            }
+          }
+
+          setGame(updatedGame);
+          setSingleDieRoll(null);
+
+          return;
+        }
+
+        /*
+        * Start the next Investigator's roll.
+        */
+
+        const nextInvestigatorId =
+          investigatorIds[nextIndex];
+
+        if (!nextInvestigatorId) {
+          setGame(updatedGame);
+          setSingleDieRoll(null);
+
+          return;
+        }
+
+        updatedGame =
+          resolveMythosSpecial(
+            updatedGame,
+            [
+              ...easyMythos,
+              ...normalMythos,
+              ...hardMythos,
+            ].find(
+              (definition) =>
+                definition.id ===
+                "the-bermuda-triangle",
+            )!,
+            `the-bermuda-triangle:${nextIndex}`,
+            eldritchBaseMap,
+          );
+
+        setGame(updatedGame);
+        setSingleDieRoll(null);
+
+        return;
+      }
+
+      /*
+      * ============================================================
+      * MYTHOS — SINGLE DIE
+      * ============================================================
+      */
+
+      if (
+        decision.type === "single-die-roll" &&
+        (
+          decision.source?.startsWith(
+            "mythos:single-die-roll:",
+          ) ||
+          decision.source?.startsWith(
+            "mythos:eyes-everywhere:",
+          )
+        )
+      ) {
+        const investigatorId =
+          decision.investigatorId;
+
+        const isEyesEverywhere =
+          decision.source?.startsWith(
+            "mythos:eyes-everywhere:",
+          ) ?? false;
+
+        const effects =
+          singleDieRoll >= 1 &&
+          singleDieRoll <= 2
+            ? decision.onOneOrTwo ?? []
+            : isEyesEverywhere
+              ? singleDieRoll >= 3 &&
+                singleDieRoll <= 5
+                ? decision.onThreeToFive ?? []
+                : decision.onSix ?? []
+              : decision.onThreeToSix ?? [];
 
         /*
         * Remove the dice decision before resolving
@@ -2125,6 +2333,49 @@ function App() {
         }
 
         /*
+        * ============================================================
+        * EYES EVERYWHERE — MONSTER AMBUSH
+        * ============================================================
+        *
+        * On 3-5 the effect creates a Combat decision.
+        *
+        * We must attach a resume so that when the Combat ends,
+        * the Mythos continues with the next Investigator.
+        */
+
+        if (
+          isEyesEverywhere &&
+          singleDieRoll >= 3 &&
+          singleDieRoll <= 5 &&
+          updatedGame.pendingDecision?.type ===
+            "combat"
+        ) {
+          const investigatorIndex =
+            Number(
+              decision.source?.split(":")[2],
+            );
+
+          updatedGame = {
+            ...updatedGame,
+
+            pendingDecision: {
+              ...updatedGame.pendingDecision,
+
+              resume: {
+                type:
+                  "eyes-everywhere",
+
+                investigatorIds:
+                  updatedGame.investigatorOrder,
+
+                currentInvestigatorIndex:
+                  investigatorIndex,
+              },
+            },
+          };
+        }
+
+        /*
         * If resolving the effects created another
         * decision, stop here and wait for it.
         */
@@ -2132,6 +2383,63 @@ function App() {
         if (
           updatedGame.pendingDecision
         ) {
+          setGame(updatedGame);
+          setSingleDieRoll(null);
+
+          return;
+        }
+
+        /*
+        * ============================================================
+        * EYES EVERYWHERE — NEXT INVESTIGATOR
+        * ============================================================
+        *
+        * Results 1-2 and 6 have no Combat decision.
+        * Continue with the next Investigator.
+        */
+
+        if (
+          isEyesEverywhere &&
+          !updatedGame.pendingDecision
+        ) {
+          const investigatorIndex =
+            Number(
+              decision.source?.split(":")[2],
+            );
+
+          const mythosId =
+            updatedGame.currentMythosId;
+
+          if (!mythosId) {
+            throw new Error(
+              "Eyes Everywhere has no current Mythos.",
+            );
+          }
+
+          const mythos =
+            [
+              ...easyMythos,
+              ...normalMythos,
+              ...hardMythos,
+            ].find(
+              (definition) =>
+                definition.id ===
+                mythosId,
+            );
+
+          if (!mythos) {
+            throw new Error(
+              `Mythos "${mythosId}" does not exist.`,
+            );
+          }
+
+          updatedGame =
+            startEyesEverywhere(
+              updatedGame,
+              mythos,
+              investigatorIndex + 1,
+            );
+
           setGame(updatedGame);
           setSingleDieRoll(null);
 

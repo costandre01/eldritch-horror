@@ -8,6 +8,7 @@ import { coreMaps } from "../../content/core/maps";
 
 import { gainCondition } from "./gainCondition";
 import { discardCondition } from "./discardCondition";
+import { advanceDoom } from "./doomEngine";
 
 export function resolveCondition(
   game: GameState,
@@ -710,6 +711,206 @@ export function resolveCondition(
         return currentGame;
       }
 
+      case "advance-doom": {
+        currentGame =
+          advanceDoom(
+            currentGame,
+            effect.amount,
+          );
+
+        break;
+      }
+
+      case "fail-choice": {
+        if (
+          effect.choice.type !==
+          "discard-ally"
+        ) {
+          throw new Error(
+            `Unsupported fail-choice type "${effect.choice.type}".`,
+          );
+        }
+
+        const allyIds =
+          assetIds.filter(
+            (assetId) =>
+              currentGame.assets[
+                assetId
+              ]?.type === "ally",
+          );
+
+        /*
+        * If the investigator has no Ally,
+        * resolve the "otherwise" effects immediately.
+        */
+
+        if (allyIds.length === 0) {
+          for (
+            const otherwiseEffect of
+              effect.otherwise
+          ) {
+            /*
+            * We cannot recursively call resolveCondition
+            * here because the current Condition is already
+            * being resolved.
+            *
+            * For the current Debt effect, the otherwise
+            * effects are handled explicitly below.
+            */
+
+            switch (
+              otherwiseEffect.type
+            ) {
+              case "move-to-nearest-city": {
+                if (
+                  investigator.spaceId === null
+                ) {
+                  break;
+                }
+
+                /*
+                * Breadth-first search.
+                *
+                * Procura a City mais próxima através
+                * das ligações do mapa.
+                */
+
+                const queue: string[] = [
+                  investigator.spaceId,
+                ];
+
+                const visited =
+                  new Set<string>();
+
+                let nearestCityId:
+                  | string
+                  | null = null;
+
+                while (
+                  queue.length > 0
+                ) {
+                  const spaceId =
+                    queue.shift()!;
+
+                  if (
+                    visited.has(spaceId)
+                  ) {
+                    continue;
+                  }
+
+                  visited.add(spaceId);
+
+                  const space =
+                    map.spaces.find(
+                      (item) =>
+                        item.id === spaceId,
+                    );
+
+                  if (!space) {
+                    continue;
+                  }
+
+                  if (
+                    space.type === "city"
+                  ) {
+                    nearestCityId =
+                      space.id;
+
+                    break;
+                  }
+
+                  for (
+                    const nextId of
+                      space.connectedSpaceIds
+                  ) {
+                    if (
+                      !visited.has(nextId)
+                    ) {
+                      queue.push(nextId);
+                    }
+                  }
+                }
+
+                if (nearestCityId) {
+                  currentGame = {
+                    ...currentGame,
+
+                    investigators: {
+                      ...currentGame.investigators,
+
+                      [investigatorId]: {
+                        ...currentGame.investigators[
+                          investigatorId
+                        ],
+
+                        spaceId:
+                          nearestCityId,
+                      },
+                    },
+                  };
+                }
+
+                break;
+              }
+
+              case "gain-condition": {
+                currentGame =
+                  gainCondition(
+                    currentGame,
+                    investigatorId,
+                    otherwiseEffect.conditionDefinitionId,
+                  );
+
+                break;
+              }
+
+              default:
+                throw new Error(
+                  `Unsupported fail-choice otherwise effect "${otherwiseEffect.type}".`,
+                );
+            }
+          }
+
+          break;
+        }
+
+        /*
+        * The investigator has at least one Ally.
+        *
+        * The player must decide whether to discard one.
+        */
+
+        currentGame = {
+          ...currentGame,
+
+          pendingDecision: {
+            type: "select-card",
+
+            title:
+              "Discard an Ally?",
+
+            message:
+              "Discard 1 Ally to avoid moving to the nearest City and gaining Detained.",
+
+            cardIds: allyIds,
+
+            selectableCardIds:
+              allyIds,
+
+            minSelections: 0,
+
+            maxSelections: 1,
+
+            selectedCardIds: [],
+
+            source:
+              `condition:fail-choice:${investigatorId}:${conditionId}`,
+          },
+        };
+
+        return currentGame;
+      }
+
       /*
        * ========================================================
        * NOT IMPLEMENTED YET
@@ -750,12 +951,6 @@ export function resolveCondition(
         );
       }
 
-      case "fail-choice": {
-        throw new Error(
-          "Effect 'fail-choice' is not implemented yet.",
-        );
-      }
-
       case "choose-gain-condition-or": {
         throw new Error(
           "Effect 'choose-gain-condition-or' is not implemented yet.",
@@ -783,12 +978,6 @@ export function resolveCondition(
       case "advance-omen": {
         throw new Error(
           "Effect 'advance-omen' is not implemented yet.",
-        );
-      }
-
-      case "advance-doom": {
-        throw new Error(
-          "Effect 'advance-doom' is not implemented yet.",
         );
       }
 

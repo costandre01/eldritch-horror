@@ -8,6 +8,11 @@ import { startConditionReckoning } from "./startConditionReckoning";
 import { gainConditionByCategory } from "./gainCondition";
 import { getInvestigatorConditionsByCategory } from "./getInvestigatorConditions";
 import { resolveMythosSpecial } from "./resolveMythosSpecial";
+import { solveMythosRumor } from "./solveMythosRumor";
+import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
+import { advanceDoom } from "./doomEngine";
+import { spawnMonsterAtSpace } from "./spawnMonster";
+import { advanceOmen } from "./omenEngine";
 
 const ALL_MYTHOS = [
   ...easyMythos,
@@ -353,6 +358,381 @@ export function resolveMythosCardReckoning(
 
   if (
     mythos.reckoning?.type ===
+    "discard-self-and-place-assets"
+  ) {
+    /*
+    * ==========================================================
+    * DRIVEN TO BANKRUPTCY
+    * ==========================================================
+    *
+    * Discard this Mythos.
+    *
+    * Then place the top 4 cards of the Asset deck
+    * in the Reserve.
+    */
+
+    const assetDeck = [
+      ...game.board.assetDeck,
+    ];
+
+    const assetsToReserve =
+      assetDeck.splice(
+        0,
+        Math.min(
+          4,
+          assetDeck.length,
+        ),
+      );
+
+    const remainingMythosInPlay =
+      game.board.mythosInPlay.filter(
+        (entry) =>
+          entry.definitionId !==
+          mythosId,
+      );
+
+    return {
+      ...game,
+
+      board: {
+        ...game.board,
+
+        assetDeck,
+
+        assetReserve: [
+          ...game.board.assetReserve,
+          ...assetsToReserve,
+        ],
+
+        mythosInPlay:
+          remainingMythosInPlay,
+
+        mythosDiscard: [
+          ...game.board.mythosDiscard,
+          mythos,
+        ],
+      },
+
+      pendingDecision: {
+        ...decision,
+
+        resolvedMythosIds: [
+          ...decision.resolvedMythosIds,
+          mythosId,
+        ],
+      },
+    };
+  }
+
+  /*
+   * ============================================================
+   * FADED FROM SOCIETY
+   * ============================================================
+   *
+   * Search the Asset deck, Asset discard pile and Reserve
+   * for every Asset whose value is greater than or equal
+   * to the number of Eldritch Tokens on this Mythos.
+   *
+   * Those Assets are returned to the game box.
+   *
+   * Then discard 1 Eldritch Token from this Mythos.
+   *
+   * If there are no Eldritch Tokens remaining,
+   * solve this Rumor.
+   */
+
+  if (
+    mythos.reckoning?.type ===
+    "faded-from-society"
+  ) {
+    const eldritchTokens =
+      mythosInPlay.eldritchTokens;
+
+    /*
+     * ==========================================================
+     * REMOVE ASSETS FROM THE GAME
+     * ==========================================================
+     *
+     * Assets returned to the game box are simply removed
+     * from the Asset deck, discard pile and Reserve.
+     */
+
+    const assetDeck =
+      game.board.assetDeck.filter(
+        (asset) =>
+          asset.value <
+          eldritchTokens,
+      );
+
+    const assetDiscard =
+      game.board.assetDiscard.filter(
+        (asset) =>
+          asset.value <
+          eldritchTokens,
+      );
+
+    const assetReserve =
+      game.board.assetReserve.filter(
+        (asset) =>
+          asset.value <
+          eldritchTokens,
+      );
+
+    /*
+     * ==========================================================
+     * DISCARD 1 ELDRITCH TOKEN
+     * ==========================================================
+     */
+
+    const remainingEldritchTokens =
+      Math.max(
+        0,
+        eldritchTokens - 1,
+      );
+
+    const updatedMythosInPlay = [
+      ...game.board.mythosInPlay,
+    ];
+
+    updatedMythosInPlay[
+      mythosInPlayIndex
+    ] = {
+      ...mythosInPlay,
+
+      eldritchTokens:
+        remainingEldritchTokens,
+    };
+
+    let updatedGame: GameState = {
+      ...game,
+
+      board: {
+        ...game.board,
+
+        assetDeck,
+
+        assetDiscard,
+
+        assetReserve,
+
+        mythosInPlay:
+          updatedMythosInPlay,
+      },
+    };
+
+    /*
+     * ==========================================================
+     * SOLVE RUMOR
+     * ==========================================================
+     *
+     * If the last Eldritch Token was discarded,
+     * Faded From Society is solved.
+     */
+
+    if (
+      remainingEldritchTokens === 0
+    ) {
+      return solveMythosRumor(
+        updatedGame,
+        mythos,
+      );
+    }
+
+    /*
+     * ==========================================================
+     * CONTINUE RECKONING
+     * ==========================================================
+     */
+
+    return {
+      ...updatedGame,
+
+      pendingDecision: {
+        ...decision,
+
+        resolvedMythosIds: [
+          ...decision.resolvedMythosIds,
+          mythosId,
+        ],
+      },
+    };
+  }
+
+  /*
+   * ==========================================================
+   * THE WIND-WALKER RECKONING
+   * ==========================================================
+   *
+   * Discard 1 Eldritch Token.
+   *
+   * When the last token is removed:
+   *   -> Each Investigator becomes Delayed.
+   *   -> Each Investigator loses 6 Health.
+   *   -> Solve the Rumor.
+   */
+
+  if (
+    mythos.reckoning?.type ===
+    "wind-walker"
+  ) {
+    const eldritchTokens =
+      Math.max(
+        0,
+        mythosInPlay.eldritchTokens - 1,
+      );
+
+    const updatedMythosInPlay =
+      [
+        ...game.board.mythosInPlay,
+      ];
+
+    updatedMythosInPlay[
+      mythosInPlayIndex
+    ] = {
+      ...mythosInPlay,
+
+      eldritchTokens,
+    };
+
+    const updatedGame: GameState = {
+      ...game,
+
+      board: {
+        ...game.board,
+
+        mythosInPlay:
+          updatedMythosInPlay,
+      },
+    };
+
+    /*
+     * ==========================================================
+     * LAST ELDRITCH TOKEN
+     * ==========================================================
+     */
+
+    if (
+      eldritchTokens === 0
+    ) {
+      return resolveMythosSpecial(
+        updatedGame,
+        mythos,
+        "the-wind-walker",
+        _map,
+      );
+    }
+
+    return {
+      ...updatedGame,
+
+      pendingDecision: {
+        ...decision,
+
+        resolvedMythosIds: [
+          ...decision.resolvedMythosIds,
+          mythosId,
+        ],
+      },
+    };
+  }
+
+  /*
+  * ============================================================
+  * DIMENSIONS COLLIDE
+  * ============================================================
+  *
+  * Discard Eldritch Tokens equal to half the number
+  * of Gates currently on the board.
+  */
+
+  if (
+      mythos.reckoning?.type ===
+      "dimensions-collide"
+  ) {
+      const gateCount =
+          Object.values(
+              game.board.spaces,
+          ).reduce(
+              (total, space) =>
+                  total +
+                  space.gates.length,
+              0,
+          );
+
+      const tokensToDiscard =
+          Math.min(
+              Math.floor(
+                  gateCount / 2,
+              ),
+              mythosInPlay.eldritchTokens,
+          );
+
+      const remainingEldritchTokens =
+          mythosInPlay.eldritchTokens -
+          tokensToDiscard;
+
+      const updatedMythosInPlay = [
+          ...game.board.mythosInPlay,
+      ];
+
+      updatedMythosInPlay[
+          mythosInPlayIndex
+      ] = {
+          ...mythosInPlay,
+
+          eldritchTokens:
+              remainingEldritchTokens,
+      };
+
+      const updatedGame: GameState = {
+          ...game,
+
+          board: {
+              ...game.board,
+
+              mythosInPlay:
+                  updatedMythosInPlay,
+          },
+      };
+
+      /*
+      * If the last Eldritch Token was removed,
+      * the investigators immediately lose.
+      */
+
+      if (
+          remainingEldritchTokens === 0
+      ) {
+          return {
+              ...updatedGame,
+
+              status:
+                  "defeat",
+
+              pendingDecision:
+                  null,
+
+              activeInvestigatorId:
+                  null,
+          };
+      }
+
+      return {
+          ...updatedGame,
+
+          pendingDecision: {
+              ...decision,
+
+              resolvedMythosIds: [
+                  ...decision.resolvedMythosIds,
+                  mythosId,
+              ],
+          },
+      };
+  }
+
+  if (
+    mythos.reckoning?.type ===
     "discard-eldritch-token"
   ) {
     const eldritchTokens =
@@ -424,6 +804,334 @@ export function resolveMythosCardReckoning(
     }
 
     return updatedGame;
+  }
+
+  /*
+  * ==========================================================
+  * PATROLLING THE BORDER
+  * ==========================================================
+  */
+
+  if (
+      mythos.reckoning?.type ===
+      "city-investigators-test-observation"
+  ) {
+      const cityInvestigatorIds =
+          game.investigatorOrder.filter(
+              (investigatorId) => {
+                  const investigator =
+                      game.investigators[
+                          investigatorId
+                      ];
+
+                  if (
+                      !investigator ||
+                      !investigator.spaceId
+                  ) {
+                      return false;
+                  }
+
+                  const space =
+                      _map.spaces.find(
+                          (item) =>
+                              item.id ===
+                              investigator.spaceId,
+                      );
+
+                  return (
+                      space?.type ===
+                      "city"
+                  );
+              },
+          );
+
+      /*
+      * No investigators in Cities.
+      * The Mythos is simply discarded.
+      */
+
+      if (
+          cityInvestigatorIds.length === 0
+      ) {
+          const updatedMythosInPlay =
+              game.board.mythosInPlay.filter(
+                  (entry) =>
+                      entry.definitionId !==
+                      mythos.id,
+              );
+
+          return {
+              ...game,
+
+              board: {
+                  ...game.board,
+
+                  mythosInPlay:
+                      updatedMythosInPlay,
+
+                  mythosDiscard: [
+                      ...game.board.mythosDiscard,
+                      mythos,
+                  ],
+              },
+
+              pendingDecision: {
+                  ...decision,
+
+                  resolvedMythosIds: [
+                      ...decision.resolvedMythosIds,
+                      mythosId,
+                  ],
+              },
+          };
+      }
+
+      const investigatorId =
+          cityInvestigatorIds[0];
+
+      if (!investigatorId) {
+          throw new Error(
+              "Patrolling the Border could not determine the Investigator.",
+          );
+      }
+
+      return {
+          ...game,
+
+          activeInvestigatorId:
+              investigatorId,
+
+          pendingDecision: {
+              type: "test",
+
+              title:
+                  "Patrolling the Border",
+
+              message:
+                  "Test Observation.",
+
+              image:
+                  mythos.image,
+
+              skill:
+                  "observation",
+
+              modifier:
+                  0,
+
+              investigatorId,
+
+              source:
+                  `mythos:patrolling-the-border:test:${investigatorId}:0`,
+
+              resume: {
+                  type:
+                      "mythos-patrolling-the-border",
+
+                  investigatorIds:
+                      cityInvestigatorIds,
+
+                  currentInvestigatorIndex:
+                      0,
+              },
+          },
+      };
+  }
+
+  /*
+   * ==========================================================
+   * RETURN OF THE ANCIENT ONES
+   * ==========================================================
+   *
+   * Spawn 1 Monster on Space 19.
+   *
+   * If there are 4 or more Monsters on Space 19,
+   * set Doom to 0 and solve the Rumor.
+   */
+
+  if (
+    mythos.reckoning?.type ===
+    "return-of-the-ancient-ones"
+  ) {
+    let currentGame =
+      spawnMonsterAtSpace(
+        game,
+        "space-19",
+      );
+
+    const space19 =
+      currentGame.board.spaces[
+        "space-19"
+      ];
+
+    if (!space19) {
+      return {
+        ...currentGame,
+
+        pendingDecision: {
+          ...decision,
+
+          resolvedMythosIds: [
+            ...decision.resolvedMythosIds,
+            mythosId,
+          ],
+        },
+      };
+    }
+
+    const monsterCount =
+      space19.monsterIds.filter(
+        (id) =>
+          currentGame.monsters[id] !==
+          undefined,
+      ).length;
+
+    /*
+     * Less than 4 Monsters:
+     * the Rumor remains in play.
+     */
+
+    if (
+      monsterCount < 4
+    ) {
+      return {
+        ...currentGame,
+
+        pendingDecision: {
+          ...decision,
+
+          resolvedMythosIds: [
+            ...decision.resolvedMythosIds,
+            mythosId,
+          ],
+        },
+      };
+    }
+
+    /*
+     * 4 or more Monsters:
+     *
+     * Set Doom to 0.
+     *
+     * advanceDoom() also triggers the normal
+     * Ancient One Awakening flow when appropriate.
+     */
+
+    const wasAwakened =
+      currentGame.ancientOne.awakened;
+
+    currentGame =
+      advanceDoom(
+        currentGame,
+        currentGame.ancientOne.doom,
+      );
+
+    const solvedGame =
+      solveMythosRumor(
+        currentGame,
+        mythos,
+      );
+
+    if (
+      !wasAwakened &&
+      currentGame.ancientOne.awakened
+    ) {
+      const reckoningDecision =
+        currentGame.pendingDecision;
+
+      if (
+        !reckoningDecision ||
+        reckoningDecision.type !==
+          "mythos-card-reckoning"
+      ) {
+        throw new Error(
+          "Return of the Ancient Ones awakened the Ancient One, but the Mythos Reckoning decision could not be resumed.",
+        );
+      }
+
+      return resolveAncientOneAwakening(
+        solvedGame,
+        _map,
+        reckoningDecision.nextIconIndex,
+        {
+          type: "mythos",
+
+          nextIconIndex:
+            reckoningDecision.nextIconIndex,
+
+          mythosIds:
+            reckoningDecision.mythosIds,
+
+          resolvedMythosIds:
+            reckoningDecision.resolvedMythosIds,
+        },
+      );
+    }
+
+    return {
+      ...solvedGame,
+
+      pendingDecision: {
+        ...decision,
+
+        resolvedMythosIds: [
+          ...decision.resolvedMythosIds,
+          mythosId,
+        ],
+      },
+    };
+  }
+
+  /*
+  * ============================================================
+  * STARS ALIGNED
+  * ============================================================
+  *
+  * Reckoning:
+  * Advance the Omen by 1.
+  */
+
+  if (
+    mythos.reckoning?.type ===
+    "stars-aligned"
+  ) {
+    const wasAwakened =
+      game.ancientOne.awakened;
+
+    const advancedGame =
+      advanceOmen(
+        game,
+        1,
+      );
+
+    /*
+    * Advancing the Omen may cause Doom
+    * to reach 0 and awaken the Ancient One.
+    */
+
+    if (
+      !wasAwakened &&
+      advancedGame.ancientOne.awakened
+    ) {
+      return resolveAncientOneAwakening(
+        advancedGame,
+        _map,
+        decision.nextIconIndex,
+      );
+    }
+
+    return {
+      ...advancedGame,
+
+      pendingDecision: {
+        ...decision,
+
+        resolvedMythosIds: [
+          ...decision.resolvedMythosIds,
+          mythosId,
+        ],
+      },
+    };
   }
 
   /*
