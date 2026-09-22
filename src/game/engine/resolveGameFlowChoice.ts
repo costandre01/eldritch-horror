@@ -30,6 +30,8 @@ import { returnRandomSolvedMysteryToDeck } from "./mysteryEngine";
 import { advanceDoom } from "./doomEngine";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { startMythosCardReckoning } from "./startMythosCardReckoning";
+import { drawClueToken } from "./clueEngine";
+import { replaceDefeatedInvestigator } from "./replaceDefeatedInvestigator";
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -44,6 +46,259 @@ export function resolveGameFlowChoice(
     decision.type !== "choice"
   ) {
     return game;
+  }
+
+  /*
+  * ============================================================
+  * COMBAT — REPLACE DEFEATED INVESTIGATOR
+  * ============================================================
+  *
+  * The Investigator was defeated during normal Combat.
+  *
+  * choiceId = Investigator definition ID.
+  * ============================================================
+  */
+
+  if (
+    decision.source?.startsWith(
+      "combat-defeat-replacement:",
+    )
+  ) {
+    const defeatedInvestigatorId =
+      decision.source.split(":")[1];
+
+    if (!defeatedInvestigatorId) {
+      return game;
+    }
+
+    /*
+    * The selected option ID is the
+    * Investigator definition ID.
+    */
+
+    const replacementDefinitionId =
+      choiceId;
+
+    /*
+    * Create the replacement Investigator.
+    */
+
+    const replacedGame =
+      replaceDefeatedInvestigator(
+        game,
+        defeatedInvestigatorId,
+        replacementDefinitionId,
+      );
+
+    /*
+    * The defeated Investigator's turn is over.
+    *
+    * Keep the defeated Investigator as the temporary
+    * active Investigator so endInvestigatorEncounter()
+    * advances the Investigator Turn Index normally.
+    *
+    * The replacement already occupies the defeated
+    * Investigator's position in investigatorOrder.
+    */
+
+    return endInvestigatorEncounter({
+      ...replacedGame,
+
+      activeInvestigatorId:
+        defeatedInvestigatorId,
+
+      pendingDecision:
+        null,
+
+      pendingEncounterChoice:
+        null,
+
+      combatOrder:
+        null,
+
+      currentEncounterId:
+        null,
+
+      currentEncounterBackId:
+        null,
+
+      currentEncounterRevealed:
+        false,
+
+      currentEncounterDeckType:
+        null,
+    });
+  }
+
+  /*
+  * ============================================================
+  * OCCULT RESEARCH
+  * ============================================================
+  */
+
+  if (
+    decision.source ===
+    "mystery:occult-research"
+  ) {
+    const investigatorId =
+      game.activeInvestigatorId;
+
+    if (!investigatorId) {
+      throw new Error(
+        "Occult Research requires an active investigator.",
+      );
+    }
+
+    const investigator =
+      game.investigators[investigatorId];
+
+    if (!investigator) {
+      throw new Error(
+        `Investigator "${investigatorId}" does not exist.`,
+      );
+    }
+
+    /*
+    * ----------------------------------------------------------
+    * DECLINE
+    * ----------------------------------------------------------
+    */
+
+    if (
+      choiceId ===
+      "occult-research:decline"
+    ) {
+      return endInvestigatorEncounter({
+        ...game,
+
+        pendingDecision: null,
+
+        currentEncounterIsResearch:
+          false,
+
+        encounterCluesGained: 0,
+      });
+    }
+
+    /*
+    * ----------------------------------------------------------
+    * SPEND 1 CLUE
+    * ----------------------------------------------------------
+    */
+
+    if (
+      choiceId !==
+      "occult-research:spend"
+    ) {
+      return game;
+    }
+
+    if (
+      (game.encounterCluesGained ?? 0) <= 0 ||
+      investigator.clues <= 0
+    ) {
+      return game;
+    }
+
+    const activeMysteryId =
+      game.mysteries.activeMysteryId;
+
+    if (!activeMysteryId) {
+      return endInvestigatorEncounter({
+        ...game,
+
+        pendingDecision: null,
+
+        currentEncounterIsResearch:
+          false,
+
+        encounterCluesGained: 0,
+      });
+    }
+
+    const mysteryProgress =
+      game.mysteries.progress[
+        activeMysteryId
+      ];
+
+    if (!mysteryProgress) {
+      throw new Error(
+        `No progress exists for Mystery "${activeMysteryId}".`,
+      );
+    }
+
+    /*
+    * Draw a physical Clue token from the pool.
+    */
+    const {
+      game: gameAfterDraw,
+      clue,
+    } = drawClueToken(game);
+
+    if (!clue) {
+      throw new Error(
+        "Cannot place a Clue on the Mystery because there are no physical Clue tokens available.",
+      );
+    }
+
+    /*
+    * Spend the Clue gained during this Encounter.
+    */
+    const updatedGame: GameState = {
+      ...gameAfterDraw,
+
+      investigators: {
+        ...gameAfterDraw.investigators,
+
+        [investigatorId]: {
+          ...investigator,
+
+          clues:
+            investigator.clues - 1,
+        },
+      },
+
+      encounterCluesGained:
+        (gameAfterDraw.encounterCluesGained ?? 0) - 1,
+
+      mysteries: {
+        ...gameAfterDraw.mysteries,
+
+        progress: {
+          ...gameAfterDraw.mysteries.progress,
+
+          [activeMysteryId]: {
+            ...mysteryProgress,
+
+            clueTokenIds: [
+              ...mysteryProgress.clueTokenIds,
+              clue.id,
+            ],
+          },
+        },
+      },
+
+      pendingDecision: null,
+
+      currentEncounterIsResearch:
+        false,
+
+      currentEncounterId: null,
+
+      currentEncounterBackId: null,
+
+      currentEncounterRevealed: false,
+
+      currentEncounterDeckType: null,
+    };
+
+    /*
+    * The Mystery is checked at the end of the Mythos Phase,
+    * according to the current Mystery implementation.
+    */
+    return endInvestigatorEncounter(
+      updatedGame,
+    );
   }
 
   const investigatorHasMonster = (

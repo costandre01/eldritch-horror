@@ -197,6 +197,26 @@ export function startEncounter(
   }
 
   /*
+  * ============================================================
+  * YOG-SOTHOTH — FINAL MYSTERY
+  * ============================================================
+  *
+  * During Yog-Sothoth's Final Mystery, an investigator
+  * on a space containing a Gate may resolve a
+  * "The Key and the Gate" Special Encounter.
+  */
+
+  const canAttemptYogFinalMystery =
+    result.game.finalMystery?.id ===
+      "yog-sothoth-the-key-and-the-gate" &&
+    result.game.board.spaces[currentSpace.id].gates.length > 0 &&
+    result.game.board.encounterDecks.special.length > 0;
+
+  if (canAttemptYogFinalMystery) {
+    possibleDeckTypes.push("special");
+  }
+
+  /*
    * ============================================================
    * REMOVE DUPLICATES
    * ============================================================

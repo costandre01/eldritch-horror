@@ -920,6 +920,9 @@ const selectedSpecialEncounters =
 
     currentEncounterRevealed:
       false,
+
+    currentEncounterIsResearch:
+      false,
     
     currentEncounterDeckType: null,
 
@@ -983,6 +986,8 @@ const selectedSpecialEncounters =
 
     mysteries:
       initialMysteryState,
+
+    finalMystery: null,
 
     combatOrder: null,
 

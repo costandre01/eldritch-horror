@@ -15,6 +15,7 @@ import type { MysteryState } from "./MysteryState";
 import type { PendingDecision } from "./PendingDecision";
 import type { EncounterDeckType } from "./BoardState";
 import type { GameStatus } from "../types/GameStatus";
+import type { FinalMysteryState } from "./FinalMystery";
 
 export interface GameState {
   /*
@@ -122,6 +123,9 @@ export interface GameState {
   currentEncounterRevealed:
     boolean;
 
+  currentEncounterIsResearch:
+    boolean;
+
   /*
   * Number of Clues gained during the
   * current Research Encounter.
@@ -221,6 +225,9 @@ export interface GameState {
 
   mysteries:
     MysteryState;
+
+  finalMystery: 
+    FinalMysteryState | null;
 
   /*
    * ============================================================

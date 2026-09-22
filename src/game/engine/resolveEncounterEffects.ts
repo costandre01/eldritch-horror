@@ -2643,6 +2643,66 @@ export function resolveEncounterEffects(
         const amount =
           effect.amount ?? 1;
 
+        /*
+        * ==========================================================
+        * YOG-SOTHOTH — FINAL MYSTERY
+        * ==========================================================
+        *
+        * During The Key and the Gate, Eldritch Tokens belong
+        * to the Final Mystery rather than the normal Ancient
+        * One Eldritch Token counter.
+        */
+
+        if (
+          currentGame.finalMystery?.id ===
+          "yog-sothoth-the-key-and-the-gate"
+        ) {
+          const newTokenCount =
+            currentGame.finalMystery
+              .eldritchTokenCount +
+            amount;
+
+          const requiredTokens =
+            Math.ceil(
+              Object.keys(
+                currentGame.investigators,
+              ).length / 2,
+            );
+
+          currentGame = {
+            ...currentGame,
+
+            finalMystery: {
+              ...currentGame.finalMystery,
+
+              eldritchTokenCount:
+                newTokenCount,
+            },
+          };
+
+          if (
+            newTokenCount >=
+            requiredTokens
+          ) {
+            currentGame = {
+              ...currentGame,
+
+              status: "victory",
+              activeInvestigatorId: null,
+              pendingDecision: null,
+              pendingEncounterChoice: null,
+            };
+          }
+
+          break;
+        }
+
+        /*
+        * ==========================================================
+        * NORMAL ANCIENT ONE TOKEN
+        * ==========================================================
+        */
+
         currentGame = {
           ...currentGame,
 

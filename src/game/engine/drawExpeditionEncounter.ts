@@ -141,6 +141,9 @@ export function drawExpeditionEncounter(
     currentEncounterRevealed:
       false,
 
+    currentEncounterIsResearch:
+      encounter.region === "research",
+
     currentEncounterDeckType:
       "expedition",
   };

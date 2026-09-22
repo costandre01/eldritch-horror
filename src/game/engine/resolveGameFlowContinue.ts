@@ -27,6 +27,7 @@ import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { startArrestsMade, startEyesEverywhere } from "./resolveMythosSpecial";
 import { gainCondition } from "./gainCondition";
 import { solveMythosRumor } from "./solveMythosRumor";
+import { coreInvestigators } from "../../content/core/investigators";
 
 export interface GameFlowContinueResult {
   game: GameState;
@@ -1767,18 +1768,104 @@ export function resolveGameFlowContinue(
     * ==========================================================
     * NORMAL COMBAT
     * ==========================================================
+    *
+    * The Investigator was defeated during normal Combat.
+    *
+    * The player must choose a new Investigator before
+    * the current Investigator's turn sequence ends.
     */
 
-    const nextGame =
-      endInvestigatorEncounter(
-        finishedGame,
+    const defeatedInvestigatorId =
+      decision.source.split(":")[1];
+
+    if (!defeatedInvestigatorId) {
+      throw new Error(
+        "Investigator defeat decision is missing investigatorId.",
+      );
+    }
+
+    const availableInvestigators =
+      coreInvestigators.filter(
+        (definition) =>
+          !Object.values(
+            finishedGame.investigators,
+          ).some(
+            (investigator) =>
+              investigator.definitionId ===
+              definition.id,
+          ),
       );
 
+    if (
+      availableInvestigators.length ===
+      0
+    ) {
+      return {
+        game: {
+          ...finishedGame,
+
+          status: "defeat",
+
+          activeInvestigatorId:
+            null,
+
+          pendingDecision:
+            null,
+
+          combatOrder:
+            null,
+        },
+
+        resetEncounterStartedForTurn:
+          false,
+      };
+    }
+
     return {
-      game: nextGame,
+      game: {
+        ...finishedGame,
+
+        pendingDecision: {
+          type: "choice",
+
+          title:
+            "CHOOSE A NEW INVESTIGATOR",
+
+          message:
+            "Your Investigator was defeated. Choose a new Investigator.",
+
+          options:
+            availableInvestigators.map(
+              (definition) => {
+                const fileName =
+                  definition.name.replace(
+                    /\s+/g,
+                    "_",
+                  );
+
+                return {
+                  id:
+                    definition.id,
+
+                  title:
+                    definition.name,
+
+                  description:
+                    definition.occupation,
+
+                  image:
+                    `/cards/investigators/${fileName}/${fileName}.png`,
+                };
+              },
+            ),
+
+          source:
+            `combat-defeat-replacement:${defeatedInvestigatorId}`,
+        },
+      },
 
       resetEncounterStartedForTurn:
-        true,
+        false,
     };
   }
 
@@ -1824,6 +1911,84 @@ export function resolveGameFlowContinue(
       finishedGame.monsters[
         monsterId
       ];
+
+    /*
+     * ==========================================================
+     * FINAL MYSTERY — CTHULHU
+     * ==========================================================
+     *
+     * Defeating Cthulhu during his Final Mystery
+     * wins the game.
+     */
+
+    if (
+      defeatedMonster?.definitionId ===
+        "cthulhu" &&
+      finishedGame.finalMystery?.id ===
+        "cthulhu-risen-from-the-sea"
+    ) {
+      return {
+        game: {
+          ...finishedGame,
+
+          status: "victory",
+
+          activeInvestigatorId:
+            null,
+
+          pendingDecision:
+            null,
+
+          pendingEncounterChoice:
+            null,
+
+          combatOrder:
+            null,
+        },
+
+        resetEncounterStartedForTurn:
+          false,
+      };
+    }
+
+    /*
+    * ==========================================================
+    * FINAL MYSTERY — SHUB-NIGGURATH
+    * ==========================================================
+    *
+    * Defeating Shub-Niggurath during her Final Mystery
+    * wins the game.
+    */
+
+    if (
+      defeatedMonster?.definitionId ===
+        "shub-niggurath" &&
+      finishedGame.finalMystery?.id ===
+        "shub-niggurath-battle-in-the-woods"
+    ) {
+      return {
+        game: {
+          ...finishedGame,
+
+          status: "victory",
+
+          activeInvestigatorId:
+            null,
+
+          pendingDecision:
+            null,
+
+          pendingEncounterChoice:
+            null,
+
+          combatOrder:
+            null,
+        },
+
+        resetEncounterStartedForTurn:
+          false,
+      };
+    }
 
     const windWalkerRumor =
       [

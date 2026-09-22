@@ -47,6 +47,106 @@ export function endInvestigatorEncounter(
     );
   }
 
+  /*
+  * ============================================================
+  * OCCULT RESEARCH
+  * ============================================================
+  *
+  * A Research Encounter may allow the investigator to spend
+  * 1 Clue gained during that Encounter on the active Mystery.
+  *
+  * The Encounter itself has already been fully resolved at
+  * this point.
+  */
+  if (
+    game.currentEncounterIsResearch &&
+    (game.encounterCluesGained ?? 0) > 0 &&
+    game.mysteries.activeMysteryId
+  ) {
+    const investigatorId =
+      game.activeInvestigatorId;
+
+    if (!investigatorId) {
+      throw new Error(
+        "There is no active investigator.",
+      );
+    }
+
+    const investigator =
+      game.investigators[investigatorId];
+
+    if (!investigator) {
+      throw new Error(
+        `Investigator "${investigatorId}" does not exist.`,
+      );
+    }
+
+    /*
+    * The physical Encounter has already been resolved.
+    * Keep the Encounter state cleared, but preserve the
+    * information necessary for the Occult Research decision.
+    */
+    return {
+      ...game,
+
+      currentEncounterId:
+        null,
+
+      currentEncounterBackId:
+        null,
+
+      currentEncounterRevealed:
+        false,
+
+      currentEncounterDeckType:
+        null,
+
+      pendingDecision: {
+        type: "choice",
+
+        title:
+          "Occult Research",
+
+        message:
+          `You gained ${
+            game.encounterCluesGained
+          } Clue${
+            game.encounterCluesGained === 1
+              ? ""
+              : "s"
+          } during this Research Encounter. ` +
+          "You may spend 1 of those Clues to place it on the active Mystery.",
+
+        options: [
+          {
+            id:
+              "occult-research:spend",
+
+            title:
+              "Spend 1 Clue",
+
+            description:
+              "Spend 1 Clue gained during this Research Encounter and place it on the active Mystery.",
+          },
+
+          {
+            id:
+              "occult-research:decline",
+
+            title:
+              "Do Not Spend",
+
+            description:
+              "Keep the Clue and finish the Encounter.",
+          },
+        ],
+
+        source:
+          "mystery:occult-research",
+      },
+    };
+  }
+
   const currentIndex =
     game.investigatorTurnIndex;
 
