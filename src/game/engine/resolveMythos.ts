@@ -29,6 +29,7 @@ import { startMonsterCombat } from "./startMonsterCombat";
 import { resolveMonsterToughness } from "./resolveMonsterToughness";
 import { spawnMonsterAtSpace } from "./spawnMonster";
 import { startNextRoundAfterMythos } from "./startNextRoundAfterMythos";
+import { checkActiveMystery } from "./checkActiveMystery";
 
 /*
  * ============================================================
@@ -1218,6 +1219,47 @@ export function resolveMythos(
       currentMythosId:
         null,
     };
+  }
+
+  /*
+  * ============================================================
+  * CHECK ACTIVE MYSTERY
+  * ============================================================
+  *
+  * Mysteries are checked only after the entire
+  * Mythos Phase has been resolved.
+  */
+
+  currentGame =
+    checkActiveMystery(
+      currentGame,
+      map,
+    );
+
+  /*
+  * If the Mystery caused the game to end,
+  * stop here.
+  */
+
+  if (
+    currentGame.status ===
+    "victory"
+  ) {
+    return currentGame;
+  }
+
+  /*
+  * If resolving the Mystery created a
+  * pending decision, that decision must
+  * be resolved before choosing the Lead
+  * for the next round.
+  */
+
+  if (
+    currentGame.pendingDecision ||
+    currentGame.pendingEncounterChoice
+  ) {
+    return currentGame;
   }
 
   /*

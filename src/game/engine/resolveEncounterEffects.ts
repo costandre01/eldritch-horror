@@ -356,6 +356,17 @@ export function resolveEncounterEffects(
                 investigator.clues + amount,
             },
           },
+
+          /*
+          * Track Clues gained during the current Encounter.
+          *
+          * Used by the Occult Research Mystery.
+          */
+          encounterCluesGained:
+            currentGame.currentEncounterId !== null
+              ? (currentGame.encounterCluesGained ?? 0) +
+                amount
+              : currentGame.encounterCluesGained,
         };
 
         break;
@@ -3006,6 +3017,17 @@ export function resolveEncounterEffects(
                 investigator.clues + amount,
             },
           },
+
+          /*
+          * Track Clues gained during the current Encounter.
+          *
+          * Used by the Occult Research Mystery.
+          */
+          encounterCluesGained:
+            currentGame.currentEncounterId !== null
+              ? (currentGame.encounterCluesGained ?? 0) +
+                amount
+              : currentGame.encounterCluesGained,
         };
 
         break;

@@ -233,6 +233,15 @@ export function drawEncounter(
 
     currentEncounterDeckType:
       deckType,
+
+    /*
+    * Number of Clues gained during
+    * this Encounter.
+    *
+    * Used by the Occult Research Mystery.
+    */
+    encounterCluesGained:
+      0,
   };
 
   return {

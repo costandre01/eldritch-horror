@@ -22,8 +22,12 @@ export function resolveStandardTestResult(
   >,
   diceTest: TestResult,
 ): StandardTestResult {
+
   const passed =
-    diceTest.passed;
+    testDecision.minSuccesses !== undefined
+      ? diceTest.successes >=
+        testDecision.minSuccesses
+      : diceTest.passed;
 
   /*
    * ============================================================

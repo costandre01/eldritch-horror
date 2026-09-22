@@ -153,8 +153,7 @@ function placeRandomEldritchTokens(
           ...progress,
 
           eldritchTokenCount:
-            progress.eldritchTokenCount +
-            placedTokenSpaceIds.length,
+            progress.eldritchTokenCount,
 
           eldritchTokenSpaceIds: [
             ...progress.eldritchTokenSpaceIds,

@@ -52,7 +52,7 @@ export function resolveTestRoll(
       investigator,
       decision.skill,
       decision.modifier,
-      1,
+      decision.minSuccesses ?? 1,
     );
 
   /*

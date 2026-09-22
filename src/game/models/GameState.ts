@@ -123,6 +123,14 @@ export interface GameState {
     boolean;
 
   /*
+  * Number of Clues gained during the
+  * current Research Encounter.
+  *
+  * Used by the Occult Research Mystery.
+  */
+  encounterCluesGained?: number;
+
+  /*
    * Physical Encounter deck from which the
    * current Encounter was drawn.
    *

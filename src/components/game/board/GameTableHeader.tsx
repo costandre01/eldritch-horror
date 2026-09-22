@@ -11,6 +11,9 @@ import type { Condition } from "../../../game/models/Condition";
 
 import { CORE_ANCIENT_ONES } from "../../../content/core/coreAncientOnes";
 import { CORE_MYSTERIES } from "../../../content/core/coreMysteries";
+import { easyMythos } from "../../../content/core/mythos/easyMythos";
+import { normalMythos } from "../../../content/core/mythos/normalMythos";
+import { hardMythos } from "../../../content/core/mythos/hardMythos";
 
 interface GameTableHeaderProps {
   game: GameState;
@@ -382,8 +385,29 @@ export default function GameTableHeader({
   const mythosDeck =
     game.board.mythosDeck;
 
-  const mythosDiscard =
-    game.board.mythosDiscard;
+  const allMythos = [
+    ...easyMythos,
+    ...normalMythos,
+    ...hardMythos,
+  ];
+
+  const mythosInPlay =
+    game.board.mythosInPlay
+      .map((entry) =>
+        allMythos.find(
+          (mythos) =>
+            mythos.id ===
+            entry.definitionId,
+        ),
+      )
+      .filter(
+        (
+          mythos,
+        ): mythos is NonNullable<
+          typeof mythos
+        > =>
+          mythos !== undefined,
+      );
 
   /*
    * ============================================================
@@ -1053,7 +1077,7 @@ export default function GameTableHeader({
 
                 <div className="flex min-h-130 gap-3">
 
-                  {mythosDiscard.map(
+                  {mythosInPlay.map(
                     (
                       mythos,
                       index,
@@ -1085,7 +1109,7 @@ export default function GameTableHeader({
                     ),
                   )}
 
-                  {mythosDiscard.length ===
+                  {mythosInPlay.length ===
                     0 && (
                     <div className="flex min-h-130 min-w-55 items-center justify-center">
                       <p className="text-center text-sm font-medium text-slate-100">

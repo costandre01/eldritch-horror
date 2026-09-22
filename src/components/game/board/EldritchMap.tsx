@@ -791,6 +791,66 @@ export default function EldritchMap({
           )}
 
           {/* ================================================== */}
+          {/* RUMORS */}
+          {/* ================================================== */}
+
+          {Object.entries(
+            game.board.spaces,
+          ).map(
+            ([spaceId, space]) => {
+              if (!space.rumor) {
+                return null;
+              }
+
+              const position =
+                eldritchMapPositions[spaceId];
+
+              if (!position) {
+                return null;
+              }
+
+              return (
+                <div
+                  key={`rumor-${spaceId}`}
+                  className="
+                    pointer-events-none
+                    absolute
+                    z-102
+                    flex
+                    h-11
+                    w-11
+                    items-center
+                    justify-center
+                  "
+                  style={{
+                    left: `${position.x}%`,
+                    top: `${position.y}%`,
+                    transform:
+                      "translate(-50%, -50%)",
+                  }}
+                >
+                  <img
+                    src="/icons/game/mystery-token.png"
+                    alt="Rumor token"
+                    draggable={false}
+                    className="
+                      h-10
+                      w-10
+                      object-contain
+                      select-none
+                      drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]
+                    "
+                    style={{
+                      clipPath:
+                        "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)",
+                    }}
+                  />
+                </div>
+              );
+            },
+          )}
+
+          {/* ================================================== */}
           {/* Mystery Token */}
           {/* ================================================== */}
 
