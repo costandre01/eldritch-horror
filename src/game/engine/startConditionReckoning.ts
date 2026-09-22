@@ -6,6 +6,7 @@ export function startConditionReckoning(
   game: GameState,
   _map: MapDefinition,
   nextIconIndex: number,
+  treatDiceAsOne = false,
 ): GameState {
   const investigatorIds =
     game.investigatorOrder.filter(
@@ -59,6 +60,7 @@ export function startConditionReckoning(
       currentConditionIndex: 0,
       source: "mythos:condition-reckoning",
       nextIconIndex,
+      treatDiceAsOne,
     },
   };
 }

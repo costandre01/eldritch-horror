@@ -93,6 +93,7 @@ import {
   resolveMythosSpecial,
   startEyesEverywhere,
 } from "./game/engine/resolveMythosSpecial";
+import { startNextRoundAfterMythos } from "./game/engine/startNextRoundAfterMythos";
 
 
 function App() {
@@ -177,8 +178,38 @@ function App() {
     setEncounterStartedForTurn,
   ] = useState(false);
 
+  const [
+    encounterTurnIndex,
+    setEncounterTurnIndex,
+  ] = useState<number | null>(null);
+
   const [inspectedSpaceId, setInspectedSpaceId] =
     useState<string | null>(null);
+
+  useEffect(() => {
+    if (!game) {
+      return;
+    }
+
+    if (game.phase !== "encounter") {
+      setEncounterTurnIndex(null);
+      setEncounterStartedForTurn(false);
+      return;
+    }
+
+    if (
+      encounterTurnIndex !== null &&
+      game.investigatorTurnIndex !==
+        encounterTurnIndex
+    ) {
+      setEncounterStartedForTurn(false);
+      setEncounterTurnIndex(null);
+    }
+  }, [
+    game?.phase,
+    game?.investigatorTurnIndex,
+    encounterTurnIndex,
+  ]);
 
   const handleInspectSpace = (spaceId: string) => {
     setInspectedSpaceId(spaceId);
@@ -372,6 +403,7 @@ function App() {
         endInvestigatorEncounter(game);
 
       setGame(nextGame);
+
       setEncounterStartedForTurn(false);
     } catch (error) {
       console.error(
@@ -469,7 +501,12 @@ function App() {
         );
 
       setGame(updatedGame);
+
       setEncounterStartedForTurn(true);
+
+      setEncounterTurnIndex(
+        game.investigatorTurnIndex,
+      );
 
       console.log(
         "Investigator Encounter started.",
@@ -1277,13 +1314,6 @@ function App() {
     }
 
     if (
-      decision.source !==
-      "setup:lead-investigator"
-    ) {
-      return;
-    }
-
-    if (
       !decision.investigatorIds.includes(
         investigatorId,
       )
@@ -1292,13 +1322,59 @@ function App() {
     }
 
     try {
-      const updatedGame =
-        setLeadInvestigator(
-          game,
-          investigatorId,
-        );
+      /*
+      * ========================================================
+      * INITIAL GAME SETUP
+      * ========================================================
+      */
 
-      setGame(updatedGame);
+      if (
+        decision.source ===
+        "setup:lead-investigator"
+      ) {
+        const updatedGame =
+          setLeadInvestigator(
+            game,
+            investigatorId,
+          );
+
+        setGame(updatedGame);
+
+        return;
+      }
+
+      /*
+      * ========================================================
+      * END OF MYTHOS
+      * ========================================================
+      *
+      * The selected investigator becomes the Lead
+      * and immediately starts the next Action Phase.
+      */
+
+      if (
+        decision.source ===
+        "mythos:end-lead"
+      ) {
+        const updatedGame =
+          startNextRoundAfterMythos(
+            game,
+            investigatorId,
+          );
+
+        setGame(updatedGame);
+
+        return;
+      }
+
+      /*
+      * Unknown investigator selection.
+      */
+
+      console.warn(
+        "Unknown investigator selection source:",
+        decision.source,
+      );
     } catch (error) {
       console.error(
         "Error selecting Lead Investigator:",
@@ -1323,12 +1399,6 @@ function App() {
           cardId,
           eldritchBaseMap,
         );
-
-      if (
-        result.type === "ignore"
-      ) {
-        return;
-      }
 
       setGame(
         result.game,
@@ -3296,9 +3366,10 @@ function App() {
 
             {/* ACTIONS */}
 
-            {activeInvestigator && (
-              <div className="mt-3">
-                <InvestigatorActionsPanel
+            {game.phase === "action" &&
+              activeInvestigator && (
+                <div className="mt-3">
+                  <InvestigatorActionsPanel
                   investigator={
                     activeInvestigator
                   }

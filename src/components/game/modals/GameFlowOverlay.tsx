@@ -592,9 +592,9 @@ export default function GameFlowOverlay({
     "reveal-encounter"
   ) {
     return (
-      <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+      <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-4">
 
-        <div className="flex max-h-[calc(100vh-24px)] w-[min(96vw,1200px)] flex-col overflow-hidden rounded-3xl border border-gray-700 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
+        <div className="mx-auto my-3 flex max-h-[calc(100vh-24px)] w-full max-w-300 flex-col overflow-y-auto overscroll-contain rounded-3xl border border-gray-700 bg-[#172033] p-4 text-white shadow-2xl sm:my-4 sm:p-6 lg:p-8">
 
           <div className="shrink-0 text-center">
 
@@ -1012,9 +1012,9 @@ export default function GameFlowOverlay({
   */
 
   return (
-    <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+  <div className="fixed inset-0 z-200 flex items-center justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-4">
 
-      <div className="flex max-h-[calc(100vh-24px)] w-[min(96vw,1200px)] flex-col overflow-hidden rounded-3xl border border-gray-700 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
+    <div className="flex max-h-[calc(100dvh-24px)] w-full max-w-300 flex-col overflow-y-auto overscroll-contain rounded-3xl border border-gray-700 bg-[#172033] p-4 text-white shadow-2xl sm:max-h-[calc(100dvh-32px)] sm:p-6 lg:p-8">
 
         {/* ================================================== */}
         {/* HEADER */}
@@ -1624,7 +1624,7 @@ export default function GameFlowOverlay({
 
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
 
               {decision.cardIds.map(
                 (cardId) => {

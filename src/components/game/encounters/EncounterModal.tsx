@@ -14,15 +14,6 @@ export default function EncounterModal({
   onResolve,
   onChoose,
 }: EncounterModalProps) {
-
-    console.log("ENCOUNTER DEBUG:", {
-      id: encounter.id,
-      name: encounter.name,
-      frontImage: encounter.frontImage,
-      backImage: encounter.backImage,
-      backs: encounter.backs,
-      encounterBackId,
-    });
   /*
    * ============================================================
    * ENCOUNTER CARD

@@ -89,6 +89,10 @@ export type MythosReckoning =
     
   | {
       type: "strange-sightings";
+    }
+    
+  | {
+      type: "web-between-worlds";
     };
 
 export interface MythosDefinition {

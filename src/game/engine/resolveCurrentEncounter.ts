@@ -1,5 +1,6 @@
 import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
+import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
 
@@ -129,7 +130,9 @@ export function resolveCurrentEncounter(
         null,
     };
 
-    return currentGame;
+    return endInvestigatorEncounter(
+      currentGame,
+    );
   }
 
   /*

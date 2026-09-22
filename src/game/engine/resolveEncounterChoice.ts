@@ -1,5 +1,6 @@
 import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
+import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
 
 export function resolveEncounterChoice(
@@ -228,17 +229,81 @@ export function resolveEncounterChoice(
     }
 
     /*
-     * ==========================================================
-     * COMPLETE PENDING CHOICE CHAIN
-     * ==========================================================
-     */
+    * ==========================================================
+    * COMPLETE PENDING CHOICE CHAIN
+    * ============================================================
+    */
 
-    return {
+    currentGame = {
       ...currentGame,
 
       pendingEncounterChoice:
         null,
     };
+
+    /*
+    * ==========================================================
+    * COMPLETE ENCOUNTER
+    * ==========================================================
+    */
+
+    if (
+      currentGame.currentEncounterId &&
+      !currentGame.pendingDecision &&
+      !currentGame.pendingEncounterChoice
+    ) {
+      const encounterId =
+        currentGame.currentEncounterId;
+
+      const encounterDeckType =
+        currentGame.currentEncounterDeckType;
+
+      if (!encounterDeckType) {
+        throw new Error(
+          `Encounter "${encounterId}" has no source deck.`,
+        );
+      }
+
+      currentGame = {
+        ...currentGame,
+
+        board: {
+          ...currentGame.board,
+
+          encounterDiscards: {
+            ...currentGame.board
+              .encounterDiscards,
+
+            [encounterDeckType]: [
+              ...currentGame.board
+                .encounterDiscards[
+                encounterDeckType
+              ],
+
+              encounterId,
+            ],
+          },
+        },
+
+        currentEncounterId:
+          null,
+
+        currentEncounterBackId:
+          null,
+
+        currentEncounterRevealed:
+          false,
+
+        currentEncounterDeckType:
+          null,
+      };
+
+      return endInvestigatorEncounter(
+        currentGame,
+      );
+    }
+
+    return currentGame;
   }
 
   /*
@@ -433,5 +498,7 @@ export function resolveEncounterChoice(
       null,
   };
 
-  return currentGame;
+  return endInvestigatorEncounter(
+    currentGame,
+  );
 }

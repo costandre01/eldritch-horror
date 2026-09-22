@@ -14,6 +14,7 @@ import {
   startUnexpectedBetrayal,
 } from "./resolveMythosSpecial";
 import { gainCondition, gainConditionByCategory } from "./gainCondition";
+import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 
 export type CardSelectionResult =
   | {
@@ -1856,10 +1857,10 @@ export function resolveCardSelection(
     }
 
     /*
-     * ==========================================================
-     * CONTINUE ENCOUNTER EFFECTS
-     * ==========================================================
-     */
+    * ==========================================================
+    * CONTINUE ENCOUNTER EFFECTS
+    * ==========================================================
+    */
 
     if (
       decision.onComplete &&
@@ -1872,6 +1873,77 @@ export function resolveCardSelection(
           decision.onComplete,
           map,
         );
+    }
+
+    /*
+    * ==========================================================
+    * END ENCOUNTER
+    * ==========================================================
+    *
+    * If this card selection came from an active Encounter
+    * and resolving it did not create another pending decision,
+    * the Encounter is now completely resolved.
+    */
+
+    if (
+      currentGame.phase === "encounter" &&
+      currentGame.currentEncounterId &&
+      !currentGame.pendingDecision &&
+      !currentGame.pendingEncounterChoice
+    ) {
+      /*
+      * The Encounter card must be discarded before ending
+      * the Investigator Encounter.
+      */
+
+      const encounterId =
+        currentGame.currentEncounterId;
+
+      const encounterDeckType =
+        currentGame.currentEncounterDeckType;
+
+      if (
+        encounterDeckType
+      ) {
+        currentGame = {
+          ...currentGame,
+
+          board: {
+            ...currentGame.board,
+
+            encounterDiscards: {
+              ...currentGame.board
+                .encounterDiscards,
+
+              [encounterDeckType]: [
+                ...currentGame.board
+                  .encounterDiscards[
+                  encounterDeckType
+                ],
+
+                encounterId,
+              ],
+            },
+          },
+
+          currentEncounterId:
+            null,
+
+          currentEncounterBackId:
+            null,
+
+          currentEncounterRevealed:
+            false,
+
+          currentEncounterDeckType:
+            null,
+        };
+
+        currentGame =
+          endInvestigatorEncounter(
+            currentGame,
+          );
+      }
     }
 
     return {

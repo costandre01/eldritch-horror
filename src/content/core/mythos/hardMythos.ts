@@ -455,14 +455,10 @@ export const hardMythos: MythosDefinition[] = [
             "Resolve the Reckoning effect on all Conditions, treating all die rolls as 1s.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For ALL Conditions currently in play:
-            *
-            *   -> Resolve the Condition's Reckoning effect.
-            *   -> Treat every die roll made by the effect as 1.
-            */
+            {
+                type: "mythos-special",
+                id: "tied-to-a-dark-purpose",
+            },
         ],
     },
 
@@ -497,19 +493,10 @@ export const hardMythos: MythosDefinition[] = [
             "Each investigator loses Health equal to the number of Gates on the game board that correspond to the current Omen. If there are no Gates that correspond to the current Omen, advance the Omen by 1.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * For EACH investigator:
-            *
-            *   -> Count Gates on the board that correspond
-            *      to the current Omen.
-            *   -> Investigator loses Health equal to that number.
-            *
-            * If there are no matching Gates:
-            *
-            *   -> Advance the Omen by 1.
-            */
+            {
+                type: "mythos-special",
+                id: "torn-asunder",
+            },
         ],
     },
 
@@ -536,35 +523,24 @@ export const hardMythos: MythosDefinition[] = [
                 type: "spawn-rumor",
                 spaceId: "space-9",
             },
+            {
+                type: "place-eldritch-tokens",
+                amount: 4,
+            },
         ],
 
         text:
             "When this card enters play, spawn the Spinner of Webs Epic Monster on space 9. When it is defeated, solve this Rumor.\n\nWhen there are no Eldritch tokens on this card, investigators lose the game.",
 
         effects: [
-            /*
-            * TODO:
-            *
-            * When this Rumor enters play:
-            *
-            *   -> Spawn the Spinner of Webs Epic Monster
-            *      on Space 9.
-            *
-            *   -> When that Epic Monster is defeated,
-            *      solve this Rumor.
-            *
-            * If there are no Eldritch tokens on this card:
-            *
-            *   -> Investigators lose the game.
-            */
+            {
+                type: "mythos-special",
+                id: "web-between-worlds",
+            },
         ],
-
-        /*
-        * TODO: RECKONING
-        *
-        *   -> Discard 1 Eldritch token from this card,
-        *      unless the investigators as a group spend
-        *      Clues equal to half the number of investigators.
-        */
+        
+        reckoning: {
+            type: "web-between-worlds",
+        },
     },
 ]

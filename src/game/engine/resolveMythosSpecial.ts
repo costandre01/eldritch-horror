@@ -19,6 +19,7 @@ import { resolveEncounterEffects } from "./resolveEncounterEffects";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { spawnEpicMonsterAtSpace } from "./spawnEpicMonsterAtSpace";
 import { spawnMonsterAtSpace } from "./spawnMonster";
+import { startConditionReckoning } from "./startConditionReckoning";
 import { startMonsterReckoning } from "./startMonsterReckoning";
 import { startOtherWorldEncounter } from "./startOtherWorldEncounter";
 
@@ -4030,6 +4031,81 @@ export function resolveMythosSpecial(
     }
 
     /*
+    * ============================================================
+    * WEB BETWEEN WORLDS
+    * ============================================================
+    *
+    * When the Rumor enters play:
+    *   -> Spawn the Spinner of Webs Epic Monster on Space 9.
+    *
+    * When there are no Eldritch Tokens:
+    *   -> Investigators lose the game.
+    */
+
+    case "web-between-worlds": {
+      if (
+        mythos.id !==
+        "web-between-worlds"
+      ) {
+        throw new Error(
+          `Invalid Mythos for Web Between Worlds: "${mythos.id}".`,
+        );
+      }
+
+      const mythosInPlay =
+        game.board.mythosInPlay.find(
+          (entry) =>
+            entry.definitionId ===
+            "web-between-worlds",
+        );
+
+      if (!mythosInPlay) {
+        return game;
+      }
+
+      /*
+      * ==========================================================
+      * ENTERS PLAY
+      * ==========================================================
+      *
+      * The Rumor starts with 4 Eldritch Tokens.
+      * Spawn the Spinner of Webs on Space 9.
+      */
+
+      if (
+        mythosInPlay.eldritchTokens > 0
+      ) {
+        return spawnEpicMonsterAtSpace(
+          game,
+          map,
+          "space-9",
+          "spinner-of-webs",
+        );
+      }
+
+      /*
+      * ==========================================================
+      * 0 ELDRITCH TOKENS
+      * ==========================================================
+      *
+      * The investigators lose the game.
+      */
+
+      return {
+        ...game,
+
+        status:
+          "defeat",
+
+        pendingDecision:
+          null,
+
+        activeInvestigatorId:
+          null,
+      };
+    }
+
+    /*
      * ============================================================
      * THE WORLD SHAKES
      * ============================================================
@@ -4667,6 +4743,199 @@ export function resolveMythosSpecial(
 
         activeInvestigatorId: null,
       };
+    }
+
+    case "tied-to-a-dark-purpose": {
+      /*
+      * ============================================================
+      * TIED TO A DARK PURPOSE
+      * ============================================================
+      *
+      * Resolve the Reckoning effect on all Conditions.
+      *
+      * Every die rolled by those Reckoning effects is treated
+      * as a 1.
+      */
+
+      return startConditionReckoning(
+        game,
+        map,
+        0,
+        true,
+      );
+    }
+
+    case "torn-asunder": {
+      /*
+      * ============================================================
+      * TORN ASUNDER
+      * ============================================================
+      *
+      * Each Investigator loses Health equal to the
+      * number of Gates on the board corresponding
+      * to the current Omen.
+      *
+      * If there are no matching Gates, advance the
+      * Omen by 1.
+      */
+
+      /*
+      * ------------------------------------------------------------
+      * DETERMINE CURRENT OMEN
+      * ------------------------------------------------------------
+      *
+      * Omen track:
+      *
+      * 0 -> Green
+      * 1 -> Blue
+      * 2 -> Red
+      * 3 -> Blue
+      */
+
+      const omenByPosition: Record<
+        number,
+        "green" | "blue" | "red"
+      > = {
+        0: "green",
+        1: "blue",
+        2: "red",
+        3: "blue",
+      };
+
+      const currentOmen =
+        omenByPosition[
+          (
+            (
+              game.ancientOne.omenPosition %
+              4
+            ) + 4
+          ) % 4
+        ];
+
+      if (!currentOmen) {
+        throw new Error(
+          "Could not determine the current Omen.",
+        );
+      }
+
+      /*
+      * ------------------------------------------------------------
+      * COUNT MATCHING GATES
+      * ------------------------------------------------------------
+      */
+
+      const matchingGateCount =
+        Object.values(
+          game.board.spaces,
+        ).reduce(
+          (total, space) =>
+            total +
+            space.gates.filter(
+              (gate) =>
+                gate.omen === currentOmen,
+            ).length,
+          0,
+        );
+
+      /*
+      * ------------------------------------------------------------
+      * NO MATCHING GATES
+      * ------------------------------------------------------------
+      *
+      * Advance Omen by 1.
+      */
+
+      if (matchingGateCount === 0) {
+        return {
+          ...game,
+
+          ancientOne: {
+            ...game.ancientOne,
+
+            omenPosition:
+              (
+                game.ancientOne.omenPosition +
+                1
+              ) % 4,
+          },
+
+          currentMythosId: null,
+
+          pendingDecision: null,
+
+          activeInvestigatorId: null,
+        };
+      }
+
+      /*
+      * ------------------------------------------------------------
+      * MATCHING GATES
+      * ------------------------------------------------------------
+      *
+      * Each Investigator loses Health equal
+      * to the number of matching Gates.
+      *
+      * Use resolveEncounterEffects so that the
+      * normal Health-loss / defeat handling is preserved.
+      */
+
+      let currentGame = game;
+
+      for (
+        const investigatorId of
+          currentGame.investigatorOrder
+      ) {
+        currentGame =
+          resolveEncounterEffects(
+            currentGame,
+            investigatorId,
+            [
+              {
+                type: "lose-health",
+                amount:
+                  matchingGateCount,
+              },
+            ],
+            map,
+          );
+      }
+
+      return {
+        ...currentGame,
+
+        currentMythosId: null,
+
+        pendingDecision: null,
+
+        activeInvestigatorId: null,
+      };
+    }
+
+    case "web-between-worlds": {
+      /*
+      * ============================================================
+      * WEB BETWEEN WORLDS
+      * ============================================================
+      *
+      * When the Rumor enters play, spawn the Spinner of Webs
+      * Epic Monster on Space 9.
+      */
+
+      if (
+        mythos.id !==
+        "web-between-worlds"
+      ) {
+        throw new Error(
+          `Invalid Mythos for Web Between Worlds: "${mythos.id}".`,
+        );
+      }
+
+      return spawnEpicMonsterAtSpace(
+        game,
+        map,
+        "space-9",
+        "spinner-of-webs",
+      );
     }
 
     /*

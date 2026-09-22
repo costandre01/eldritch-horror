@@ -34,12 +34,6 @@ export function endInvestigatorActions(
     );
   }
 
-  if (investigator.actionsPerformed.length < 2) {
-    throw new Error(
-      "Investigator has not performed both actions.",
-    );
-  }
-
   const currentIndex =
     game.investigatorTurnIndex;
 

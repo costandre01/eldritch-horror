@@ -346,7 +346,7 @@ export function resolveStandardTestResult(
         continuationEffects,
 
         source:
-        `test-result:${testDecision.investigatorId}`,
+        `encounter:test-result:${testDecision.investigatorId}`,
     };
 
   return {

@@ -1276,6 +1276,78 @@ export function resolveMythosCardReckoning(
     };
   }
 
+  if (
+    mythos.reckoning?.type ===
+    "web-between-worlds"
+  ) {
+    const investigatorCount =
+      game.investigatorOrder.length;
+
+    const clueCost =
+      Math.ceil(
+        investigatorCount / 2,
+      );
+
+    /*
+    * ==========================================================
+    * WEB BETWEEN WORLDS
+    * ==========================================================
+    *
+    * The investigators may spend Clues equal to half the
+    * number of Investigators to prevent discarding an
+    * Eldritch Token.
+    *
+    * IMPORTANT:
+    *
+    * We preserve the complete Mythos Reckoning decision
+    * inside the choice so that From Beyond can correctly
+    * perform the Reckoning twice.
+    */
+
+    return {
+      ...game,
+
+      pendingDecision: {
+        type: "choice",
+
+        title:
+          "WEB BETWEEN WORLDS",
+
+        message:
+          `The investigators may spend ${clueCost} Clues as a group to prevent losing 1 Eldritch token.`,
+
+        options: [
+          {
+            id:
+              "web-between-worlds:spend-clues",
+
+            title:
+              `Spend ${clueCost} Clues`,
+
+            description:
+              "The Eldritch token remains on Web Between Worlds.",
+          },
+
+          {
+            id:
+              "web-between-worlds:discard-token",
+
+            title:
+              "Do Not Spend Clues",
+
+            description:
+              "Discard 1 Eldritch token from Web Between Worlds.",
+          },
+        ],
+
+        source:
+          `mythos:web-between-worlds:${encodeURIComponent(
+            JSON.stringify(decision),
+          )}`,
+      },
+    };
+  }
+
   /*
    * No supported Reckoning effect.
    */

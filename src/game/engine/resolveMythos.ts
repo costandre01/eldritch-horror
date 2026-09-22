@@ -28,6 +28,7 @@ import type { DarkPowerResume } from "../models/PendingDecision";
 import { startMonsterCombat } from "./startMonsterCombat";
 import { resolveMonsterToughness } from "./resolveMonsterToughness";
 import { spawnMonsterAtSpace } from "./spawnMonster";
+import { startNextRoundAfterMythos } from "./startNextRoundAfterMythos";
 
 /*
  * ============================================================
@@ -1180,19 +1181,20 @@ export function resolveMythos(
   }
 
   /*
-   * ============================================================
-   * MOVE EVENT TO DISCARD
-   * ============================================================
-   *
-   * Only Event Mythos cards are discarded immediately.
-   *
-   * Ongoing and Rumor cards remain in play.
-   */
+  * ============================================================
+  * MYTHOS PHASE COMPLETE
+  * ============================================================
+  *
+  * The Mythos card has now been fully resolved.
+  *
+  * Event cards go to the discard pile.
+  * Ongoing and Rumor cards remain in play.
+  *
+  * The currently resolving Mythos is no longer active.
+  */
 
   if (
-    mythos.type === "event" &&
-    currentGame.currentMythosId ===
-      mythos.id
+    mythos.type === "event"
   ) {
     currentGame = {
       ...currentGame,
@@ -1209,7 +1211,89 @@ export function resolveMythos(
       currentMythosId:
         null,
     };
+  } else {
+    currentGame = {
+      ...currentGame,
+
+      currentMythosId:
+        null,
+    };
   }
 
-  return currentGame;
+  /*
+  * ============================================================
+  * CHOOSE NEW LEAD INVESTIGATOR
+  * ============================================================
+  *
+  * At the end of the Mythos Phase, the Lead Investigator
+  * may pass the Lead token to another investigator.
+  *
+  * The current Lead is therefore excluded from the choice.
+  */
+
+  const selectableInvestigatorIds =
+    currentGame.investigatorOrder.filter(
+      (investigatorId) =>
+        investigatorId !==
+        currentGame.leadInvestigatorId,
+    );
+
+  /*
+  * Solo game:
+  *
+  * There is nobody else to receive the Lead token,
+  * so the current Lead remains Lead and the next
+  * round starts immediately.
+  */
+
+  if (
+    selectableInvestigatorIds.length === 0
+  ) {
+    const currentLead =
+      currentGame.leadInvestigatorId;
+
+    if (!currentLead) {
+      throw new Error(
+        "There is no Lead Investigator at the end of the Mythos Phase.",
+      );
+    }
+
+    return startNextRoundAfterMythos(
+      currentGame,
+      currentLead,
+    );
+  }
+
+  /*
+  * Multiplayer:
+  *
+  * Show the same Lead Investigator selection
+  * already used during game setup.
+  */
+
+  return {
+    ...currentGame,
+
+    activeInvestigatorId:
+      null,
+
+    investigatorTurnIndex:
+      0,
+
+    pendingDecision: {
+      type: "select-investigator",
+
+      title:
+        "Choose Lead Investigator",
+
+      message:
+        "Choose which investigator receives the Lead Investigator token for the next round.",
+
+      investigatorIds:
+        selectableInvestigatorIds,
+
+      source:
+        "mythos:end-lead",
+    },
+  };
 }

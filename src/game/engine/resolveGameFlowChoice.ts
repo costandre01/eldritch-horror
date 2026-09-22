@@ -3152,6 +3152,293 @@ export function resolveGameFlowChoice(
     return game;
   }
 
+  /*
+  * ============================================================
+  * WEB BETWEEN WORLDS — RECKONING
+  * ============================================================
+  */
+
+  if (
+    decision.source?.startsWith(
+      "mythos:web-between-worlds:",
+    )
+  ) {
+    const encodedDecision =
+      decision.source.substring(
+        "mythos:web-between-worlds:"
+          .length,
+      );
+
+    let reckoningDecision:
+      Extract<
+        GameState["pendingDecision"],
+        {
+          type:
+            "mythos-card-reckoning";
+        }
+      >;
+
+    try {
+      reckoningDecision =
+        JSON.parse(
+          decodeURIComponent(
+            encodedDecision,
+          ),
+        );
+    } catch {
+      return game;
+    }
+
+    if (
+      !reckoningDecision ||
+      reckoningDecision.type !==
+        "mythos-card-reckoning"
+    ) {
+      return game;
+    }
+
+    const mythosId =
+      reckoningDecision.mythosIds.find(
+        (id) =>
+          !reckoningDecision.resolvedMythosIds.includes(
+            id,
+          ),
+      );
+
+    if (!mythosId) {
+      return game;
+    }
+
+    const mythosInPlayIndex =
+      game.board.mythosInPlay.findIndex(
+        (entry) =>
+          entry.definitionId ===
+          mythosId,
+      );
+
+    if (
+      mythosInPlayIndex === -1
+    ) {
+      return game;
+    }
+
+    const mythosInPlay =
+      game.board.mythosInPlay[
+        mythosInPlayIndex
+      ];
+
+    if (!mythosInPlay) {
+      return game;
+    }
+
+    /*
+    * ==========================================================
+    * SPEND CLUES
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      "web-between-worlds:spend-clues"
+    ) {
+      const clueCost =
+        Math.ceil(
+          game.investigatorOrder.length /
+            2,
+        );
+
+      const totalClues =
+        game.investigatorOrder.reduce(
+          (
+            total,
+            investigatorId,
+          ) =>
+            total +
+            (
+              game.investigators[
+                investigatorId
+              ]?.clues ?? 0
+            ),
+          0,
+        );
+
+      if (
+        totalClues <
+        clueCost
+      ) {
+        return game;
+      }
+
+      let remainingClues =
+        clueCost;
+
+      const updatedInvestigators = {
+        ...game.investigators,
+      };
+
+      /*
+      * Spend the Clues as a group.
+      */
+
+      for (
+        const investigatorId of
+          game.investigatorOrder
+      ) {
+        if (
+          remainingClues <=
+          0
+        ) {
+          break;
+        }
+
+        const investigator =
+          updatedInvestigators[
+            investigatorId
+          ];
+
+        if (!investigator) {
+          continue;
+        }
+
+        const spent =
+          Math.min(
+            investigator.clues,
+            remainingClues,
+          );
+
+        if (
+          spent <= 0
+        ) {
+          continue;
+        }
+
+        updatedInvestigators[
+          investigatorId
+        ] = {
+          ...investigator,
+
+          clues:
+            investigator.clues -
+            spent,
+        };
+
+        remainingClues -=
+          spent;
+      }
+
+      /*
+      * The Mythos Reckoning itself is resolved,
+      * but the Eldritch token remains.
+      */
+
+      return {
+        ...game,
+
+        investigators:
+          updatedInvestigators,
+
+        pendingDecision: {
+          ...reckoningDecision,
+
+          resolvedMythosIds: [
+            ...reckoningDecision.resolvedMythosIds,
+            mythosId,
+          ],
+        },
+      };
+    }
+
+    /*
+    * ==========================================================
+    * DISCARD ELDRITCH TOKEN
+    * ==========================================================
+    */
+
+    if (
+      choiceId ===
+      "web-between-worlds:discard-token"
+    ) {
+      const remainingEldritchTokens =
+        Math.max(
+          0,
+          mythosInPlay.eldritchTokens -
+            1,
+        );
+
+      const updatedMythosInPlay =
+        [
+          ...game.board.mythosInPlay,
+        ];
+
+      updatedMythosInPlay[
+        mythosInPlayIndex
+      ] = {
+        ...mythosInPlay,
+
+        eldritchTokens:
+          remainingEldritchTokens,
+      };
+
+      const updatedGame: GameState = {
+        ...game,
+
+        board: {
+          ...game.board,
+
+          mythosInPlay:
+            updatedMythosInPlay,
+        },
+      };
+
+      /*
+      * ========================================================
+      * LAST ELDRITCH TOKEN
+      * ========================================================
+      *
+      * If the last token is removed, the investigators
+      * immediately lose the game.
+      */
+
+      if (
+        remainingEldritchTokens === 0
+      ) {
+        return {
+          ...updatedGame,
+
+          status:
+            "defeat",
+
+          pendingDecision:
+            null,
+
+          activeInvestigatorId:
+            null,
+        };
+      }
+
+      /*
+      * ========================================================
+      * CONTINUE MYTHOS RECKONING
+      * ========================================================
+      */
+
+      return {
+        ...updatedGame,
+
+        pendingDecision: {
+          ...reckoningDecision,
+
+          resolvedMythosIds: [
+            ...reckoningDecision.resolvedMythosIds,
+            mythosId,
+          ],
+        },
+      };
+    }
+
+    return game;
+  }
+
 
   /*
    * ============================================================

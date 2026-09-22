@@ -220,6 +220,7 @@ export function resolveConditionReckoning(
       investigatorId,
       conditionId,
       reckoningEffect,
+      decision.treatDiceAsOne ?? false,
     );
 
   const resolvedGame =

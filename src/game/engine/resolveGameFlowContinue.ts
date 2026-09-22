@@ -865,9 +865,7 @@ export function resolveGameFlowContinue(
      * ==========================================================
      */
 
-    if (
-      effects.length > 0
-    ) {
+    if (effects.length > 0) {
       const resolvedGame =
         resolveEncounterEffects(
           gameWithoutDecision,
@@ -876,29 +874,186 @@ export function resolveGameFlowContinue(
           map,
         );
 
-      return {
-        game: resolvedGame,
-        resetEncounterStartedForTurn:
+      /*
+      * The effects may create another interaction:
+      *
+      * - Test
+      * - Choice
+      * - Combat
+      * - Select Space
+      * - Select Card
+      * - etc.
+      *
+      * In that case the Encounter remains active.
+      */
+
+      if (
+        resolvedGame.pendingDecision ||
+        resolvedGame.pendingEncounterChoice
+      ) {
+        return {
+          game: resolvedGame,
+          resetEncounterStartedForTurn: false,
+        };
+      }
+
+      /*
+      * ============================================================
+      * TEST CHAIN COMPLETE
+      * ============================================================
+      *
+      * All effects belonging to the Test have now been resolved.
+      *
+      * IMPORTANT:
+      *
+      * Do NOT call resolveCurrentEncounter() here.
+      *
+      * resolveCurrentEncounter() would restart the Encounter
+      * from the beginning and show the same choice again.
+      *
+      * The Encounter must now be discarded and the next
+      * investigator must start.
+      */
+
+      const encounterId =
+        resolvedGame.currentEncounterId;
+
+      const encounterDeckType =
+        resolvedGame.currentEncounterDeckType;
+
+      if (
+        !encounterId ||
+        !encounterDeckType
+      ) {
+        throw new Error(
+          "Cannot finish Encounter after Test: current Encounter information is missing.",
+        );
+      }
+
+      const finishedGame: GameState = {
+        ...resolvedGame,
+
+        board: {
+          ...resolvedGame.board,
+
+          encounterDiscards: {
+            ...resolvedGame.board
+              .encounterDiscards,
+
+            [encounterDeckType]: [
+              ...resolvedGame.board
+                .encounterDiscards[
+                  encounterDeckType
+                ],
+
+              encounterId,
+            ],
+          },
+        },
+
+        currentEncounterId:
+          null,
+
+        currentEncounterBackId:
+          null,
+
+        currentEncounterRevealed:
           false,
+
+        currentEncounterDeckType:
+          null,
+
+        pendingDecision:
+          null,
+
+        pendingEncounterChoice:
+          null,
+      };
+
+      const nextGame =
+        endInvestigatorEncounter(
+          finishedGame,
+        );
+
+      return {
+        game: nextGame,
+        resetEncounterStartedForTurn: false,
       };
     }
 
     /*
-     * ==========================================================
-     * NO REMAINING EFFECTS
-     * ==========================================================
-     *
-     * Only now is the Encounter allowed to finish.
-     */
+    * ============================================================
+    * NO REMAINING TEST EFFECTS
+    * ============================================================
+    *
+    * The Test has completely resolved.
+    *
+    * Do not call resolveCurrentEncounter(), because that would
+    * restart an old-style Encounter choice.
+    */
 
-    const finishedGame =
-      resolveCurrentEncounter(
-        gameWithoutDecision,
-        map,
+    const encounterId =
+      gameWithoutDecision.currentEncounterId;
+
+    const encounterDeckType =
+      gameWithoutDecision.currentEncounterDeckType;
+
+    if (
+      !encounterId ||
+      !encounterDeckType
+    ) {
+      throw new Error(
+        "Cannot finish Encounter after Test: current Encounter information is missing.",
+      );
+    }
+
+    const finishedGame: GameState = {
+      ...gameWithoutDecision,
+
+      board: {
+        ...gameWithoutDecision.board,
+
+        encounterDiscards: {
+          ...gameWithoutDecision.board
+            .encounterDiscards,
+
+          [encounterDeckType]: [
+            ...gameWithoutDecision.board
+              .encounterDiscards[
+                encounterDeckType
+              ],
+
+            encounterId,
+          ],
+        },
+      },
+
+      currentEncounterId:
+        null,
+
+      currentEncounterBackId:
+        null,
+
+      currentEncounterRevealed:
+        false,
+
+      currentEncounterDeckType:
+        null,
+
+      pendingDecision:
+        null,
+
+      pendingEncounterChoice:
+        null,
+    };
+
+    const nextGame =
+      endInvestigatorEncounter(
+        finishedGame,
       );
 
     return {
-      game: finishedGame,
+      game: nextGame,
       resetEncounterStartedForTurn:
         false,
     };
@@ -1721,6 +1876,60 @@ export function resolveGameFlowContinue(
 
     /*
     * ==========================================================
+    * WEB BETWEEN WORLDS
+    * ==========================================================
+    *
+    * If the defeated Monster is the Spinner of Webs and the
+    * corresponding Rumor is still in play, solve the Rumor.
+    */
+
+    const webBetweenWorldsRumor =
+      [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ].find(
+        (definition) =>
+          definition.id ===
+          "web-between-worlds",
+      );
+
+    const webBetweenWorldsInPlay =
+      finishedGame.board.mythosInPlay.some(
+        (entry) =>
+          entry.definitionId ===
+          "web-between-worlds",
+      );
+
+    if (
+      defeatedMonster?.definitionId ===
+        "spinner-of-webs" &&
+      webBetweenWorldsRumor &&
+      webBetweenWorldsInPlay
+    ) {
+      const solvedGame =
+        solveMythosRumor(
+          finishedGame,
+          webBetweenWorldsRumor,
+        );
+
+      const nextGame =
+        resolveCombatEncounterEnd(
+          solvedGame,
+          map,
+          monsterId,
+        );
+
+      return {
+        game: nextGame,
+
+        resetEncounterStartedForTurn:
+          false,
+      };
+    }
+
+    /*
+    * ==========================================================
     * SHUB-NIGGURATH RECKONING COMBAT
     * ==========================================================
     */
@@ -2209,24 +2418,25 @@ export function resolveGameFlowContinue(
     };
   }
 
-  if (
-    decision.type === "continue" &&
-    decision.source?.startsWith(
-      "encounter:",
-    )
-  ) {
-    const resolvedGame =
-      resolveCurrentEncounter(
-        game,
-        map,
-      );
+  /*
+  * ============================================================
+  * GENERIC PENDING DECISION
+  * ============================================================
+  *
+  * Preserve the original fallback behaviour.
+  */
 
-    return {
-      game: resolvedGame,
-      resetEncounterStartedForTurn:
-        false,
-    };
-  }
+  const resolvedPendingGame  =
+    resolvePendingDecision(
+      game,
+      map,
+    );
+
+  return {
+    game: resolvedPendingGame ,
+    resetEncounterStartedForTurn:
+      false,
+  };
 
   /*
    * ============================================================

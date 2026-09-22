@@ -356,8 +356,7 @@ export default function InvestigatorActionsPanel({
       {/* FINISH ACTIONS */}
       {/* ====================================================== */}
 
-      {actionsCount >= 2 &&
-        !investigator.travelActive && (
+      {!investigator.travelActive && (
           <div className="mt-3 flex justify-center">
 
             <button

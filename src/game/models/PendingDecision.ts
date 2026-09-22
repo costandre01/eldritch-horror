@@ -583,6 +583,8 @@ export type PendingDecision =
       source: "mythos:condition-reckoning";
 
       nextIconIndex: number;
+
+      treatDiceAsOne?: boolean;
     };
 
 export type DarkPowerResume = {

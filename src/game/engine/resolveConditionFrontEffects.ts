@@ -19,6 +19,7 @@ export function resolveConditionFrontEffects(
   investigatorId: string,
   conditionId: string,
   effect: ConditionFrontEffect,
+  treatDiceAsOne = false,
 ): ResolveConditionFrontEffectsResult {
   const investigator =
     game.investigators[investigatorId];
@@ -541,6 +542,51 @@ export function resolveConditionFrontEffects(
       */
 
       if (effect.testType) {
+        if (treatDiceAsOne) {
+          const investigator =
+            currentGame.investigators[
+              investigatorId
+            ];
+
+          const diceRolled = Math.max(
+            0,
+            investigator.skills[
+              effect.testType
+            ] + (effect.modifier ?? 0),
+          );
+
+          const test = {
+            skill: effect.testType,
+            modifier:
+              effect.modifier ?? 0,
+            difficulty: 1,
+            diceRolled,
+            results:
+              Array(diceRolled).fill(1),
+            successes: 0,
+            passed: false,
+          };
+
+          testResults.push(test);
+
+          const result =
+            applyTriggeredEffects(
+              currentGame,
+              investigatorId,
+              conditionId,
+              effect.onFail ?? [],
+            );
+
+          currentGame =
+            result.game;
+
+          shouldDiscard =
+            shouldDiscard ||
+            result.shouldDiscard;
+
+          break;
+        }
+
         const test =
           rollTest(
             currentGame.investigators[
@@ -595,19 +641,24 @@ export function resolveConditionFrontEffects(
       */
 
       if (effect.dice !== undefined) {
-        const results: number[] = [];
+        const results: number[] =
+          treatDiceAsOne
+            ? Array(effect.dice).fill(1)
+            : [];
 
-        for (
-          let index = 0;
-          index < effect.dice;
-          index++
-        ) {
-          const roll =
-            Math.floor(
-              Math.random() * 6,
-            ) + 1;
+        if (!treatDiceAsOne) {
+          for (
+            let index = 0;
+            index < effect.dice;
+            index++
+          ) {
+            const roll =
+              Math.floor(
+                Math.random() * 6,
+              ) + 1;
 
-          results.push(roll);
+            results.push(roll);
+          }
         }
 
         const success =
