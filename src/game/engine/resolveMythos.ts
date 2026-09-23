@@ -30,6 +30,7 @@ import { resolveMonsterToughness } from "./resolveMonsterToughness";
 import { spawnMonsterAtSpace } from "./spawnMonster";
 import { startNextRoundAfterMythos } from "./startNextRoundAfterMythos";
 import { checkActiveMystery } from "./checkActiveMystery";
+import { coreInvestigators } from "../../content/core/investigators";
 
 /*
  * ============================================================
@@ -1260,6 +1261,90 @@ export function resolveMythos(
     currentGame.pendingEncounterChoice
   ) {
     return currentGame;
+  }
+
+  /*
+  * ============================================================
+  * CHOOSE NEW INVESTIGATOR AFTER DEFEAT
+  * ============================================================
+  *
+  * A defeated Investigator is replaced only at the
+  * end of the Mythos Phase.
+  *
+  * Replacement happens before choosing the new Lead.
+  */
+
+  if (
+    currentGame.pendingInvestigatorReplacements.length > 0
+  ) {
+    const defeatedInvestigatorId =
+      currentGame.pendingInvestigatorReplacements[0];
+
+    if (!defeatedInvestigatorId) {
+      throw new Error(
+        "Pending Investigator replacement is missing investigatorId.",
+      );
+    }
+
+    /*
+    * An Investigator cannot be chosen again if that
+    * Investigator is already present in the game,
+    * including defeated Investigators.
+    */
+    const availableInvestigatorDefinitions =
+      coreInvestigators.filter(
+        (definition) =>
+          !Object.values(
+            currentGame.investigators,
+          ).some(
+            (investigator) =>
+              investigator.definitionId ===
+              definition.id,
+          ),
+      );
+
+    /*
+    * No Investigator is available.
+    *
+    * The player is eliminated. If there are no
+    * remaining active Investigators, the game is lost.
+    */
+    if (
+      availableInvestigatorDefinitions.length === 0
+    ) {
+      return {
+        ...currentGame,
+        status: "defeat",
+        activeInvestigatorId: null,
+        pendingDecision: null,
+      };
+    }
+
+    return {
+      ...currentGame,
+
+      activeInvestigatorId:
+        null,
+
+      pendingDecision: {
+        type: "select-investigator",
+
+        title:
+          "Choose a New Investigator",
+
+        message:
+          "Your Investigator was defeated. Choose a new Investigator.",
+
+        investigatorIds:
+          availableInvestigatorDefinitions.map(
+            (definition) =>
+              definition.id,
+          ),
+
+        source:
+          `mythos:defeated-replacement:${defeatedInvestigatorId}`,
+      },
+    };
   }
 
   /*

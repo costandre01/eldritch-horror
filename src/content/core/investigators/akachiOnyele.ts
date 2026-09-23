@@ -23,8 +23,6 @@ export const akachiOnyele: InvestigatorDefinition = {
 
   maxSanity: 7,
 
-  focusLimit: 2,
-
   startingSpaceId: "space-15",
 
   startingClues: 1,
@@ -69,44 +67,17 @@ export const akachiOnyele: InvestigatorDefinition = {
 
   /*
    * ============================================================
-   * PERSONAL STORY
+   * PERSONAL HISTORY
    * ============================================================
    */
 
   personalStory: {
-    id: "guardian-of-the-veil",
+    id: "akachi-onyele",
 
-    name: "Guardian of the Veil",
+    name: "Personal History",
 
     description:
-      "The spirits are restless. Something evil stirs, and gaining the favor of your ancestors may be the only way to stop what is coming.",
-
-    mission: {
-      type: "close-gates",
-
-      description:
-        "When you close a Gate during an Other World Encounter, place that Gate on this card.\n\nWhen there are 3 Gates on this card, resolve the Reward.",
-
-      targetCount: 3,
-    },
-
-    reward: {
-      id: "earth-speaks",
-
-      name: "The Earth Speaks",
-
-      description:
-        "When you gain this card, improve [lore] and [will].\n\nWhen you close a Gate during an Other World Encounter, spawn [clue] 2 Clues.",
-    },
-
-    consequence: {
-      id: "earths-anger",
-
-      name: "The Earth's Anger",
-
-      description:
-        "When you gain this card, spawn 1 Gate.\n\nAfter resolving an Other World Encounter, if you did not discard that Gate, discard the nearest [clue] Clue on the game board.",
-    },
+      "As a young girl in Nigeria, Akachi stayed apart from other children, preferring the company of imaginary friends. Her elders feared madness, but the village dibia believed that she had been chosen by the gods. The wise old man taught her how to travel between worlds and how to marshal spirits. Now, she has become a wise leader herself, traveling across Africa and teaching others to protect themselves. She's recently arrived in Cape Town and from here, she will track down the dark forces that threaten humanity.",
   },
 
   /*
@@ -125,7 +96,7 @@ export const akachiOnyele: InvestigatorDefinition = {
         "In Case of Crippling Injury or Death",
 
       description:
-        "By the time you find Akachi, she's slipped into a coma. Doctors aren't certain if she will recover. Gain all of her possessions. The hospital staff has grown very fond of her, and you try to convince them to tell you what she said to them while she was conscious.",
+        "By the time you find Akachi, she's slipped into a coma. Doctors aren't certain if she will recover. Gain all of her possessions. The hospital staff has grown very fond of her, and you try to convince them to tell you what she said to them while she was conscious [influence]. If you pass, you hear many stories; retreat [doom] Doom by 1. If you fail, you can't get anyone to share Akachi's story with you. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "influence",
@@ -151,7 +122,7 @@ export const akachiOnyele: InvestigatorDefinition = {
         "In Case of Insanity or Other Psychosis",
 
       description:
-        "Akachi's mind has left this world and she no longer has interest in material goods. Gain all of her possessions. An Odinani man gives you a bitter drink to help you reach her. After you drink it, you are assaulted by nightmarish visions, but you force yourself to keep searching for her.",
+        "Akachi's mind has left this world and she no longer has interest in material goods. Gain all of her possessions. An Odinani man gives you a bitter drink to help you reach her. After you drink it, you are assaulted by nightmarish visions, but you force yourself to keep searching for her [will]. If you pass, you hear Akachi's voice sharing all she's learned; retreat [doom] Doom by 1. If you fail, you curl up in a corner until the drink wears off. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "will",

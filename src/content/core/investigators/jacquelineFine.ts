@@ -24,8 +24,6 @@ export const jacquelineFine: InvestigatorDefinition = {
 
   maxSanity: 8,
 
-  focusLimit: 2,
-
   startingSpaceId: "space-5",
 
   startingClues: 1,
@@ -70,44 +68,17 @@ export const jacquelineFine: InvestigatorDefinition = {
 
   /*
    * ============================================================
-   * PERSONAL STORY
+   * PERSONAL HISTORY
    * ============================================================
    */
 
   personalStory: {
-    id: "arbiter-of-fate",
+    id: "jacqueline-fine",
 
-    name: "Arbiter of Fate",
+    name: "Personal History",
 
     description:
-      "The visions are a warning.\n\nThe future can be rewritten.",
-
-    mission: {
-      type: "custom",
-
-      description:
-        "After you gain a [clue] Clue from your passive ability, you may spend 5 [clue] Clues and discard this card to gain the Oracle Reward.\n\nWhen [doom] Doom advances to 6 or lower, shuffle the Mythos deck, discard this card, and gain the Dark Future Consequence.",
-
-      doomThreshold: 6,
-    },
-
-    reward: {
-      id: "oracle",
-
-      name: "Oracle",
-
-      description:
-        "Once per round, when [doom] Doom advances, gain 1 [clue] Clue.\n\nYou may spend 3 [clue] Clues to negate the text effect of an Event Mythos card.",
-    },
-
-    consequence: {
-      id: "dark-future",
-
-      name: "Dark Future",
-
-      description:
-        "Your maximum [sanity] Sanity is reduced by 2.\n\nAfter you gain a [clue] Clue using your passive ability, lose 1 [sanity] Sanity.",
-    },
+      "At first, Jacqueline's dreams of fire and destruction seemed like a curse. Monsters ran rampant through city streets and some greater darkness loomed on the horizon. However, she has recently learned to control her visions and observe events in detail. Yesterday, she traveled from Boston to Minneapolis to explore an abandoned warehouse she'd seen in her dreams. Inside, she found evidence of a terrible cult that had practiced unspeakable rituals there. Jacqueline hopes to use what she's learned to prevent the terrible future that haunts her sleep.",
   },
 
   /*
@@ -126,7 +97,7 @@ export const jacquelineFine: InvestigatorDefinition = {
         "In Case of Crippling Injury or Death",
 
       description:
-        "Somehow, Jacqueline knew you would be at this café to receive the parcel. Gain all of her possessions. Strangely, everyone here encountered her sometime after she was injured. You try to convince everyone to share their story.",
+        "Somehow, Jacqueline knew you would be at this café to receive the parcel. Gain all of her possessions. Strangely, everyone here encountered her sometime after she was injured. You try to convince everyone to share their story [influence]. If you pass, you get the whole message Jacqueline hoped to convey; retreat [doom] Doom by 1. If you fail, the story is incomplete and makes no sense. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "influence",
@@ -152,7 +123,7 @@ export const jacquelineFine: InvestigatorDefinition = {
         "In Case of Insanity or Other Psychosis",
 
       description:
-        "You visit Jacqueline in the asylum and claim her belongings. Gain all of her possessions. She seems lost in her own world, talking to visions only she sees. You do your best to interpret what she's seeing based on what she says.",
+        "You visit Jacqueline in the asylum and claim her belongings. Gain all of her possessions. She seems lost in her own world, talking to visions only she sees. You do your best to interpret what she's seeing based on what she says [lore]. If you pass, you have a clear idea of what she's experiencing; retreat [doom] Doom by 1. If you fail, Jacqueline remains trapped in a world only she can see. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "lore",

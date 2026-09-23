@@ -22,64 +22,6 @@ export interface InvestigatorAbility {
 
 /*
  * ============================================================
- * PERSONAL STORY MISSION
- * ============================================================
- */
-
-export type InvestigatorPersonalStoryMissionType =
-  | "close-gates"
-  | "solve-mystery"
-  | "doom-threshold"
-  | "improve-skills"
-  | "improve-all-skills"
-  | "defeat-monsters"
-  | "gain-clues"
-  | "gain-allies"
-  | "ally-assets"
-  | "spend-resources"
-  | "pass-tests-with-each-skill"
-  | "mystery-or-omen"
-  | "mystery-or-doom"
-  | "custom";
-
-export interface InvestigatorPersonalStoryMission {
-  /*
-   * Identifies the general type of objective.
-   */
-
-  type: InvestigatorPersonalStoryMissionType;
-
-  /*
-   * Human-readable description of the objective.
-   */
-
-  description: string;
-
-  /*
-   * Generic counter.
-   *
-   * Examples:
-   *
-   * close 3 Gates
-   * defeat 6 Monsters
-   * gain 5 Clues
-   */
-
-  targetCount?: number;
-
-  /*
-   * Used for missions based on Doom.
-   *
-   * Example:
-   *
-   * "When Doom advances to 6 or lower..."
-   */
-
-  doomThreshold?: number;
-}
-
-/*
- * ============================================================
  * PERSONAL STORY
  * ============================================================
  */
@@ -90,32 +32,6 @@ export interface InvestigatorPersonalStory {
   name: string;
 
   description: string;
-
-  mission: InvestigatorPersonalStoryMission;
-
-  /*
-   * Reward side of the Personal Story.
-   */
-
-  reward: {
-    id: string;
-
-    name: string;
-
-    description: string;
-  };
-
-  /*
-   * Consequence side of the Personal Story.
-   */
-
-  consequence: {
-    id: string;
-
-    name: string;
-
-    description: string;
-  };
 }
 
 /*
@@ -211,14 +127,6 @@ export interface InvestigatorDefinition {
   maxHealth: number;
 
   maxSanity: number;
-
-  /*
-   * ==========================================================
-   * FOCUS
-   * ==========================================================
-   */
-
-  focusLimit: number;
 
   /*
    * ==========================================================

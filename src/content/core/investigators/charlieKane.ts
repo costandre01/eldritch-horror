@@ -23,8 +23,6 @@ export const charlieKane: InvestigatorDefinition = {
 
   maxSanity: 8,
 
-  focusLimit: 2,
-
   startingSpaceId: "san-francisco",
 
   startingClues: 0,
@@ -69,44 +67,17 @@ export const charlieKane: InvestigatorDefinition = {
 
   /*
    * ============================================================
-   * PERSONAL STORY
+   * PERSONAL HISTORY
    * ============================================================
    */
 
   personalStory: {
-    id: "citizen-kane",
+    id: "charlie-kane",
 
-    name: "Citizen Kane",
+    name: "Personal History",
 
     description:
-      "You carefully negotiate with your contacts in order to ensure that all possible permutations of the future have been prepared for.\n\nAfter all, how will you run for office next year if the world has already ended?",
-
-    mission: {
-      type: "solve-mystery",
-
-      description:
-        "When a Mystery is solved, discard this card and gain the Kane for Office Reward.\n\nWhen [doom] Doom advances to 6 or lower, discard this card and gain the Dark Times consequence.",
-
-      doomThreshold: 6,
-    },
-
-    reward: {
-      id: "kane-for-office",
-
-      name: "Kane for Office",
-
-      description:
-        "When you gain this card, improve [influence] and [will].\n\nOnce per round, when [doom] Doom advances, you may spend 2 [clue] Clues to retreat [doom] Doom by 1.",
-    },
-
-    consequence: {
-      id: "dark-times",
-
-      name: "Dark Times",
-
-      description:
-        "When you perform an Acquire Assets Action, increase the value of each card in the reserve by 1.",
-    },
+      "When the press asks if Charlie is planning a run for national office, he smiles and says that he’s focused on the important issues. The truth is that he would love to launch his campaign, but right now the most important issue is preventing the end of the world without causing a panic. To do this, he’s been calling in favors across the country. Most recently, Charlie’s stopped in San Francisco to visit Hearst Castle. With the help of his friends and his finances, Charlie believes he can fix this problem without sacrificing a single vote.",
   },
 
   /*
@@ -125,7 +96,7 @@ export const charlieKane: InvestigatorDefinition = {
         "In Case of Crippling Injury or Death",
 
       description:
-        'The nurse at the front desk hands you a parcel. Gain all of his possessions. "Mr. Kane said to give you this package, but the doctor insists that no visitors be admitted." You try to convince her to make you an exception for you.',
+        "The nurse at the front desk hands you a parcel. Gain all of his possessions. \"Mr. Kane said to give you this package, but the doctor insists that no visitors be admitted.\" You try to convince her to make an exception for you [influence]. If you pass, you find that Charlie's health is beyond recovery, but he's still in good spirits and you have a long talk; retreat [doom] Doom by 1. If you fail, Charlie spends the rest of his days cut off from all human contact. Whether you pass or not, discard his Investigator token.",
 
       test: {
         skill: "influence",
@@ -151,7 +122,7 @@ export const charlieKane: InvestigatorDefinition = {
         "In Case of Insanity or Other Psychosis",
 
       description:
-        "The first thing Charlie does when you enter the restaurant is hand you all of his belongings. Gain all of his possessions. He offers you deals, promising to sell you Atlantis and introduce you to Caesar. You negotiate carefully with him.",
+        "The first thing Charlie does when you enter the restaurant is hand you all of his belongings. Gain all of his possessions. He offers you deals, promising to sell you Atlantis and introduce you to Caesar. You negotiate carefully with him [influence]. If you pass, he tells you all he knows in exchange for your napkin ring and a salt shaker; retreat [doom] Doom by 1. If you fail, Charlie gets angry and insists that you'll be sorry when he's the President of the world. Whether you pass or not, discard his Investigator token.",
 
       test: {
         skill: "influence",
@@ -162,7 +133,7 @@ export const charlieKane: InvestigatorDefinition = {
           "He tells you all he knows in exchange for your napkin ring and a salt shaker; retreat [doom] Doom by 1.",
 
         onFailure:
-          "Charlie gets angry and insists that you'll be sorry when he's President of the world.",
+          "Charlie gets angry and insists that you'll be sorry when he's the President of the world.",
       },
 
       discardInvestigatorToken: true,

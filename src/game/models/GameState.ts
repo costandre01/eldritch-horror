@@ -166,6 +166,9 @@ export interface GameState {
   investigatorTurnIndex:
     number;
 
+  pendingInvestigatorReplacements:
+    string[];
+
   /*
    * ============================================================
    * TEST

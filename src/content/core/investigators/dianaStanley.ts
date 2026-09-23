@@ -24,8 +24,6 @@ export const dianaStanley: InvestigatorDefinition = {
 
   maxSanity: 5,
 
-  focusLimit: 2,
-
   startingSpaceId: "space-7",
 
   startingClues: 0,
@@ -72,42 +70,17 @@ export const dianaStanley: InvestigatorDefinition = {
 
   /*
    * ============================================================
-   * PERSONAL STORY
+   * PERSONAL HISTORY
    * ============================================================
    */
 
   personalStory: {
-    id: "bound-by-the-past",
+    id: "diana-stanley",
 
-    name: "Bound by the Past",
+    name: "Personal History",
 
     description:
-      "The Lodge is not as innocent as they pretend.\n\nI have learned that nothing is ever as it seems, myself included.",
-
-    mission: {
-      type: "custom",
-
-      description:
-        "When you discard a Monster as part of your action ability, you may place it on this card.\n\nThen, if the total toughness of Monsters on this card is 8 or greater, discard this card and gain the Redeemed Reward.\n\nAt the end of the Encounter Phase, if there are 3 or more Cultist Monsters on the game board, discard this card and gain the One of Us Consequence.",
-    },
-
-    reward: {
-      id: "redeemed",
-
-      name: "Redeemed",
-
-      description:
-        "When you gain this card, retreat [doom] Doom by 1.\n\nOnce per round, during the Action Phase, gain 1 [focus] Focus.", 
-    },
-
-    consequence: {
-      id: "one-of-us",
-
-      name: "One of Us",
-
-      description:
-        "When you gain this card, advance [doom] Doom by 1.\n\nRoll 1 fewer die when resolving a test during a Combat Encounter or an Other World Encounter.",
-    },
+      "When Diana was initiated into the Order of the Silver Twilight, she believed it to be nothing more than a community organization. But as she has learned more of its true nature, she has become convinced that a growing evil threatens the world, and that the Silver Twilight will play a role in that threat. She believes her best chance to prevent this is to use her position to sabotage the organization from within. Carl Sanford, the head of the Order, has recognized her skills and recently sent her to Panama for additional training.",
   },
 
   /*
@@ -126,7 +99,7 @@ export const dianaStanley: InvestigatorDefinition = {
         "In Case of Crippling Injury or Death",
 
       description:
-        "In her hospital, Diana tells you to pick up your things and bids you farewell. Gain all of her possessions. You infer that she is being watched. Using your knowledge of the Silver Twilight, you try to determine which doctors can be trusted.",
+        "In her hospital, Diana tells you to pick up your things and bids you farewell. Gain all of her possessions. You infer that she is being watched. Using your knowledge of the Silver Twilight, you try to determine which doctors can be trusted [lore]. If you pass, you move Diana to a new hospital and she shares her secrets with you; retreat [doom] Doom by 1. If you fail, Diana remains under the Lodge's watchful eye. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "lore",
@@ -152,7 +125,7 @@ export const dianaStanley: InvestigatorDefinition = {
         "In Case of Insanity or Other Psychosis",
 
       description:
-        "It's obviously Diana, but she claims to be a woman named Iris who has lived in this city her whole life. In her trash, you find Diana's things. Gain all of her possessions. It's clear that she has disassociated from her former life. You share all of your memories of Diana to restore her identity.",
+        "It's obviously Diana, but she claims to be a woman named Iris who has lived in this city her whole life. In her trash, you find Diana's things. Gain all of her possessions. It's clear that she has disassociated from her former life. You share all of your memories of Diana to restore her identity [influence]. If you pass, she tells you of the horrors that brought her to this state; retreat [doom] Doom by 1. If you fail, Diana sternly asks you to leave her alone. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "influence",

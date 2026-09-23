@@ -10,9 +10,15 @@ export function startMythosPhase(
   }
 
   if (game.board.mythosDeck.length === 0) {
-    throw new Error(
-      "The Mythos deck is empty.",
-    );
+    return {
+      ...game,
+      status: "defeat",
+      activeInvestigatorId: null,
+      pendingDecision: null,
+      pendingEncounterChoice: null,
+      currentMythosId: null,
+      combatOrder: null,
+    };
   }
 
   return {

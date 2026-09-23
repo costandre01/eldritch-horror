@@ -11,6 +11,7 @@ import MonsterReckoningModal from "./MonsterReckoningModal";
 import CombatOrderModal from "./CombatOrderModal";
 import AncientOneReckoningModal from "./AncientOneReckoningModal";
 import YogSothothReckoningModal from "./YogSothothReckoningModal";
+import InvestigatorPreviewModal from "../../investigators/InvestigatorPreviewModal";
 
 interface GameFlowOverlayProps {
   game: GameState;
@@ -254,6 +255,11 @@ export default function GameFlowOverlay({
 
   const [omenProgress, setOmenProgress] =
     useState(0);
+
+  const [
+    previewInvestigatorId,
+    setPreviewInvestigatorId,
+  ] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isMythosOmen) {
@@ -1194,6 +1200,97 @@ export default function GameFlowOverlay({
                    */
 
                   if (option.image) {
+                    const isInvestigatorReplacement =
+                      decision.source?.startsWith(
+                        "combat-defeat-replacement:",
+                      );
+
+                    if (isInvestigatorReplacement) {
+                      return (
+                        <div
+                          key={option.id}
+                          className="group flex w-47.5 flex-col items-center"
+                        >
+                          {/* RETRATO */}
+
+                          <button
+                            type="button"
+                            disabled={!canChoose}
+                            onClick={() => {
+                              if (!canChoose) {
+                                return;
+                              }
+
+                              setPreviewInvestigatorId(
+                                option.id,
+                              );
+                            }}
+                            className={[
+                              "flex w-full flex-col items-center transition",
+                              canChoose
+                                ? "hover:-translate-y-2"
+                                : "cursor-not-allowed opacity-45",
+                            ].join(" ")}
+                          >
+                            <div
+                              className={[
+                                "overflow-hidden rounded-xl border-2 bg-black shadow-xl transition",
+                                canChoose
+                                  ? "border-gray-700 group-hover:border-amber-400 group-hover:shadow-amber-500/20"
+                                  : "border-gray-800",
+                              ].join(" ")}
+                            >
+                              <img
+                                src={option.image}
+                                alt={option.title}
+                                className="block h-auto w-full object-contain"
+                              />
+                            </div>
+
+                            <div className="mt-4 text-center">
+                              <h3
+                                className={[
+                                  "text-lg font-black transition",
+                                  canChoose
+                                    ? "text-white group-hover:text-amber-400"
+                                    : "text-gray-600",
+                                ].join(" ")}
+                              >
+                                {option.title}
+                              </h3>
+
+                              {option.description && (
+                                <p className="mt-1 text-xs leading-5 text-gray-500">
+                                  {option.description}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+
+                          {/* BOTÃO PARA ABRIR A CARTA */}
+
+                          {canChoose && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreviewInvestigatorId(
+                                  option.id,
+                                )
+                              }
+                              className="mt-3 rounded-lg border border-gray-600 bg-gray-800 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:border-amber-400 hover:bg-gray-700"
+                            >
+                              View Card
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    /*
+                    * RESTANTES OPÇÕES COM IMAGEM
+                    * Mantêm o comportamento atual.
+                    */
+
                     return (
                       <button
                         key={option.id}
@@ -1216,7 +1313,6 @@ export default function GameFlowOverlay({
                             : "cursor-not-allowed opacity-45",
                         ].join(" ")}
                       >
-
                         <div
                           className={[
                             "overflow-hidden rounded-xl border-2 bg-black shadow-xl transition",
@@ -1226,17 +1322,14 @@ export default function GameFlowOverlay({
                               : "border-gray-800",
                           ].join(" ")}
                         >
-
                           <img
                             src={option.image}
                             alt={option.title}
                             className="block h-auto w-full object-contain"
                           />
-
                         </div>
 
                         <div className="mt-4 text-center">
-
                           <h3
                             className={[
                               "text-lg font-black transition",
@@ -1268,9 +1361,7 @@ export default function GameFlowOverlay({
                                 }
                               </p>
                             )}
-
                         </div>
-
                       </button>
                     );
                   }
@@ -2652,7 +2743,47 @@ export default function GameFlowOverlay({
 
             </div>
           );
-        })()}
+                })()}
+
+        {/* ================================================== */}
+        {/* INVESTIGATOR PREVIEW */}
+        {/* ================================================== */}
+
+        {previewInvestigatorId &&
+          (() => {
+            const investigator =
+              coreInvestigators.find(
+                (definition) =>
+                  definition.id ===
+                  previewInvestigatorId,
+              );
+
+            if (!investigator) {
+              return null;
+            }
+
+            return (
+              <InvestigatorPreviewModal
+                investigator={
+                  investigator
+                }
+                onClose={() =>
+                  setPreviewInvestigatorId(
+                    null,
+                  )
+                }
+                onSelect={() => {
+                  setPreviewInvestigatorId(
+                    null,
+                  );
+
+                  onChoice(
+                    investigator.id,
+                  );
+                }}
+              />
+            );
+          })()}
 
       </div>
 

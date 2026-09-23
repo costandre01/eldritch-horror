@@ -23,8 +23,6 @@ export const trishScarborough: InvestigatorDefinition = {
 
   maxSanity: 5,
 
-  focusLimit: 2,
-
   startingSpaceId: "space-16",
 
   startingClues: 0,
@@ -69,7 +67,7 @@ export const trishScarborough: InvestigatorDefinition = {
 
   /*
    * ============================================================
-   * PERSONAL STORY
+   * PERSONAL HISTORY
    * ============================================================
    */
 
@@ -79,32 +77,7 @@ export const trishScarborough: InvestigatorDefinition = {
     name: "Cracking the Code",
 
     description:
-      "We lie all the time. But the truth is in there.\n\nYou just have to know how to decode people.",
-
-    mission: {
-      type: "mystery-or-doom",
-
-      description:
-        "When a Mystery is solved, discard this card and gain the Breaking the Limits Reward.\n\nWhen [doom] Doom advances to 6 or lower, discard this card and gain the Shadows Consequence.",
-    },
-
-    reward: {
-      id: "breaking-the-limits",
-
-      name: "Breaking the Limits",
-
-      description:
-        "Gain +X to all skills where X is the number of [focus] Focus you have.\n\nOnce per round, when you spend 1 [focus] Focus, you may gain 1 [focus] Focus.",
-    },
-
-    consequence: {
-      id: "shadows",
-
-      name: "Shadows",
-
-      description:
-        "Roll 1 fewer die when resolving an Influence or Observation test.\n\nYou cannot reroll each die more than once.",
-    },
+      "Everyone expected great things from Trish when she was young. In school, she excelled in athletics and the sciences, but she surprised everyone after graduation by settling into a humble position at a commercial code company. What almost no one knows is that this particular company is a front for the Bureau's code-breaking agency, the Black Chamber. Now she finds herself in the city of Krasnoyarsk meeting another agent who has important information about an impending threat from a world beyond our own.",
   },
 
   /*
@@ -123,7 +96,7 @@ export const trishScarborough: InvestigatorDefinition = {
         "In Case of Crippling Injury or Death",
 
       description:
-        "Trish falls in and out of consciousness when you visit her in the hospital, but she happily turns over her equipment. Gain all of her possessions. Unfortunately, her journal has been seized by the police. You'll have to convince the local authorities to turn the book over to you. If you pass, you can read through all of Trish's notes; retreat [doom] Doom by 1. If you fail, the knowledge is lost. Whether you pass or not, discard her Investigator token.",
+        "Trish falls in and out of consciousness when you visit her in the hospital, but she happily turns over her equipment. Gain all of her possessions. Unfortunately, her journal has been seized by the police. You'll have to convince the local authorities to turn the book over to you [influence]. If you pass, you can read through all of Trish's notes; retreat [doom] Doom by 1. If you fail, the knowledge is lost. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "influence",
@@ -135,7 +108,6 @@ export const trishScarborough: InvestigatorDefinition = {
 
         onFailure:
           "The knowledge is lost.",
-
       },
 
       discardInvestigatorToken: true,
@@ -150,7 +122,7 @@ export const trishScarborough: InvestigatorDefinition = {
         "In Case of Insanity or Other Psychosis",
 
       description:
-        "The doctor grimly hands you the items Trish had when she was brought in. Gain all of her possessions. \"It's not good,\" he warns. Inside her padded cell, she's written on every surface with a thick black pen. The text is a mix of dozens of codes. You start searching for anything you recognize. If you pass, you spot a hidden message in a familiar code; retreat [doom] Doom by 1. If you fail, Trish's message remains locked away. Whether you pass or not, discard her Investigator token.",
+        "The doctor grimly hands you the items Trish had when she was brought in. Gain all of her possessions. \"It's not good,\" he warns. Inside her padded cell, she's written on every surface with a thick black pen. The text is a mix of dozens of codes. You start searching for anything you recognize [observation]. If you pass, you spot a hidden message in a familiar code; retreat [doom] Doom by 1. If you fail, Trish's message remains locked away. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "observation",

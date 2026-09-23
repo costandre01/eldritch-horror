@@ -27,7 +27,6 @@ import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { startArrestsMade, startEyesEverywhere } from "./resolveMythosSpecial";
 import { gainCondition } from "./gainCondition";
 import { solveMythosRumor } from "./solveMythosRumor";
-import { coreInvestigators } from "../../content/core/investigators";
 
 export interface GameFlowContinueResult {
   game: GameState;
@@ -1771,8 +1770,11 @@ export function resolveGameFlowContinue(
     *
     * The Investigator was defeated during normal Combat.
     *
-    * The player must choose a new Investigator before
-    * the current Investigator's turn sequence ends.
+    * The Investigator immediately stops resolving the
+    * current Encounter.
+    *
+    * The replacement Investigator is NOT chosen now.
+    * The choice happens at the end of the Mythos Phase.
     */
 
     const defeatedInvestigatorId =
@@ -1784,85 +1786,76 @@ export function resolveGameFlowContinue(
       );
     }
 
-    const availableInvestigators =
-      coreInvestigators.filter(
-        (definition) =>
-          !Object.values(
-            finishedGame.investigators,
-          ).some(
-            (investigator) =>
-              investigator.definitionId ===
-              definition.id,
-          ),
+    const defeatedInvestigator =
+      finishedGame.investigators[
+        defeatedInvestigatorId
+      ];
+
+    if (!defeatedInvestigator) {
+      throw new Error(
+        `Investigator "${defeatedInvestigatorId}" does not exist.`,
       );
-
-    if (
-      availableInvestigators.length ===
-      0
-    ) {
-      return {
-        game: {
-          ...finishedGame,
-
-          status: "defeat",
-
-          activeInvestigatorId:
-            null,
-
-          pendingDecision:
-            null,
-
-          combatOrder:
-            null,
-        },
-
-        resetEncounterStartedForTurn:
-          false,
-      };
     }
 
-    return {
-      game: {
-        ...finishedGame,
+    const gameAfterDefeat: GameState = {
+      ...finishedGame,
 
-        pendingDecision: {
-          type: "choice",
+      activeInvestigatorId:
+        defeatedInvestigatorId,
 
-          title:
-            "CHOOSE A NEW INVESTIGATOR",
+      combatOrder:
+        null,
 
-          message:
-            "Your Investigator was defeated. Choose a new Investigator.",
+      investigators: {
+        ...finishedGame.investigators,
 
-          options:
-            availableInvestigators.map(
-              (definition) => {
-                const fileName =
-                  definition.name.replace(
-                    /\s+/g,
-                    "_",
-                  );
+        [defeatedInvestigatorId]: {
+          ...defeatedInvestigator,
 
-                return {
-                  id:
-                    definition.id,
-
-                  title:
-                    definition.name,
-
-                  description:
-                    definition.occupation,
-
-                  image:
-                    `/cards/investigators/${fileName}/${fileName}.png`,
-                };
-              },
-            ),
-
-          source:
-            `combat-defeat-replacement:${defeatedInvestigatorId}`,
+          isDefeated:
+            true,
         },
       },
+
+      pendingInvestigatorReplacements:
+        finishedGame.pendingInvestigatorReplacements.includes(
+          defeatedInvestigatorId,
+        )
+          ? finishedGame.pendingInvestigatorReplacements
+          : [
+              ...finishedGame.pendingInvestigatorReplacements,
+              defeatedInvestigatorId,
+            ],
+    };
+
+    const nextGame =
+      endInvestigatorEncounter({
+        ...gameAfterDefeat,
+
+        pendingDecision:
+          null,
+
+        pendingEncounterChoice:
+          null,
+
+        currentEncounterId:
+          null,
+
+        currentEncounterBackId:
+          null,
+
+        currentEncounterRevealed:
+          false,
+
+        currentEncounterDeckType:
+          null,
+
+        currentEncounterFromFracturedReality:
+          false,
+      });
+
+    return {
+      game: nextGame,
 
       resetEncounterStartedForTurn:
         false,

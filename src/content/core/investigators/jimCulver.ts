@@ -24,8 +24,6 @@ export const jimCulver: InvestigatorDefinition = {
 
   maxSanity: 5,
 
-  focusLimit: 2,
-
   startingSpaceId: "space-6",
 
   startingClues: 1,
@@ -70,7 +68,7 @@ export const jimCulver: InvestigatorDefinition = {
 
   /*
    * ============================================================
-   * PERSONAL STORY
+   * PERSONAL HISTORY
    * ============================================================
    */
 
@@ -81,33 +79,6 @@ export const jimCulver: InvestigatorDefinition = {
 
     description:
       "You can learn much from the departed.\n\nIn particular, those who have tried—and failed—to off you and your friends seem much more willing to speak in death than in life.",
-
-    mission: {
-      type: "defeat-monsters",
-
-      description:
-        "When a non-Epic Monster is defeated or discarded, place that Monster on this card.\n\nThen, if there are 6 or more Monsters on this card, discard this card and gain the Sweet Harmony Reward.",
-
-      targetCount: 6,
-    },
-
-    reward: {
-      id: "sweet-harmony",
-
-      name: "Sweet Harmony",
-
-      description:
-        "When a Monster is defeated or discarded, you or another investigator may gain 1 [focus] Focus or recover 1 [sanity] Sanity.\n\nYou may reroll 1 die when resolving a test.",
-    },
-
-    consequence: {
-      id: "out-of-tune",
-
-      name: "Out of Tune",
-
-      description:
-        "Your maximum [health] Health and [sanity] Sanity are reduced by 1.\n\nRoll 1 fewer die when resolving a Will test during a Combat Encounter.",
-    },
   },
 
   /*
@@ -126,7 +97,7 @@ export const jimCulver: InvestigatorDefinition = {
         "In Case of Crippling Injury or Death",
 
       description:
-        "Seeing Jim in this hospital bed is heartbreaking. He hands you a key to a safety deposit box. Gain all of his possessions. The severity of the injuries means that he'll never speak or play music again. You gently try to coax him into writing down everything he's learned. If you pass, Jim fills a dozen sheets of paper with arcane illustrations; retreat [doom] Doom by 1. If you fail, all Jim wants is to listen to a record of his own music played over and over. Whether you pass or not, discard his Investigator token.",
+        "Seeing Jim in this hospital bed is heartbreaking. He hands you a key to a safety deposit box. Gain all of his possessions. The severity of the injuries means that he'll never speak or play music again. You gently try to coax him into writing down everything he's learned [influence]. If you pass, Jim fills a dozen sheets of paper with arcane illustrations; retreat [doom] Doom by 1. If you fail, all Jim wants is to listen to a record of his own music played over and over. Whether you pass or not, discard his Investigator token.",
 
       test: {
         skill: "influence",
@@ -152,7 +123,7 @@ export const jimCulver: InvestigatorDefinition = {
         "In Case of Insanity or Other Psychosis",
 
       description:
-        "At the cemetery's gate, you find Jim's old suitcase and hear wild and erratic music ahead. Gain all of his possessions. Summoning all your nerve, you walk toward the crowd of dancing cadavers that surround Jim. If you pass, you spend the night learning the secrets of the dead; retreat [doom] Doom by 1. If you fail, you run, and Jim is never seen by a living soul again. Whether you pass or not, discard his Investigator token.",
+        "At the cemetery's gate, you find Jim's old suitcase and hear wild and erratic music ahead. Gain all of his possessions. Summoning all your nerve, you walk toward the crowd of dancing cadavers that surround Jim [will]. If you pass, you spend the night learning the secrets of the dead; retreat [doom] Doom by 1. If you fail, you run, and Jim is never seen by a living soul again. Whether you pass or not, discard his Investigator token.",
 
       test: {
         skill: "will",

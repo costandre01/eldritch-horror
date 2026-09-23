@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 
 export type GameIconName =
-  | "focus"
   | "wilderness"
   | "health"
   | "clue"
@@ -20,7 +19,6 @@ export type GameIconName =
   | "lore";
 
 const ICON_LABELS: Record<GameIconName, string> = {
-  focus: "Focus",
   wilderness: "Wilderness",
   health: "Health",
   clue: "Clue",

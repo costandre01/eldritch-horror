@@ -941,6 +941,9 @@ const selectedSpecialEncounters =
     investigatorTurnIndex:
       0,
 
+    pendingInvestigatorReplacements:
+      [],
+
     lastTest:
       null,
 

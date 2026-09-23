@@ -10,7 +10,6 @@ interface GameTextProps {
 }
 
 const VALID_ICONS = new Set<GameIconName>([
-  "focus",
   "wilderness",
   "health",
   "clue",

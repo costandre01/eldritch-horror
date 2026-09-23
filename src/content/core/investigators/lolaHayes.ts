@@ -24,8 +24,6 @@ export const lolaHayes: InvestigatorDefinition = {
 
   maxSanity: 7,
 
-  focusLimit: 2,
-
   startingSpaceId: "tokyo",
 
   startingClues: 0,
@@ -57,7 +55,7 @@ export const lolaHayes: InvestigatorDefinition = {
       name: "Method Acting",
 
       description:
-        "Spend any number of Improvement tokens, then improve 1 skill of your choice for each token spent.\n\nA +2 Improvement token counts as 2 tokens.",
+        "Spend any number of Improvement tokens, then improve 1 skill of your choice for each token spent (a +2 Improvement token counts as 2 tokens).",
     },
 
     {
@@ -74,7 +72,7 @@ export const lolaHayes: InvestigatorDefinition = {
 
   /*
    * ============================================================
-   * PERSONAL STORY
+   * PERSONAL HISTORY
    * ============================================================
    */
 
@@ -84,34 +82,7 @@ export const lolaHayes: InvestigatorDefinition = {
     name: "In the Limelight",
 
     description:
-      "You are addicted to the attention.\n\nThe lights, the cameras, the interviewers and suitors — all of it. Better yet, you can use your rising influence to guide the future to the light.",
-
-    mission: {
-      type: "pass-tests-with-each-skill",
-
-      description:
-        "The first time you pass a test for each skill, place a matching Improvement token on this card.\n\nThen, if an Improvement token for each skill is on this card, discard this card and gain the Method Acting Reward.\n\nWhen you have only 1 [health] Health or 1 [sanity] Sanity, discard this card and gain the Denouement Consequence.",
-
-      targetCount: 5,
-    },
-
-    reward: {
-      id: "method-acting",
-
-      name: "Method Acting",
-
-      description:
-        "When you gain this card, improve 2 skills of your choice.\n\nAfter you perform your action ability, you may perform 1 additional action.",
-    },
-
-    consequence: {
-      id: "denouement",
-
-      name: "Denouement",
-
-      description:
-        "Whenever you fail a test, discard 1 Improvement token.\n\nIf you cannot, lose all of your [sanity] Sanity.\n\nThis loss of Sanity cannot be prevented.",
-    },
+      "Around the world, Lola has performed dramatic roles for sold-out houses. However, after being cast in the controversial play, The King in Yellow, Lola needed to \"take some time\" to recover from her \"exhaustion.\" Now that she's checked herself out of the asylum, she's ready for her big comeback. But this time she'll play a different role in the fight against the horrors that threaten this world. She's started by traveling to Tokyo to track down the only other surviving cast member of her previous theatrical endeavor.",
   },
 
   /*
@@ -130,7 +101,7 @@ export const lolaHayes: InvestigatorDefinition = {
         "In Case of Crippling Injury or Death",
 
       description:
-        "\"I'm fine darling. Help yourself, by the way.\" Lola nods at the equipment strewn across the hotel room. Gain all of her possessions. As convincing as she is, you know she's in pain. You try to persuade her to visit a hospital. If you pass, she sighs a breath of relief and tells you of all the horrors she's encountered; retreat [doom] Doom by 1. If you fail, the day after Lola leaves the city, she succumbs to her wounds. Whether you pass or not, discard her Investigator token.",
+        "\"I'm fine, darling. Help yourself, by the way.\" Lola nods at the equipment strewn across the hotel room. Gain all of her possessions. As convincing as she is, you know she's in pain. You try to persuade her to visit a hospital [influence]. If you pass, she sighs a breath of relief and tells you of all the horrors she's encountered; retreat Doom by 1. If you fail, the day after Lola leaves the city, she succumbs to her wounds. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "influence",
@@ -138,7 +109,7 @@ export const lolaHayes: InvestigatorDefinition = {
         modifier: 0,
 
         onSuccess:
-          "She sighs a breath of relief and tells you of all the horrors she's encountered; retreat [doom] Doom by 1.",
+          "She sighs a breath of relief and tells you of all the horrors she's encountered; retreat Doom by 1.",
 
         onFailure:
           "The day after Lola leaves the city, she succumbs to her wounds.",
@@ -156,7 +127,7 @@ export const lolaHayes: InvestigatorDefinition = {
         "In Case of Insanity or Other Psychosis",
 
       description:
-        "The trail of Lola's belongings leads you into a derelict theater. Gain all of her possessions. She's on the stage, wringing her blood-soaked hands and reciting, \"Will these hands ne'er be clean?\" You try to direct her performance, hoping to better reveal her character. If you pass, she tells you of the Tattered King, indicating a goat she killed; retreat [doom] Doom by 1. If you fail, Lola's dialogue degenerates into gibberish. Whether you pass or not, discard her Investigator token.",
+        "The trail of Lola's belongings leads you into a derelict theater. Gain all of her possessions. She's on the stage wringing her blood-soaked hands and reciting, \"Will these hands ne'er be clean?\" You try to direct her performance, hoping to better reveal her character [influence]. If you pass, she tells you of the Tattered King, indicating a goat she's killed; retreat Doom by 1. If you fail, Lola's dialogue degenerates into gibberish. Whether you pass or not, discard her Investigator token.",
 
       test: {
         skill: "influence",
@@ -164,7 +135,7 @@ export const lolaHayes: InvestigatorDefinition = {
         modifier: 0,
 
         onSuccess:
-          "She tells you of the Tattered King, indicating a goat she killed; retreat [doom] Doom by 1.",
+          "She tells you of the Tattered King, indicating a goat she's killed; retreat [doom] Doom by 1.",
 
         onFailure:
           "Lola's dialogue degenerates into gibberish.",

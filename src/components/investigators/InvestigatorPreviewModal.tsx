@@ -10,11 +10,13 @@ import {
 interface InvestigatorPreviewModalProps {
   investigator: InvestigatorDefinition;
   onClose: () => void;
+  onSelect?: () => void;
 }
 
 export default function InvestigatorPreviewModal({
   investigator,
   onClose,
+  onSelect,
 }: InvestigatorPreviewModalProps) {
   const [showBack, setShowBack] =
     useState(false);
@@ -65,6 +67,19 @@ export default function InvestigatorPreviewModal({
         {/* ================================================== */}
 
         <div className="mt-5 flex items-center justify-center gap-3">
+
+          {/* SELECT */}
+
+          {onSelect && (
+            <button
+              type="button"
+              onClick={onSelect}
+              className="rounded-lg bg-green-700 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-green-600"
+            >
+              Select
+            </button>
+          )}
+
           {/* FLIP */}
 
           <button
@@ -73,8 +88,8 @@ export default function InvestigatorPreviewModal({
             className="rounded-lg bg-blue-700 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-blue-600"
           >
             {showBack
-              ? "Ver Frente"
-              : "Virar Carta"}
+              ? "See Front"
+              : "Flip"}
           </button>
 
           {/* CLOSE */}
@@ -84,7 +99,7 @@ export default function InvestigatorPreviewModal({
             onClick={onClose}
             className="rounded-lg bg-gray-700 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-gray-600"
           >
-            Fechar
+            Close
           </button>
         </div>
 

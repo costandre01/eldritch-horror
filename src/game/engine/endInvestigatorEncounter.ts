@@ -1,5 +1,5 @@
-import { coreInvestigators } from "../../content/core/investigators";
 import type { GameState } from "../models/GameState";
+import { startInvestigatorActions } from "./startInvestigatorActions";
 import { startMythosPhase } from "./startMythosPhase";
 
 export function endInvestigatorEncounter(
@@ -150,7 +150,7 @@ export function endInvestigatorEncounter(
   const currentIndex =
     game.investigatorTurnIndex;
 
-  const nextIndex =
+  let nextIndex =
     currentIndex + 1;
 
   /*
@@ -158,6 +158,38 @@ export function endInvestigatorEncounter(
    * MORE INVESTIGATORS
    * ============================================================
    */
+  
+  while (
+    nextIndex <
+    game.investigatorOrder.length
+  ) {
+    const nextInvestigatorId =
+      game.investigatorOrder[nextIndex];
+
+    if (!nextInvestigatorId) {
+      nextIndex++;
+      continue;
+    }
+
+    const nextInvestigator =
+      game.investigators[
+        nextInvestigatorId
+      ];
+
+    /*
+    * Defeated Investigators no longer participate
+    * in the current round.
+    */
+    if (
+      !nextInvestigator ||
+      nextInvestigator.isDefeated
+    ) {
+      nextIndex++;
+      continue;
+    }
+
+    break;
+  }
 
   if (
     nextIndex <
@@ -166,50 +198,11 @@ export function endInvestigatorEncounter(
     const nextInvestigatorId =
       game.investigatorOrder[nextIndex];
 
-    const nextInvestigator =
-      game.investigators[
-        nextInvestigatorId
-      ];
-
-    if (!nextInvestigator) {
+    if (!nextInvestigatorId) {
       throw new Error(
-        `Investigator "${nextInvestigatorId}" does not exist.`,
+        "Could not determine the next Investigator.",
       );
     }
-
-    /*
-    * ==========================================================
-    * RESOLVE INVESTIGATOR DEFINITION
-    * ==========================================================
-    */
-
-    const investigatorDefinition =
-      coreInvestigators.find(
-        (definition) =>
-          definition.id ===
-          nextInvestigator.definitionId,
-      );
-
-    const investigatorName =
-      investigatorDefinition?.name ??
-      nextInvestigator.definitionId;
-
-    /*
-    * ==========================================================
-    * RESOLVE INVESTIGATOR IMAGE
-    * ==========================================================
-    */
-
-    const investigatorImage =
-      investigatorDefinition
-        ? `/cards/investigators/${investigatorDefinition.name.replace(
-            /\s+/g,
-            "_",
-          )}/${investigatorDefinition.name.replace(
-            /\s+/g,
-            "_",
-          )}.png`
-        : undefined;
 
     const nextGame: GameState = {
       ...game,
@@ -231,28 +224,11 @@ export function endInvestigatorEncounter(
 
       currentEncounterFromFracturedReality:
         false,
-
-      pendingDecision: {
-        type: "investigator-turn",
-
-        title: "Encounter Phase",
-
-        message:
-          `É a vez de ${investigatorName}.`,
-
-        investigatorId:
-          nextInvestigatorId,
-
-        investigatorName,
-
-        phase: "encounter",
-
-        image:
-          investigatorImage,
-      },
     };
 
-    return nextGame;
+    return startInvestigatorActions(
+      nextGame,
+    );
   }
 
   /*

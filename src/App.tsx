@@ -94,6 +94,8 @@ import {
   startEyesEverywhere,
 } from "./game/engine/resolveMythosSpecial";
 import { startNextRoundAfterMythos } from "./game/engine/startNextRoundAfterMythos";
+import GameEndModal from "./components/game/modals/GameEndModal";
+import { resolveDefeatedInvestigatorReplacement } from "./game/engine/resolveDefeatedInvestigatorReplacement.ts";
 
 
 function App() {
@@ -1360,6 +1362,41 @@ function App() {
           startNextRoundAfterMythos(
             game,
             investigatorId,
+          );
+
+        setGame(updatedGame);
+
+        return;
+      }
+
+      /*
+      * ========================================================
+      * DEFEATED INVESTIGATOR REPLACEMENT
+      * ========================================================
+      *
+      * The replacement is chosen at the end of the
+      * Mythos Phase. It does NOT start a new round yet.
+      */
+
+      if (
+        decision.source?.startsWith(
+          "mythos:defeated-replacement:",
+        )
+      ) {
+        const defeatedInvestigatorId =
+          decision.source.split(":")[2];
+
+        if (!defeatedInvestigatorId) {
+          throw new Error(
+            "Defeated Investigator replacement is missing investigatorId.",
+          );
+        }
+
+        const updatedGame =
+          resolveDefeatedInvestigatorReplacement(
+            game,
+            investigatorId,
+            defeatedInvestigatorId,
           );
 
         setGame(updatedGame);
@@ -3749,6 +3786,18 @@ function App() {
               }
             />
           )}
+
+        {/* ================================================== */}
+        {/* GAME END */}
+        {/* ================================================== */}
+
+        {(game.status === "victory" ||
+          game.status === "defeat") && (
+          <GameEndModal
+            game={game}
+            onExit={handleExitGame}
+          />
+        )}
 
         {/* ================================================== */}
         {/* GAME FLOW */}
