@@ -7,6 +7,7 @@ export function spawnMythosGates(
   game: GameState,
   nextIconIndex: number,
   forcedGateCount?: number,
+  showContinue: boolean = true,
 ): GameState {
   /*
    * ============================================================
@@ -169,6 +170,10 @@ export function spawnMythosGates(
    * CONTINUE MYTHOS
    * ============================================================
    */
+
+  if (!showContinue) {
+    return currentGame;
+  }
 
   return showMythosContinue(
     currentGame,

@@ -10,6 +10,8 @@ import { startMonsterCombat } from "./startMonsterCombat";
 import { spawnEpicMonsterAtSpace } from "./spawnEpicMonsterAtSpace";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { startMonsterReckoning } from "./startMonsterReckoning";
+import { spawnMonsterAtSpace } from "./spawnMonster";
+import { spawnMythosGates } from "./spawnMythosGates";
 
 function getMonsterDefinition(
   definitionId: string,
@@ -24,6 +26,32 @@ function getMonsterDefinition(
         definition.id === definitionId,
     )
   );
+}
+
+function queueDefeatedInvestigators(
+  game: GameState,
+  investigatorIds: string[],
+): GameState {
+  const newIds =
+    investigatorIds.filter(
+      (investigatorId) =>
+        !game.pendingInvestigatorReplacements.includes(
+          investigatorId,
+        ),
+    );
+
+  if (newIds.length === 0) {
+    return game;
+  }
+
+  return {
+    ...game,
+
+    pendingInvestigatorReplacements: [
+      ...game.pendingInvestigatorReplacements,
+      ...newIds,
+    ],
+  };
 }
 
 export function resolveMonsterReckoning(
@@ -144,29 +172,39 @@ export function resolveMonsterReckoning(
       ...updatedGame.investigators,
     };
 
+    const defeatedInvestigatorIds: string[] = [];
+
     for (const investigator of investigators) {
       if (
         !investigator.isDefeated &&
         investigator.spaceId ===
           monster.spaceId
       ) {
+        const newSanity = Math.max(
+          0,
+          investigator.sanity -
+            loseSanityAbility.amount,
+        );
+
+        const isDefeated =
+          investigator.health <= 0 ||
+          newSanity <= 0;
+
         updatedInvestigators[
           investigator.id
         ] = {
           ...investigator,
 
-          sanity: Math.max(
-            0,
-            investigator.sanity -
-              loseSanityAbility.amount,
-          ),
+          sanity: newSanity,
 
-          isDefeated:
-            investigator.health <= 0 ||
-            investigator.sanity -
-              loseSanityAbility.amount <=
-            0,
+          isDefeated,
         };
+
+        if (isDefeated) {
+          defeatedInvestigatorIds.push(
+            investigator.id,
+          );
+        }
       }
     }
 
@@ -176,7 +214,199 @@ export function resolveMonsterReckoning(
       investigators:
         updatedInvestigators,
     };
+
+    updatedGame =
+      queueDefeatedInvestigators(
+        updatedGame,
+        defeatedInvestigatorIds,
+      );
   }
+
+    /*
+    * ============================================================
+    * CTHYLLA — DEEP ONE AMBUSH
+    * ============================================================
+    */
+
+    const deepOneAmbushAbility =
+      definition.specialAbilities.find(
+        (ability) =>
+          ability.type ===
+          "deep-one-ambush-nearest",
+      );
+
+    if (
+      deepOneAmbushAbility?.type ===
+      "deep-one-ambush-nearest"
+    ) {
+      const investigators =
+        Object.values(
+          updatedGame.investigators,
+        ).filter(
+          (investigator) =>
+            !investigator.isDefeated &&
+            investigator.spaceId !== null,
+        );
+
+      if (investigators.length > 0) {
+        const distanceFromMonster =
+          new Map<string, number>();
+
+        const queue: string[] = [
+          monster.spaceId,
+        ];
+
+        distanceFromMonster.set(
+          monster.spaceId,
+          0,
+        );
+
+        while (queue.length > 0) {
+          const currentSpaceId =
+            queue.shift()!;
+
+          const currentDistance =
+            distanceFromMonster.get(
+              currentSpaceId,
+            )!;
+
+          const currentSpace =
+            map.spaces.find(
+              (space) =>
+                space.id ===
+                currentSpaceId,
+            );
+
+          if (!currentSpace) {
+            continue;
+          }
+
+          for (
+            const connectedSpaceId of
+              currentSpace.connectedSpaceIds
+          ) {
+            if (
+              distanceFromMonster.has(
+                connectedSpaceId,
+              )
+            ) {
+              continue;
+            }
+
+            distanceFromMonster.set(
+              connectedSpaceId,
+              currentDistance + 1,
+            );
+
+            queue.push(
+              connectedSpaceId,
+            );
+          }
+        }
+
+        let nearestInvestigator =
+          investigators[0];
+
+        let nearestDistance =
+          distanceFromMonster.get(
+            nearestInvestigator.spaceId!,
+          ) ?? Infinity;
+
+        for (
+          const investigator of
+            investigators
+        ) {
+          const distance =
+            distanceFromMonster.get(
+              investigator.spaceId!,
+            ) ?? Infinity;
+
+          if (
+            distance <
+            nearestDistance
+          ) {
+            nearestInvestigator =
+              investigator;
+
+            nearestDistance =
+              distance;
+          }
+        }
+
+        /*
+        * Spawn the Deep One on the
+        * nearest investigator's space.
+        */
+
+        const beforeMonsterIds =
+          new Set(
+            Object.keys(
+              updatedGame.monsters,
+            ),
+          );
+
+        updatedGame =
+          spawnMonsterAtSpace(
+            updatedGame,
+            nearestInvestigator.spaceId!,
+            "deep-one",
+          );
+
+        /*
+        * Find the newly spawned Deep One.
+        */
+
+        const spawnedDeepOne =
+          Object.values(
+            updatedGame.monsters,
+          ).find(
+            (spawnedMonster) =>
+              !beforeMonsterIds.has(
+                spawnedMonster.id,
+              ) &&
+              spawnedMonster.definitionId ===
+                "deep-one",
+          );
+
+        if (spawnedDeepOne) {
+          /*
+          * The Deep One immediately
+          * engages the nearest investigator.
+          */
+
+          updatedGame = {
+            ...updatedGame,
+            activeInvestigatorId:
+              nearestInvestigator.id,
+          };
+
+          return startMonsterCombat(
+            updatedGame,
+            spawnedDeepOne.id,
+            {
+              type:
+                "monster-reckoning",
+
+              monsterId:
+                monster.id,
+
+              monsterIds:
+                decision.monsterIds,
+
+              resolvedMonsterIds:
+                decision.resolvedMonsterIds,
+
+              nextIconIndex:
+                decision.nextIconIndex,
+
+              remainingPasses:
+                decision.remainingPasses ??
+                1,
+            },
+          );
+        }
+      }
+    }
 
   /*
    * ============================================================
@@ -204,29 +434,39 @@ export function resolveMonsterReckoning(
       ...updatedGame.investigators,
     };
 
+    const defeatedInvestigatorIds: string[] = [];
+
     for (const investigator of investigators) {
       if (
         !investigator.isDefeated &&
         investigator.spaceId ===
           monster.spaceId
       ) {
+        const newHealth = Math.max(
+          0,
+          investigator.health -
+            loseHealthAbility.amount,
+        );
+
+        const isDefeated =
+          newHealth <= 0 ||
+          investigator.sanity <= 0;
+
         updatedInvestigators[
           investigator.id
         ] = {
           ...investigator,
 
-          health: Math.max(
-            0,
-            investigator.health -
-              loseHealthAbility.amount,
-          ),
+          health: newHealth,
 
-          isDefeated:
-            investigator.health -
-              loseHealthAbility.amount <=
-            0 ||
-            investigator.sanity <= 0,
+          isDefeated,
         };
+
+        if (isDefeated) {
+          defeatedInvestigatorIds.push(
+            investigator.id,
+          );
+        }
       }
     }
 
@@ -236,8 +476,13 @@ export function resolveMonsterReckoning(
       investigators:
         updatedInvestigators,
     };
-  }
 
+    updatedGame =
+      queueDefeatedInvestigators(
+        updatedGame,
+        defeatedInvestigatorIds,
+      );
+  }
   /*
   * ============================================================
   * LLOIGOR — ADJACENT INVESTIGATORS LOSE HEALTH AND SANITY
@@ -258,6 +503,8 @@ export function resolveMonsterReckoning(
     const updatedInvestigators = {
       ...updatedGame.investigators,
     };
+
+    const defeatedInvestigatorIds: string[] = [];
 
     for (const investigator of Object.values(
       updatedGame.investigators,
@@ -310,27 +557,37 @@ export function resolveMonsterReckoning(
       const sanityLoss =
         adjacentLoseHealthAndSanityAbility.sanity;
 
+      const newHealth = Math.max(
+        0,
+        investigator.health - healthLoss,
+      );
+
+      const newSanity = Math.max(
+        0,
+        investigator.sanity - sanityLoss,
+      );
+
+      const isDefeated =
+        newHealth <= 0 ||
+        newSanity <= 0;
+
       updatedInvestigators[
         investigator.id
       ] = {
         ...investigator,
 
-        health: Math.max(
-          0,
-          investigator.health - healthLoss,
-        ),
+        health: newHealth,
 
-        sanity: Math.max(
-          0,
-          investigator.sanity - sanityLoss,
-        ),
+        sanity: newSanity,
 
-        isDefeated:
-          investigator.health - healthLoss <=
-            0 ||
-          investigator.sanity - sanityLoss <=
-            0,
+        isDefeated,
       };
+
+      if (isDefeated) {
+        defeatedInvestigatorIds.push(
+          investigator.id,
+        );
+      }
     }
 
     updatedGame = {
@@ -339,6 +596,126 @@ export function resolveMonsterReckoning(
       investigators:
         updatedInvestigators,
     };
+
+    updatedGame =
+      queueDefeatedInvestigators(
+        updatedGame,
+        defeatedInvestigatorIds,
+      );
+  }
+
+  /*
+   * ============================================================
+   * NUG — SPAWN GHOUL
+   * ============================================================
+   */
+
+  const spawnGhoulAbility =
+    definition.specialAbilities.find(
+      (ability) =>
+        ability.type ===
+        "spawn-ghoul-on-space",
+    );
+
+  if (
+    spawnGhoulAbility?.type ===
+    "spawn-ghoul-on-space"
+  ) {
+    updatedGame =
+      spawnMonsterAtSpace(
+        updatedGame,
+        monster.spaceId,
+        "ghoul",
+      );
+  }
+
+  /*
+   * ============================================================
+   * DUNWICH HORROR — SPAWN GATE
+   * ============================================================
+   */
+
+  const spawnGateAbility =
+    definition.specialAbilities.find(
+      (ability) =>
+        ability.type ===
+        "roll-die-spawn-gate-if-at-most-investigators",
+    );
+
+  if (
+    spawnGateAbility?.type ===
+    "roll-die-spawn-gate-if-at-most-investigators"
+  ) {
+    const roll =
+      Math.floor(Math.random() * 6) + 1;
+
+    const investigatorCount =
+      Object.values(
+        updatedGame.investigators,
+      ).filter(
+        (investigator) =>
+          !investigator.isDefeated,
+      ).length;
+
+    if (
+      roll <= investigatorCount
+    ) {
+      const wasAwakened =
+        updatedGame.ancientOne.awakened;
+
+      updatedGame =
+        spawnMythosGates(
+          updatedGame,
+          decision.nextIconIndex,
+          1,
+          false,
+        );
+
+      /*
+       * SpawnMythosGates normally prepares
+       * the Mythos continuation. We must
+       * return to the current Monster Reckoning.
+       */
+
+      if (
+        !wasAwakened &&
+        updatedGame.ancientOne.awakened
+      ) {
+        return resolveAncientOneAwakening(
+          updatedGame,
+          map,
+          decision.nextIconIndex,
+          {
+            type:
+              "monster-reckoning",
+
+            monsterId:
+              monsterId,
+
+            monsterIds:
+              decision.monsterIds,
+
+            resolvedMonsterIds:
+              decision.resolvedMonsterIds,
+
+            nextIconIndex:
+              decision.nextIconIndex,
+
+            remainingPasses:
+              decision.remainingPasses ??
+              1,
+          },
+        );
+      }
+
+      updatedGame = {
+        ...updatedGame,
+
+        pendingDecision: {
+          ...decision,
+        },
+      };
+    }
   }
 
   /*
@@ -401,6 +778,8 @@ export function resolveMonsterReckoning(
       ...updatedGame.investigators,
     };
 
+    const defeatedInvestigatorIds: string[] = [];
+
     for (const investigator of Object.values(
       updatedGame.investigators,
     )) {
@@ -413,23 +792,31 @@ export function resolveMonsterReckoning(
         continue;
       }
 
+      const newHealth = Math.max(
+        0,
+        investigator.health -
+          cursedInvestigatorsLoseHealthAbility.amount,
+      );
+
+      const isDefeated =
+        newHealth <= 0 ||
+        investigator.sanity <= 0;
+
       updatedInvestigators[
         investigator.id
       ] = {
         ...investigator,
 
-        health: Math.max(
-          0,
-          investigator.health -
-            cursedInvestigatorsLoseHealthAbility.amount,
-        ),
+        health: newHealth,
 
-        isDefeated:
-          investigator.health -
-            cursedInvestigatorsLoseHealthAbility.amount <=
-            0 ||
-          investigator.sanity <= 0,
+        isDefeated,
       };
+
+      if (isDefeated) {
+        defeatedInvestigatorIds.push(
+          investigator.id,
+        );
+      }
     }
 
     updatedGame = {
@@ -438,6 +825,12 @@ export function resolveMonsterReckoning(
       investigators:
         updatedInvestigators,
     };
+
+    updatedGame =
+      queueDefeatedInvestigators(
+        updatedGame,
+        defeatedInvestigatorIds,
+      );
   }
 
   /*

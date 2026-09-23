@@ -5,7 +5,7 @@ import type { MonsterDefinition } from "../models/Monster";
 import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
 
-import { hasMonsterReckoningAbility } from "./getMonsterReckoningAbilities";
+import { hasMonsterReckoningAbility } from "./hasMonsterReckoningAbility";
 import { startAncientOneReckoning } from "./startAncientOneReckoning";
 
 function getMonsterDefinition(

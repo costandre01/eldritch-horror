@@ -11,7 +11,7 @@ import { advanceDoom } from "./doomEngine";
 import { gainCondition } from "./gainCondition";
 import { getInvestigatorConditionsByCategory } from "./getInvestigatorConditions";
 import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
-import { hasMonsterReckoningAbility } from "./getMonsterReckoningAbilities";
+import { hasMonsterReckoningAbility } from "./hasMonsterReckoningAbility";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { resolveConditionFrontEffects } from "./resolveConditionFrontEffects";
 

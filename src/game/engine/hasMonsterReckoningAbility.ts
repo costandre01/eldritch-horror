@@ -28,6 +28,14 @@ export function hasMonsterReckoningAbility(
       ability.type ===
         "each-investigator-on-space-lose-health" ||
       ability.type ===
-        "discard-and-spawn-epic-monster",
+        "discard-and-spawn-epic-monster" ||
+      ability.type ===
+        "roll-die-spawn-gate-if-at-most-investigators" ||
+
+      ability.type ===
+        "spawn-ghoul-on-space" ||
+
+      ability.type ===
+        "deep-one-ambush-nearest",
   );
 }

@@ -1,5 +1,5 @@
+import { coreInvestigators } from "../../content/core/investigators";
 import type { GameState } from "../models/GameState";
-import { startInvestigatorActions } from "./startInvestigatorActions";
 import { startMythosPhase } from "./startMythosPhase";
 
 export function endInvestigatorEncounter(
@@ -204,7 +204,38 @@ export function endInvestigatorEncounter(
       );
     }
 
-    const nextGame: GameState = {
+    const nextInvestigator =
+      game.investigators[nextInvestigatorId];
+
+    if (!nextInvestigator) {
+      throw new Error(
+        `Investigator "${nextInvestigatorId}" does not exist.`,
+      );
+    }
+
+    const investigatorDefinition =
+      coreInvestigators.find(
+        (definition) =>
+          definition.id ===
+          nextInvestigator.definitionId,
+      );
+
+    const investigatorName =
+      investigatorDefinition?.name ??
+      nextInvestigator.definitionId;
+
+    const investigatorImage =
+      investigatorDefinition
+        ? `/cards/investigators/${investigatorDefinition.name.replace(
+            /\s+/g,
+            "_",
+          )}/${investigatorDefinition.name.replace(
+            /\s+/g,
+            "_",
+          )}.png`
+        : undefined;
+
+    return {
       ...game,
 
       activeInvestigatorId:
@@ -224,11 +255,28 @@ export function endInvestigatorEncounter(
 
       currentEncounterFromFracturedReality:
         false,
-    };
 
-    return startInvestigatorActions(
-      nextGame,
-    );
+      pendingDecision: {
+        type: "investigator-turn",
+
+        title:
+          "Encounter Phase",
+
+        message:
+          `É a vez de ${investigatorName}.`,
+
+        investigatorId:
+          nextInvestigatorId,
+
+        investigatorName,
+
+        phase:
+          "encounter",
+
+        image:
+          investigatorImage,
+      },
+    };
   }
 
   /*
