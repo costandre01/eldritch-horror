@@ -32,6 +32,7 @@ import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { startMythosCardReckoning } from "./startMythosCardReckoning";
 import { drawClueToken } from "./clueEngine";
 import { replaceDefeatedInvestigator } from "./replaceDefeatedInvestigator";
+import { discardCondition } from "./discardCondition";
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -45,6 +46,227 @@ export function resolveGameFlowChoice(
     !decision ||
     decision.type !== "choice"
   ) {
+    return game;
+  }
+
+  /*
+  * ============================================================
+  * CONDITION — SPEND CLUE OR TAKE TEST
+  * ============================================================
+  */
+
+  if (
+    decision.source?.startsWith(
+      "condition:spend-clue-or-test:",
+    )
+  ) {
+    const sourceParts =
+      decision.source.split(":");
+
+    const investigatorId =
+      sourceParts[2];
+
+    const conditionId =
+      sourceParts[3];
+
+    if (
+      !investigatorId ||
+      !conditionId
+    ) {
+      throw new Error(
+        "Condition choice is missing investigatorId or conditionId.",
+      );
+    }
+
+    const investigator =
+      game.investigators[
+        investigatorId
+      ];
+
+    const condition =
+      game.conditions[
+        conditionId
+      ];
+
+    if (
+      !investigator ||
+      !condition
+    ) {
+      throw new Error(
+        "Condition choice references invalid game state.",
+      );
+    }
+
+    /*
+    * ----------------------------------------------------------
+    * SPEND CLUE
+    * ----------------------------------------------------------
+    */
+
+    if (
+      choiceId ===
+      `condition:spend-clue:${investigatorId}:${conditionId}`
+    ) {
+      const clueCost = 1;
+
+      if (
+        investigator.clues <
+        clueCost
+      ) {
+        return game;
+      }
+
+      const updatedGame = {
+        ...game,
+
+        investigators: {
+          ...game.investigators,
+
+          [investigatorId]: {
+            ...investigator,
+
+            clues:
+              investigator.clues -
+              clueCost,
+          },
+        },
+
+        pendingDecision:
+          null,
+      };
+
+      const discardedGame =
+        discardCondition(
+          updatedGame,
+          investigatorId,
+          conditionId,
+        );
+
+      return endInvestigatorEncounter(
+        discardedGame,
+      );
+    }
+
+    /*
+    * ----------------------------------------------------------
+    * TAKE TEST
+    * ----------------------------------------------------------
+    */
+
+    if (
+      choiceId ===
+      `condition:test:${investigatorId}:${conditionId}`
+    ) {
+      let skill:
+        | "will"
+        | "influence"
+        | "strength";
+
+      let onFail:
+        Parameters<
+          typeof resolveEncounterEffects
+        >[2];
+
+      if (
+        condition.backId ===
+        "detained-back-1"
+      ) {
+        skill = "will";
+
+        onFail = [
+          {
+            type:
+              "lose-sanity",
+            amount: 3,
+          },
+          {
+            type:
+              "gain-condition",
+            conditionDefinitionId:
+              "condition-paranoia",
+          },
+        ];
+      } else if (
+        condition.backId ===
+        "detained-back-2"
+      ) {
+        skill = "influence";
+
+        onFail = [
+          {
+            type:
+              "lose-health",
+            amount: 2,
+          },
+          {
+            type:
+              "lose-sanity",
+            amount: 2,
+          },
+        ];
+      } else if (
+        condition.backId ===
+        "detained-back-3"
+      ) {
+        skill = "strength";
+
+        onFail = [
+          {
+            type:
+              "lose-health",
+            amount: 3,
+          },
+          {
+            type:
+              "gain-condition",
+            conditionDefinitionId:
+              "condition-internal-injury",
+          },
+        ];
+      } else {
+        throw new Error(
+          `Unsupported Detained back "${condition.backId}".`,
+        );
+      }
+
+      return {
+        ...game,
+
+        pendingDecision: {
+          type: "test",
+
+          title:
+            "Detained",
+
+          message:
+            "Resolve the Detained Condition.",
+
+          skill,
+
+          modifier: -1,
+
+          investigatorId,
+
+          onSuccess: [],
+
+          onFail,
+
+          onComplete: [
+            {
+                type: "discard-condition",
+                conditionDefinitionId: "condition-detained",
+            },
+          ],
+
+          source:
+            `condition:test:${investigatorId}:${conditionId}`,
+
+          image:
+            condition.backImage,
+        },
+      };
+    }
+
     return game;
   }
 

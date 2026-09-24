@@ -6,6 +6,7 @@ import type { ConditionTrigger } from "./ConditionTrigger";
 import {
   getConditionTriggers,
 } from "./getConditionTriggers";
+import { resolveCondition } from "./resolveCondition";
 
 import {
   resolveConditionFrontEffects,
@@ -108,6 +109,31 @@ export function resolveConditionTrigger(
 
     currentGame =
       result.game;
+
+    /*
+    * Detained replaces the normal Encounter.
+    * After the front of the card flips,
+    * immediately resolve its selected back.
+    */
+    if (
+      trigger === "on-encounter" &&
+      currentGame.conditions[
+        triggerResult.conditionId
+      ]?.definitionId === "condition-detained" &&
+      currentGame.conditions[
+        triggerResult.conditionId
+      ]?.flipped
+    ) {
+      preventsEncounter = true;
+
+      currentGame = resolveCondition(
+        currentGame,
+        investigatorId,
+        triggerResult.conditionId,
+      );
+
+      break;
+    }
   }
 
   /*

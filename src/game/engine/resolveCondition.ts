@@ -886,9 +886,58 @@ export function resolveCondition(
       }
 
       case "spend-clue-or-test": {
-        throw new Error(
-          "Effect 'spend-clue-or-test' is not implemented yet.",
-        );
+        currentGame = {
+          ...currentGame,
+
+          pendingDecision: {
+            type: "choice",
+
+            title:
+              back.id.startsWith("detained-back")
+                ? "Detained"
+                : definition.name,
+
+            message: `Spend ${effect.amount} Clue${
+              effect.amount === 1 ? "" : "s"
+            } or take a ${effect.testType} test (${
+              effect.modifier >= 0 ? "+" : ""
+            }${effect.modifier}).`,
+
+            image: back.backImage,
+
+            options: [
+              {
+                id: `condition:spend-clue:${investigatorId}:${conditionId}`,
+
+                title: `Spend ${effect.amount} Clue${
+                  effect.amount === 1 ? "" : "s"
+                }`,
+
+                description:
+                  `Spend ${effect.amount} Clue${
+                    effect.amount === 1 ? "" : "s"
+                  } to resolve this Condition.`,
+              },
+
+              {
+                id: `condition:test:${investigatorId}:${conditionId}`,
+
+                title:
+                  `Take ${effect.testType} test`,
+
+                description:
+                  `Take a ${effect.testType} test (${
+                    effect.modifier >= 0 ? "+" : ""
+                  }${effect.modifier}).`,
+              },
+            ],
+
+            source:
+              `condition:spend-clue-or-test:${investigatorId}:${conditionId}`,
+          },
+        };
+
+        return currentGame;
       }
 
       case "choose-gain-condition-or": {

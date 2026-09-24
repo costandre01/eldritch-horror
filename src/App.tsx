@@ -1385,6 +1385,14 @@ function App() {
         decision.source ===
         "defeat:lead"
       ) {
+        /*
+        * Preserve the Mythos resolution that was
+        * interrupted by the Lead Investigator's defeat.
+        */
+        const resumePendingDecision =
+          decision.resume?.pendingDecision ??
+          null;
+
         const updatedGame =
           setLeadInvestigator(
             game,
@@ -1395,13 +1403,16 @@ function App() {
           ...updatedGame,
 
           /*
-           * The defeated Investigator's current
-           * action / resolution has already ended.
-           *
-           * We do not start a new round here.
-           */
+          * The new Lead does NOT start a new turn.
+          *
+          * We simply restore the Mythos decision
+          * that was interrupted by the defeat.
+          */
           activeInvestigatorId:
             null,
+
+          pendingDecision:
+            resumePendingDecision,
         });
 
         return;

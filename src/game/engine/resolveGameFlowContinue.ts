@@ -27,6 +27,8 @@ import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { startArrestsMade, startEyesEverywhere } from "./resolveMythosSpecial";
 import { gainCondition } from "./gainCondition";
 import { solveMythosRumor } from "./solveMythosRumor";
+import { defeatInvestigator } from "./defeatInvestigator";
+import { startMonsterReckoning } from "./startMonsterReckoning";
 
 export interface GameFlowContinueResult {
   game: GameState;
@@ -1088,6 +1090,40 @@ export function resolveGameFlowContinue(
   }
 
   /*
+  * ==========================================================
+  * RESUME SHUB-NIGGURATH RECKONING AFTER LEAD DEFEAT
+  * ==========================================================
+  */
+
+  if (
+    decision.type === "continue" &&
+    decision.source ===
+      "mythos:shub-niggurath-reckoning-resume" &&
+    decision.resume?.type ===
+      "shub-niggurath-reckoning"
+  ) {
+    const resume = decision.resume;
+
+    const nextGame =
+      resolveShubNiggurathReckoning(
+        game,
+        map,
+        resume.investigatorIds,
+        resume.nextInvestigatorIndex + 1,
+        resume.nextIconIndex,
+        resume.monsterId,
+        resume.ancientOneAbilityIndex,
+        resume.ancientOneId,
+        resume.ancientOneReckoningStage,
+      );
+
+    return {
+      game: nextGame,
+      resetEncounterStartedForTurn: false,
+    };
+  }
+
+  /*
    * ============================================================
    * INVESTIGATOR DEFEATED
    * ============================================================
@@ -1131,34 +1167,159 @@ export function resolveGameFlowContinue(
         );
       }
 
-      const defeatedInvestigator =
-        finishedGame.investigators[
-          defeatedInvestigatorId
-        ];
+      /*
+      * ==========================================================
+      * RESTORE SHUB RECKONING
+      * ==========================================================
+      *
+      * The Investigator was defeated during combat against
+      * Shub-Niggurath.
+      *
+      * The combat that caused the defeat is already finished.
+      * The current Investigator must therefore be skipped and
+      * Shub's sequence must continue with the next Investigator.
+      *
+      * We build a temporary Monster Reckoning decision so that
+      * defeatInvestigator() can apply the complete normal defeat
+      * rules, including:
+      *
+      * - Doom +1
+      * - move to nearest City
+      * - discard Conditions
+      * - mark defeated
+      * - add pending replacement
+      * - choose a new Lead if necessary
+      */
+      const resolvedMonsterIds: string[] = [];
 
-      if (!defeatedInvestigator) {
-        throw new Error(
-          `Investigator "${defeatedInvestigatorId}" does not exist.`,
-        );
-      }
+      const shubReckoningDecision =
+        {
+          type:
+            "mythos-reckoning-monsters" as const,
 
-      const gameAfterDefeat: GameState = {
+          title:
+            "MONSTER RECKONING",
+
+          message:
+            "Resolve the Reckoning ability of the next Monster.",
+
+          monsterIds: [
+            resume.monsterId,
+          ],
+
+          resolvedMonsterIds,
+
+          source:
+            "mythos:reckoning-monsters" as const,
+
+          nextIconIndex:
+            resume.nextIconIndex,
+        };
+
+      const reckoningGame: GameState = {
         ...finishedGame,
 
-        activeInvestigatorId:
-          null,
-
-        investigators: {
-          ...finishedGame.investigators,
-
-          [defeatedInvestigatorId]: {
-            ...defeatedInvestigator,
-
-            isDefeated:
-              true,
-          },
-        },
+        pendingDecision:
+          shubReckoningDecision,
       };
+
+      const gameAfterDefeat =
+        defeatInvestigator(
+          reckoningGame,
+          map,
+          defeatedInvestigatorId,
+          resume.monsterId,
+        );
+
+      /*
+      * ==========================================================
+      * GAME DEFEAT
+      * ==========================================================
+      */
+
+      if (
+        gameAfterDefeat.status ===
+        "defeat"
+      ) {
+        return {
+          game: gameAfterDefeat,
+
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+
+      /*
+      * ==========================================================
+      * LEAD DEFEATED
+      * ==========================================================
+      *
+      * defeatInvestigator() will create the Lead selection.
+      *
+      * However, the normal Monster Reckoning resume is not enough
+      * for Shub-Niggurath because Shub has its own Investigator
+      * sequence.
+      *
+      * We therefore replace the stored resume with the exact
+      * Shub continuation that must happen after the new Lead
+      * is selected.
+      */
+
+      if (
+        gameAfterDefeat.pendingDecision?.type ===
+          "select-investigator" &&
+        gameAfterDefeat.pendingDecision.source ===
+          "defeat:lead"
+      ) {
+        const leadDecision =
+          gameAfterDefeat.pendingDecision;
+
+        return {
+          game: {
+            ...gameAfterDefeat,
+
+            pendingDecision: {
+              ...leadDecision,
+
+              resume: {
+                type:
+                  "defeat-lead",
+
+                phase:
+                  "mythos",
+
+                pendingDecision: {
+                  type:
+                    "continue",
+
+                  title:
+                    "SHUB-NIGGURATH — RECKONING",
+
+                  message:
+                    "Continue resolving Shub-Niggurath's Reckoning.",
+
+                  source:
+                    "mythos:shub-niggurath-reckoning-resume",
+
+                  resume,
+                },
+              },
+            },
+          },
+
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+
+      /*
+      * ==========================================================
+      * NON-LEAD DEFEAT
+      * ==========================================================
+      *
+      * The Investigator was defeated but the Lead remains alive.
+      * Continue Shub immediately with the next Investigator.
+      */
 
       const nextGame =
         resolveShubNiggurathReckoning(
@@ -1185,6 +1346,20 @@ export function resolveGameFlowContinue(
     * ==========================================================
     * NORMAL MONSTER RECKONING COMBAT
     * ==========================================================
+    *
+    * The Investigator was defeated during a Monster Reckoning
+    * combat.
+    *
+    * The Monster that caused the combat is considered resolved
+    * and must NOT be resolved again.
+    *
+    * All normal Investigator defeat rules are applied through
+    * defeatInvestigator().
+    *
+    * If the defeated Investigator was the Lead, the Lead selection
+    * interrupts the Reckoning. The interrupted Reckoning is stored
+    * inside the Lead selection decision and restored by App.tsx
+    * after the new Lead is chosen.
     */
 
     if (
@@ -1203,39 +1378,142 @@ export function resolveGameFlowContinue(
         );
       }
 
-      const defeatedInvestigator =
-        finishedGame.investigators[
-          defeatedInvestigatorId
-        ];
-
-      if (!defeatedInvestigator) {
-        throw new Error(
-          `Investigator "${defeatedInvestigatorId}" does not exist.`,
-        );
-      }
-
-      const gameAfterDefeat: GameState = {
-        ...finishedGame,
-
-        activeInvestigatorId:
-          null,
-
-        investigators: {
-          ...finishedGame.investigators,
-
-          [defeatedInvestigatorId]: {
-            ...defeatedInvestigator,
-
-            isDefeated:
-              true,
-          },
-        },
-      };
+      /*
+      * ----------------------------------------------------------
+      * RESTORE THE MYTHOS RECKONING DECISION
+      * ----------------------------------------------------------
+      *
+      * defeatInvestigator() needs to see the original
+      * Mythos Monster Reckoning decision.
+      *
+      * The Monster that caused the combat is immediately marked
+      * as resolved so that it is never resolved again.
+      */
 
       const resolvedMonsterIds = [
         ...resume.resolvedMonsterIds,
-        resume.monsterId,
+        ...(resume.resolvedMonsterIds.includes(
+          resume.monsterId,
+        )
+          ? []
+          : [resume.monsterId]),
       ];
+
+      const reckoningGame: GameState = {
+        ...finishedGame,
+
+        pendingDecision: {
+          type:
+            "mythos-reckoning-monsters",
+
+          title:
+            "MONSTER RECKONING",
+
+          message:
+            "Resolve the Reckoning ability of the next Monster.",
+
+          monsterIds:
+            resume.monsterIds,
+
+          resolvedMonsterIds,
+
+          source:
+            "mythos:reckoning-monsters",
+
+          nextIconIndex:
+            resume.nextIconIndex,
+
+          ...(resume.remainingPasses !== undefined
+            ? {
+                remainingPasses:
+                  resume.remainingPasses,
+              }
+            : {}),
+        },
+
+        activeInvestigatorId:
+          null,
+      };
+
+      /*
+      * ----------------------------------------------------------
+      * APPLY NORMAL DEFEAT RULES
+      * ----------------------------------------------------------
+      *
+      * This applies:
+      *
+      * - Doom +1
+      * - move to nearest City
+      * - discard Conditions
+      * - mark Investigator defeated
+      * - add pending replacement
+      * - if Lead: request new Lead immediately
+      */
+
+      const gameAfterDefeat =
+        defeatInvestigator(
+          reckoningGame,
+          map,
+          defeatedInvestigatorId,
+          resume.monsterId,
+        );
+
+      /*
+      * ----------------------------------------------------------
+      * GAME DEFEAT
+      * ----------------------------------------------------------
+      */
+
+      if (
+        gameAfterDefeat.status ===
+        "defeat"
+      ) {
+        return {
+          game:
+            gameAfterDefeat,
+
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+
+      /*
+      * ----------------------------------------------------------
+      * LEAD DEFEATED
+      * ----------------------------------------------------------
+      *
+      * defeatInvestigator() already created:
+      *
+      * select-investigator
+      *
+      * with the interrupted Monster Reckoning stored in:
+      *
+      * decision.resume.pendingDecision
+      *
+      * App.tsx will restore that decision after the new Lead
+      * is selected.
+      */
+
+      if (
+        gameAfterDefeat.pendingDecision?.type ===
+          "select-investigator" &&
+        gameAfterDefeat.pendingDecision.source ===
+          "defeat:lead"
+      ) {
+        return {
+          game:
+            gameAfterDefeat,
+
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+
+      /*
+      * ----------------------------------------------------------
+      * FIND NEXT MONSTER
+      * ----------------------------------------------------------
+      */
 
       const nextMonsterId =
         resume.monsterIds.find(
@@ -1243,17 +1521,80 @@ export function resolveGameFlowContinue(
             !resolvedMonsterIds.includes(id),
         );
 
+      /*
+      * ----------------------------------------------------------
+      * ALL MONSTERS RESOLVED
+      * ----------------------------------------------------------
+      */
+
       if (!nextMonsterId) {
-        return {
-          game: {
+        const gameWithoutDecision:
+          GameState = {
             ...gameAfterDefeat,
-            pendingDecision: null,
-            activeInvestigatorId: null,
-          },
+
+            pendingDecision:
+              null,
+
+            activeInvestigatorId:
+              null,
+          };
+
+        const remainingPasses =
+          resume.remainingPasses ?? 1;
+
+        /*
+        * More Monster Reckoning passes remain.
+        */
+
+        if (
+          remainingPasses > 1
+        ) {
+          const nextGame =
+            startMonsterReckoning(
+              gameWithoutDecision,
+              map,
+              resume.nextIconIndex,
+              remainingPasses - 1,
+            );
+
+          return {
+            game:
+              nextGame,
+
+            resetEncounterStartedForTurn:
+              false,
+          };
+        }
+
+        /*
+        * Monster Reckoning is completely finished.
+        * Continue with Ancient One Reckoning.
+        */
+
+        const nextGame =
+          startAncientOneReckoning(
+            gameWithoutDecision,
+            map,
+            resume.nextIconIndex,
+          );
+
+        return {
+          game:
+            nextGame,
+
           resetEncounterStartedForTurn:
             false,
         };
       }
+
+      /*
+      * ----------------------------------------------------------
+      * CONTINUE WITH NEXT MONSTER
+      * ----------------------------------------------------------
+      *
+      * The defeated Investigator was not the Lead, so there is
+      * no Lead-selection interruption.
+      */
 
       const gameWithReckoningDecision:
         GameState = {
@@ -1262,17 +1603,30 @@ export function resolveGameFlowContinue(
           pendingDecision: {
             type:
               "mythos-reckoning-monsters",
+
             title:
               "MONSTER RECKONING",
+
             message:
               "Resolve the Reckoning ability of the next Monster.",
+
             monsterIds:
               resume.monsterIds,
+
             resolvedMonsterIds,
+
             source:
               "mythos:reckoning-monsters",
+
             nextIconIndex:
               resume.nextIconIndex,
+
+            ...(resume.remainingPasses !== undefined
+              ? {
+                  remainingPasses:
+                    resume.remainingPasses,
+                }
+              : {}),
           },
 
           activeInvestigatorId:
@@ -1287,7 +1641,9 @@ export function resolveGameFlowContinue(
         );
 
       return {
-        game: nextGame,
+        game:
+          nextGame,
+
         resetEncounterStartedForTurn:
           false,
       };
@@ -2088,44 +2444,22 @@ export function resolveGameFlowContinue(
 
     /*
     * ==========================================================
-    * SHUB-NIGGURATH RECKONING COMBAT
-    * ==========================================================
-    */
-
-    if (
-      decision.resume?.type ===
-      "shub-niggurath-reckoning"
-    ) {
-      const resume =
-        decision.resume;
-
-      const nextGame =
-        resolveShubNiggurathReckoning(
-          finishedGame,
-          map,
-          resume.investigatorIds,
-          resume.nextInvestigatorIndex + 1,
-          resume.nextIconIndex,
-          monsterId,
-          resume.ancientOneAbilityIndex,
-          resume.ancientOneId,
-          resume.ancientOneReckoningStage,
-        );
-
-      return {
-        game: nextGame,
-        resetEncounterStartedForTurn:
-          false,
-      };
-    }
-
-    /*
-    * ==========================================================
     * NORMAL MONSTER RECKONING COMBAT
     * ==========================================================
     *
-    * The Monster was defeated during a Monster Reckoning
-    * combat. Continue with the next Monster in the snapshot.
+    * The Investigator was defeated during a Monster Reckoning
+    * combat.
+    *
+    * The Monster that caused the combat is considered resolved
+    * and must NOT be resolved again.
+    *
+    * The normal defeat rules are applied through
+    * defeatInvestigator().
+    *
+    * If the defeated Investigator was the Lead, the Lead selection
+    * interrupts the Reckoning. The interrupted Reckoning is stored
+    * inside the Lead selection decision and restored by App.tsx
+    * after the new Lead is chosen.
     */
 
     if (
@@ -2135,10 +2469,146 @@ export function resolveGameFlowContinue(
       const resume =
         decision.resume;
 
+      const defeatedInvestigatorId =
+        decision.source.split(":")[1];
+
+      if (!defeatedInvestigatorId) {
+        throw new Error(
+          "Investigator defeat decision is missing investigatorId.",
+        );
+      }
+
+      /*
+      * ----------------------------------------------------------
+      * RESTORE THE MYTHOS RECKONING DECISION
+      * ----------------------------------------------------------
+      *
+      * defeatInvestigator() needs to see the original
+      * Mythos Monster Reckoning decision so that, when the
+      * Lead is defeated, it can preserve that decision inside
+      * select-investigator.resume.pendingDecision.
+      *
+      * The Monster that caused the combat is immediately marked
+      * as resolved here.
+      */
+
       const resolvedMonsterIds = [
         ...resume.resolvedMonsterIds,
-        resume.monsterId,
+        ...(resume.resolvedMonsterIds.includes(
+          resume.monsterId,
+        )
+          ? []
+          : [resume.monsterId]),
       ];
+
+      const reckoningGame: GameState = {
+        ...game,
+
+        pendingDecision: {
+          type:
+            "mythos-reckoning-monsters",
+
+          title:
+            "MONSTER RECKONING",
+
+          message:
+            "Resolve the Reckoning ability of the next Monster.",
+
+          monsterIds:
+            resume.monsterIds,
+
+          resolvedMonsterIds,
+
+          source:
+            "mythos:reckoning-monsters",
+
+          nextIconIndex:
+            resume.nextIconIndex,
+
+          ...(resume.remainingPasses !== undefined
+            ? {
+                remainingPasses:
+                  resume.remainingPasses,
+              }
+            : {}),
+        },
+      };
+
+      /*
+      * ----------------------------------------------------------
+      * APPLY NORMAL DEFEAT RULES
+      * ----------------------------------------------------------
+      *
+      * This applies:
+      *
+      * - Doom +1
+      * - move to nearest City
+      * - discard Conditions
+      * - mark Investigator defeated
+      * - add pending replacement
+      * - if Lead: request new Lead immediately
+      */
+
+      const gameAfterDefeat =
+        defeatInvestigator(
+          reckoningGame,
+          map,
+          defeatedInvestigatorId,
+          resume.monsterId,
+        );
+
+      /*
+      * ----------------------------------------------------------
+      * GAME DEFEAT
+      * ----------------------------------------------------------
+      */
+
+      if (
+        gameAfterDefeat.status ===
+        "defeat"
+      ) {
+        return {
+          game: gameAfterDefeat,
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+
+      /*
+      * ----------------------------------------------------------
+      * LEAD DEFEATED
+      * ----------------------------------------------------------
+      *
+      * defeatInvestigator() already created:
+      *
+      * select-investigator
+      *
+      * with the interrupted Monster Reckoning stored in:
+      *
+      * decision.resume.pendingDecision
+      *
+      * App.tsx will restore that decision after the new Lead
+      * is selected.
+      */
+
+      if (
+        gameAfterDefeat.pendingDecision?.type ===
+          "select-investigator" &&
+        gameAfterDefeat.pendingDecision.source ===
+          "defeat:lead"
+      ) {
+        return {
+          game: gameAfterDefeat,
+          resetEncounterStartedForTurn:
+            false,
+        };
+      }
+
+      /*
+      * ----------------------------------------------------------
+      * FIND NEXT MONSTER
+      * ----------------------------------------------------------
+      */
 
       const nextMonsterId =
         resume.monsterIds.find(
@@ -2147,44 +2617,79 @@ export function resolveGameFlowContinue(
         );
 
       /*
-       * --------------------------------------------------------
-       * ALL MONSTERS RESOLVED
-       * --------------------------------------------------------
-       */
+      * ----------------------------------------------------------
+      * ALL MONSTERS RESOLVED
+      * ----------------------------------------------------------
+      */
 
       if (!nextMonsterId) {
+        const gameWithoutDecision:
+          GameState = {
+            ...gameAfterDefeat,
+
+            pendingDecision:
+              null,
+
+            activeInvestigatorId:
+              null,
+          };
+
+        const remainingPasses =
+          resume.remainingPasses ?? 1;
+
+        /*
+        * More Monster Reckoning passes remain.
+        */
+
+        if (
+          remainingPasses > 1
+        ) {
+          const nextGame =
+            startMonsterReckoning(
+              gameWithoutDecision,
+              map,
+              resume.nextIconIndex,
+              remainingPasses - 1,
+            );
+
+          return {
+            game: nextGame,
+            resetEncounterStartedForTurn:
+              false,
+          };
+        }
+
+        /*
+        * Monster Reckoning is completely finished.
+        * Continue with Ancient One Reckoning.
+        */
+
         const nextGame =
           startAncientOneReckoning(
-            {
-              ...finishedGame,
-
-              pendingDecision:
-                null,
-
-              activeInvestigatorId:
-                null,
-            },
+            gameWithoutDecision,
             map,
             resume.nextIconIndex,
           );
 
         return {
           game: nextGame,
-
           resetEncounterStartedForTurn:
             false,
         };
       }
 
       /*
-       * --------------------------------------------------------
-       * CONTINUE WITH NEXT MONSTER
-       * --------------------------------------------------------
-       */
+      * ----------------------------------------------------------
+      * CONTINUE WITH NEXT MONSTER
+      * ----------------------------------------------------------
+      *
+      * The defeated Investigator was not the Lead, so there is
+      * no Lead-selection interruption.
+      */
 
       const gameWithReckoningDecision:
         GameState = {
-          ...finishedGame,
+          ...gameAfterDefeat,
 
           pendingDecision: {
             type:
@@ -2206,6 +2711,13 @@ export function resolveGameFlowContinue(
 
             nextIconIndex:
               resume.nextIconIndex,
+
+            ...(resume.remainingPasses !== undefined
+              ? {
+                  remainingPasses:
+                    resume.remainingPasses,
+                }
+              : {}),
           },
 
           activeInvestigatorId:
@@ -2221,97 +2733,9 @@ export function resolveGameFlowContinue(
 
       return {
         game: nextGame,
-
         resetEncounterStartedForTurn:
           false,
       };
-    }
-
-    /*
-    * ==========================================================
-    * RETURN OF THE ANCIENT ONES
-    * ==========================================================
-    *
-    * If the Investigator defeated a Monster on Space 19,
-    * he may spend 1 Clue to place that Monster on the Rumor.
-    */
-
-    if (
-      decision.resume === undefined
-    ) {
-      const investigatorId =
-        finishedGame.activeInvestigatorId;
-
-      const investigator =
-        investigatorId
-          ? finishedGame.investigators[
-              investigatorId
-            ]
-          : undefined;
-
-      const returnOfAncientOnes =
-        finishedGame.board.mythosInPlay.some(
-          (entry) =>
-            entry.definitionId ===
-            "return-of-the-ancient-ones",
-        );
-
-      if (
-        investigator &&
-        investigator.spaceId ===
-          "space-19" &&
-        investigator.clues > 0 &&
-        returnOfAncientOnes
-      ) {
-        return {
-          game: {
-            ...finishedGame,
-
-            pendingDecision: {
-              type: "choice",
-
-              title:
-                "Return of the Ancient Ones",
-
-              message:
-                "You may spend 1 Clue to place the defeated Monster on this Rumor.",
-
-              options: [
-                {
-                  id:
-                    "return-of-the-ancient-ones:place",
-
-                  title:
-                    "Spend 1 Clue",
-
-                  description:
-                    "Spend 1 Clue and place the defeated Monster on Return of the Ancient Ones.",
-                },
-
-                {
-                  id:
-                    "return-of-the-ancient-ones:decline",
-
-                  title:
-                    "Do Not Spend",
-
-                  description:
-                    "Do not place the defeated Monster on the Rumor.",
-                },
-              ],
-
-              source:
-                `mythos:return-of-the-ancient-ones:monster-defeated:${monsterId}`,
-
-              image:
-                "/cards/Mythos/Mythos/Medium - Return of the Ancient Ones.jpg",
-            },
-          },
-
-          resetEncounterStartedForTurn:
-            false,
-        };
-      }
     }
 
     /*

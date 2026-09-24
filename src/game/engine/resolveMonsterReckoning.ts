@@ -185,7 +185,20 @@ export function resolveMonsterReckoning(
             updatedGame,
             map,
             investigator.id,
+            monsterId,
           );
+        
+        if (
+          updatedGame.status === "defeat" ||
+          (
+            updatedGame.pendingDecision?.type ===
+              "select-investigator" &&
+            updatedGame.pendingDecision.source ===
+              "defeat:lead"
+          )
+        ) {
+          return updatedGame;
+        }
       }
     }
   }
@@ -440,7 +453,20 @@ export function resolveMonsterReckoning(
             updatedGame,
             map,
             investigator.id,
+            monsterId,
           );
+
+        if (
+          updatedGame.status === "defeat" ||
+          (
+            updatedGame.pendingDecision?.type ===
+              "select-investigator" &&
+            updatedGame.pendingDecision.source ===
+              "defeat:lead"
+          )
+        ) {
+          return updatedGame;
+        }
       }
     }
   }
@@ -555,7 +581,20 @@ export function resolveMonsterReckoning(
             updatedGame,
             map,
             investigator.id,
+            monsterId,
           );
+
+        if (
+          updatedGame.status === "defeat" ||
+          (
+            updatedGame.pendingDecision?.type ===
+              "select-investigator" &&
+            updatedGame.pendingDecision.source ===
+              "defeat:lead"
+          )
+        ) {
+          return updatedGame;
+        }
       }
     }
   }
@@ -778,7 +817,20 @@ export function resolveMonsterReckoning(
             updatedGame,
             map,
             investigator.id,
+            monsterId,
           );
+
+        if (
+          updatedGame.status === "defeat" ||
+          (
+            updatedGame.pendingDecision?.type ===
+              "select-investigator" &&
+            updatedGame.pendingDecision.source ===
+              "defeat:lead"
+          )
+        ) {
+          return updatedGame;
+        }
       }
     }
   }

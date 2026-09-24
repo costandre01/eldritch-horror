@@ -9,6 +9,7 @@ export function defeatInvestigator(
   game: GameState,
   map: MapDefinition,
   investigatorId: string,
+  resumeMonsterId?: string,
 ): GameState {
   const investigator =
     game.investigators[investigatorId];
@@ -18,6 +19,26 @@ export function defeatInvestigator(
       `Investigator "${investigatorId}" does not exist.`,
     );
   }
+
+  const resumePendingDecision =
+    game.pendingDecision?.type ===
+      "mythos-reckoning-monsters" &&
+    resumeMonsterId
+      ? {
+          ...game.pendingDecision,
+
+          resolvedMonsterIds:
+            game.pendingDecision.resolvedMonsterIds.includes(
+              resumeMonsterId,
+            )
+              ? game.pendingDecision.resolvedMonsterIds
+              : [
+                  ...game.pendingDecision
+                    .resolvedMonsterIds,
+                  resumeMonsterId,
+                ],
+        }
+      : undefined;
 
   /*
    * Already defeated.
@@ -213,6 +234,9 @@ export function defeatInvestigator(
             "mythos"
               ? "mythos"
               : "action",
+
+          pendingDecision:
+            resumePendingDecision,
         },
       },
     };

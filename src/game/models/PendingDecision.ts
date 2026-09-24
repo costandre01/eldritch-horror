@@ -251,6 +251,8 @@ export type PendingDecision =
             phase:
               | "action"
               | "mythos";
+
+            pendingDecision?: PendingDecision;
           };
     }
 
