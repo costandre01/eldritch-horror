@@ -12,6 +12,7 @@ import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { startMonsterReckoning } from "./startMonsterReckoning";
 import { spawnMonsterAtSpace } from "./spawnMonster";
 import { spawnMythosGates } from "./spawnMythosGates";
+import { defeatInvestigator } from "./defeatInvestigator";
 
 function getMonsterDefinition(
   definitionId: string,
@@ -26,32 +27,6 @@ function getMonsterDefinition(
         definition.id === definitionId,
     )
   );
-}
-
-function queueDefeatedInvestigators(
-  game: GameState,
-  investigatorIds: string[],
-): GameState {
-  const newIds =
-    investigatorIds.filter(
-      (investigatorId) =>
-        !game.pendingInvestigatorReplacements.includes(
-          investigatorId,
-        ),
-    );
-
-  if (newIds.length === 0) {
-    return game;
-  }
-
-  return {
-    ...game,
-
-    pendingInvestigatorReplacements: [
-      ...game.pendingInvestigatorReplacements,
-      ...newIds,
-    ],
-  };
 }
 
 export function resolveMonsterReckoning(
@@ -168,58 +143,51 @@ export function resolveMonsterReckoning(
         updatedGame.investigators,
       );
 
-    const updatedInvestigators = {
-      ...updatedGame.investigators,
-    };
-
-    const defeatedInvestigatorIds: string[] = [];
-
     for (const investigator of investigators) {
       if (
-        !investigator.isDefeated &&
-        investigator.spaceId ===
+        investigator.isDefeated ||
+        investigator.spaceId !==
           monster.spaceId
       ) {
-        const newSanity = Math.max(
-          0,
-          investigator.sanity -
-            loseSanityAbility.amount,
-        );
+        continue;
+      }
 
-        const isDefeated =
-          investigator.health <= 0 ||
-          newSanity <= 0;
+      const newSanity = Math.max(
+        0,
+        investigator.sanity -
+          loseSanityAbility.amount,
+      );
 
-        updatedInvestigators[
+      updatedGame = {
+        ...updatedGame,
+
+        investigators: {
+          ...updatedGame.investigators,
+
+          [investigator.id]: {
+            ...updatedGame.investigators[
+              investigator.id
+            ],
+
+            sanity: newSanity,
+          },
+        },
+      };
+
+      if (
+        newSanity <= 0 ||
+        updatedGame.investigators[
           investigator.id
-        ] = {
-          ...investigator,
-
-          sanity: newSanity,
-
-          isDefeated,
-        };
-
-        if (isDefeated) {
-          defeatedInvestigatorIds.push(
+        ].health <= 0
+      ) {
+        updatedGame =
+          defeatInvestigator(
+            updatedGame,
+            map,
             investigator.id,
           );
-        }
       }
     }
-
-    updatedGame = {
-      ...updatedGame,
-
-      investigators:
-        updatedInvestigators,
-    };
-
-    updatedGame =
-      queueDefeatedInvestigators(
-        updatedGame,
-        defeatedInvestigatorIds,
-      );
   }
 
     /*
@@ -430,58 +398,51 @@ export function resolveMonsterReckoning(
         updatedGame.investigators,
       );
 
-    const updatedInvestigators = {
-      ...updatedGame.investigators,
-    };
-
-    const defeatedInvestigatorIds: string[] = [];
-
     for (const investigator of investigators) {
       if (
-        !investigator.isDefeated &&
-        investigator.spaceId ===
+        investigator.isDefeated ||
+        investigator.spaceId !==
           monster.spaceId
       ) {
-        const newHealth = Math.max(
-          0,
-          investigator.health -
-            loseHealthAbility.amount,
-        );
+        continue;
+      }
 
-        const isDefeated =
-          newHealth <= 0 ||
-          investigator.sanity <= 0;
+      const newHealth = Math.max(
+        0,
+        investigator.health -
+          loseHealthAbility.amount,
+      );
 
-        updatedInvestigators[
+      updatedGame = {
+        ...updatedGame,
+
+        investigators: {
+          ...updatedGame.investigators,
+
+          [investigator.id]: {
+            ...updatedGame.investigators[
+              investigator.id
+            ],
+
+            health: newHealth,
+          },
+        },
+      };
+
+      if (
+        newHealth <= 0 ||
+        updatedGame.investigators[
           investigator.id
-        ] = {
-          ...investigator,
-
-          health: newHealth,
-
-          isDefeated,
-        };
-
-        if (isDefeated) {
-          defeatedInvestigatorIds.push(
+        ].sanity <= 0
+      ) {
+        updatedGame =
+          defeatInvestigator(
+            updatedGame,
+            map,
             investigator.id,
           );
-        }
       }
     }
-
-    updatedGame = {
-      ...updatedGame,
-
-      investigators:
-        updatedInvestigators,
-    };
-
-    updatedGame =
-      queueDefeatedInvestigators(
-        updatedGame,
-        defeatedInvestigatorIds,
-      );
   }
   /*
   * ============================================================
@@ -500,15 +461,12 @@ export function resolveMonsterReckoning(
     adjacentLoseHealthAndSanityAbility?.type ===
     "adjacent-investigators-lose-health-and-sanity"
   ) {
-    const updatedInvestigators = {
-      ...updatedGame.investigators,
-    };
+    const investigators =
+      Object.values(
+        updatedGame.investigators,
+      );
 
-    const defeatedInvestigatorIds: string[] = [];
-
-    for (const investigator of Object.values(
-      updatedGame.investigators,
-    )) {
+    for (const investigator of investigators) {
       if (
         investigator.isDefeated ||
         investigator.spaceId === null
@@ -519,13 +477,15 @@ export function resolveMonsterReckoning(
       const investigatorSpace =
         map.spaces.find(
           (space) =>
-            space.id === investigator.spaceId,
+            space.id ===
+            investigator.spaceId,
         );
 
       const monsterSpace =
         map.spaces.find(
           (space) =>
-            space.id === monster.spaceId,
+            space.id ===
+            monster.spaceId,
         );
 
       if (
@@ -559,49 +519,45 @@ export function resolveMonsterReckoning(
 
       const newHealth = Math.max(
         0,
-        investigator.health - healthLoss,
+        investigator.health -
+          healthLoss,
       );
 
       const newSanity = Math.max(
         0,
-        investigator.sanity - sanityLoss,
+        investigator.sanity -
+          sanityLoss,
       );
 
-      const isDefeated =
-        newHealth <= 0 ||
-        newSanity <= 0;
+      updatedGame = {
+        ...updatedGame,
 
-      updatedInvestigators[
-        investigator.id
-      ] = {
-        ...investigator,
+        investigators: {
+          ...updatedGame.investigators,
 
-        health: newHealth,
+          [investigator.id]: {
+            ...updatedGame.investigators[
+              investigator.id
+            ],
 
-        sanity: newSanity,
-
-        isDefeated,
+            health: newHealth,
+            sanity: newSanity,
+          },
+        },
       };
 
-      if (isDefeated) {
-        defeatedInvestigatorIds.push(
-          investigator.id,
-        );
+      if (
+        newHealth <= 0 ||
+        newSanity <= 0
+      ) {
+        updatedGame =
+          defeatInvestigator(
+            updatedGame,
+            map,
+            investigator.id,
+          );
       }
     }
-
-    updatedGame = {
-      ...updatedGame,
-
-      investigators:
-        updatedInvestigators,
-    };
-
-    updatedGame =
-      queueDefeatedInvestigators(
-        updatedGame,
-        defeatedInvestigatorIds,
-      );
   }
 
   /*
@@ -774,15 +730,12 @@ export function resolveMonsterReckoning(
     cursedInvestigatorsLoseHealthAbility?.type ===
     "cursed-investigators-lose-health"
   ) {
-    const updatedInvestigators = {
-      ...updatedGame.investigators,
-    };
+    const investigators =
+      Object.values(
+        updatedGame.investigators,
+      );
 
-    const defeatedInvestigatorIds: string[] = [];
-
-    for (const investigator of Object.values(
-      updatedGame.investigators,
-    )) {
+    for (const investigator of investigators) {
       if (
         investigator.isDefeated ||
         !investigator.conditionIds.includes(
@@ -798,39 +751,36 @@ export function resolveMonsterReckoning(
           cursedInvestigatorsLoseHealthAbility.amount,
       );
 
-      const isDefeated =
-        newHealth <= 0 ||
-        investigator.sanity <= 0;
+      updatedGame = {
+        ...updatedGame,
 
-      updatedInvestigators[
-        investigator.id
-      ] = {
-        ...investigator,
+        investigators: {
+          ...updatedGame.investigators,
 
-        health: newHealth,
+          [investigator.id]: {
+            ...updatedGame.investigators[
+              investigator.id
+            ],
 
-        isDefeated,
+            health: newHealth,
+          },
+        },
       };
 
-      if (isDefeated) {
-        defeatedInvestigatorIds.push(
-          investigator.id,
-        );
+      if (
+        newHealth <= 0 ||
+        updatedGame.investigators[
+          investigator.id
+        ].sanity <= 0
+      ) {
+        updatedGame =
+          defeatInvestigator(
+            updatedGame,
+            map,
+            investigator.id,
+          );
       }
     }
-
-    updatedGame = {
-      ...updatedGame,
-
-      investigators:
-        updatedInvestigators,
-    };
-
-    updatedGame =
-      queueDefeatedInvestigators(
-        updatedGame,
-        defeatedInvestigatorIds,
-      );
   }
 
   /*

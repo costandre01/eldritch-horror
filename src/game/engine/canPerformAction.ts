@@ -5,6 +5,10 @@ export function canPerformAction(
   investigator: Investigator,
   action: InvestigatorAction,
 ): boolean {
+  if (investigator.isDelayed) {
+    return false;
+  }
+
   if (investigator.actionsPerformed.length >= 2) {
     return false;
   }

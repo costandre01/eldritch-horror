@@ -1,4 +1,5 @@
 import type { GameState } from "../models/GameState";
+import type { MapDefinition } from "../models/MapDefinition";
 
 import type { ConditionTrigger } from "./ConditionTrigger";
 
@@ -22,6 +23,7 @@ export function resolveConditionTrigger(
   game: GameState,
   investigatorId: string,
   trigger: ConditionTrigger,
+  map: MapDefinition,
 ): ResolveConditionTriggerResult {
   let currentGame = game;
 
@@ -101,6 +103,7 @@ export function resolveConditionTrigger(
         investigatorId,
         triggerResult.conditionId,
         effect,
+        map,
       );
 
     currentGame =

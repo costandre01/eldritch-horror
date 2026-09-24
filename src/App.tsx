@@ -827,7 +827,7 @@ function App() {
 
     try {
       const updatedGame =
-        restInvestigator(game);
+        restInvestigator(game, eldritchBaseMap);
 
       setGame(updatedGame);
     } catch (error) {
@@ -1365,6 +1365,44 @@ function App() {
           );
 
         setGame(updatedGame);
+
+        return;
+      }
+
+      /*
+       * ========================================================
+       * LEAD INVESTIGATOR DEFEATED
+       * ========================================================
+       *
+       * The Lead Investigator was defeated during
+       * the current phase.
+       *
+       * A new Lead is selected immediately.
+       * The current phase is NOT restarted.
+       */
+
+      if (
+        decision.source ===
+        "defeat:lead"
+      ) {
+        const updatedGame =
+          setLeadInvestigator(
+            game,
+            investigatorId,
+          );
+
+        setGame({
+          ...updatedGame,
+
+          /*
+           * The defeated Investigator's current
+           * action / resolution has already ended.
+           *
+           * We do not start a new round here.
+           */
+          activeInvestigatorId:
+            null,
+        });
 
         return;
       }
@@ -2086,9 +2124,16 @@ function App() {
       standardTestResult.type ===
       "acquire-assets"
     ) {
-      setGame(
-        standardTestResult.game,
-      );
+      const resultGame =
+        standardTestResult.game;
+
+      const investigatorId =
+        testDecision.investigatorId;
+
+      const investigator =
+        resultGame.investigators[
+          investigatorId
+        ];
 
       setDiceTest(null);
 
@@ -2096,6 +2141,21 @@ function App() {
 
       pendingTestDecisionRef.current =
         null;
+
+      if (
+        resultGame.phase === "action" &&
+        investigator?.isDelayed
+      ) {
+        setGame(
+          endInvestigatorActions(
+            resultGame,
+          ),
+        );
+
+        return;
+      }
+
+      setGame(resultGame);
 
       setSelectedAssetIds([]);
 

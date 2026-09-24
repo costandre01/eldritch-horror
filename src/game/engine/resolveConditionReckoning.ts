@@ -220,6 +220,7 @@ export function resolveConditionReckoning(
       investigatorId,
       conditionId,
       reckoningEffect,
+      _map,
       decision.treatDiceAsOne ?? false,
     );
 

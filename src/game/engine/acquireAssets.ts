@@ -156,6 +156,12 @@ export function acquireAssets(
       investigatorId,
 
       "influence",
+
+      0,
+
+      1,
+
+      map,
     );
 
   /*

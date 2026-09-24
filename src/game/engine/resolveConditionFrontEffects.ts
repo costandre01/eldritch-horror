@@ -8,6 +8,8 @@ import type {
   ConditionFrontEffect,
   ConditionFrontTriggeredEffect,
 } from "../models/ConditionDefinition/frontEffects";
+import { defeatInvestigator } from "./defeatInvestigator";
+import type { MapDefinition } from "../models/MapDefinition";
 
 export interface ResolveConditionFrontEffectsResult {
   game: GameState;
@@ -19,6 +21,7 @@ export function resolveConditionFrontEffects(
   investigatorId: string,
   conditionId: string,
   effect: ConditionFrontEffect,
+  map: MapDefinition,
   treatDiceAsOne = false,
 ): ResolveConditionFrontEffectsResult {
   const investigator =
@@ -122,6 +125,7 @@ export function resolveConditionFrontEffects(
             investigatorId,
             conditionId,
             effect.effects,
+            map,
           );
 
         currentGame =
@@ -156,6 +160,7 @@ export function resolveConditionFrontEffects(
                 conditionId,
                 effect.otherwise
                   .onFail,
+                map,
               );
 
             currentGame =
@@ -223,6 +228,7 @@ export function resolveConditionFrontEffects(
             investigatorId,
             conditionId,
             effect.effects,
+            map,
           );
 
         currentGame =
@@ -249,6 +255,7 @@ export function resolveConditionFrontEffects(
           investigatorId,
           conditionId,
           effect.effects,
+          map,
         );
 
       currentGame =
@@ -274,6 +281,7 @@ export function resolveConditionFrontEffects(
           investigatorId,
           conditionId,
           effect.effects,
+          map,
         );
 
       currentGame =
@@ -299,6 +307,7 @@ export function resolveConditionFrontEffects(
           investigatorId,
           conditionId,
           effect.effects,
+          map,
         );
 
       currentGame =
@@ -324,6 +333,7 @@ export function resolveConditionFrontEffects(
           investigatorId,
           conditionId,
           effect.effects,
+          map,
         );
 
       currentGame =
@@ -373,6 +383,7 @@ export function resolveConditionFrontEffects(
             investigatorId,
             conditionId,
             effect.effects,
+            map,
           );
 
         currentGame =
@@ -439,6 +450,7 @@ export function resolveConditionFrontEffects(
               investigatorId,
               conditionId,
               effect.onFail ?? [],
+              map,
             );
 
           currentGame =
@@ -465,6 +477,7 @@ export function resolveConditionFrontEffects(
             investigatorId,
             conditionId,
             effect.effects ?? [],
+            map,
           );
 
         currentGame =
@@ -515,6 +528,7 @@ export function resolveConditionFrontEffects(
             investigatorId,
             conditionId,
             effect.effects ?? [],
+            map,
           );
 
         currentGame =
@@ -575,6 +589,7 @@ export function resolveConditionFrontEffects(
               investigatorId,
               conditionId,
               effect.onFail ?? [],
+              map,
             );
 
           currentGame =
@@ -606,6 +621,7 @@ export function resolveConditionFrontEffects(
               investigatorId,
               conditionId,
               effect.effects ?? [],
+              map,
             );
 
           currentGame =
@@ -621,6 +637,7 @@ export function resolveConditionFrontEffects(
               investigatorId,
               conditionId,
               effect.onFail ?? [],
+              map,
             );
 
           currentGame =
@@ -678,6 +695,7 @@ export function resolveConditionFrontEffects(
               investigatorId,
               conditionId,
               effect.effects ?? [],
+              map,
             );
 
           currentGame =
@@ -703,6 +721,7 @@ export function resolveConditionFrontEffects(
           investigatorId,
           conditionId,
           effect.effects ?? [],
+          map,
         );
 
       currentGame =
@@ -764,6 +783,7 @@ function applyTriggeredEffects(
   investigatorId: string,
   conditionId: string,
   effects: ConditionFrontTriggeredEffect[],
+  map: MapDefinition,
 ): {
   game: GameState;
   shouldDiscard: boolean;
@@ -803,6 +823,18 @@ function applyTriggeredEffects(
             investigatorId
           ];
 
+        if (!investigator) {
+          throw new Error(
+            `Investigator "${investigatorId}" does not exist.`,
+          );
+        }
+
+        const newHealth = Math.max(
+          0,
+          investigator.health -
+            effect.amount,
+        );
+
         currentGame = {
           ...currentGame,
 
@@ -812,14 +844,28 @@ function applyTriggeredEffects(
             [investigatorId]: {
               ...investigator,
 
-              health: Math.max(
-                0,
-                investigator.health -
-                  effect.amount,
-              ),
+              health: newHealth,
             },
           },
         };
+
+        if (
+          newHealth <= 0 ||
+          investigator.sanity <= 0
+        ) {
+          if (!map) {
+            throw new Error(
+              "MapDefinition is required to defeat an investigator.",
+            );
+          }
+
+          currentGame =
+            defeatInvestigator(
+              currentGame,
+              map,
+              investigatorId,
+            );
+        }
 
         break;
       }
@@ -836,6 +882,18 @@ function applyTriggeredEffects(
             investigatorId
           ];
 
+        if (!investigator) {
+          throw new Error(
+            `Investigator "${investigatorId}" does not exist.`,
+          );
+        }
+
+        const newSanity = Math.max(
+          0,
+          investigator.sanity -
+            effect.amount,
+        );
+
         currentGame = {
           ...currentGame,
 
@@ -845,14 +903,28 @@ function applyTriggeredEffects(
             [investigatorId]: {
               ...investigator,
 
-              sanity: Math.max(
-                0,
-                investigator.sanity -
-                  effect.amount,
-              ),
+              sanity: newSanity,
             },
           },
         };
+
+        if (
+          newSanity <= 0 ||
+          investigator.health <= 0
+        ) {
+          if (!map) {
+            throw new Error(
+              "MapDefinition is required to defeat an investigator.",
+            );
+          }
+
+          currentGame =
+            defeatInvestigator(
+              currentGame,
+              map,
+              investigatorId,
+            );
+        }
 
         break;
       }

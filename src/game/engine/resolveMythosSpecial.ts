@@ -2400,6 +2400,7 @@ export function resolveMythosSpecial(
                   investigatorId,
                   existingDebtId,
                   reckoningEffect,
+                  map,
               );
 
           currentGame =

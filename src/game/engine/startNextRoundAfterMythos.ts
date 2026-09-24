@@ -60,11 +60,38 @@ export function startNextRoundAfterMythos(
     );
 
   /*
-   * Start the new Lead's Action turn.
-   * This resets only that investigator's actions.
-   */
+  * A new round gives every investigator
+  * a fresh set of available actions.
+  */
+  const investigators = Object.fromEntries(
+    Object.entries(
+      gameWithLead.investigators,
+    ).map(
+      ([investigatorId, investigator]) => [
+        investigatorId,
+        {
+          ...investigator,
+          actionsPerformed: [],
+        },
+      ],
+    ),
+  );
 
+  const gameWithResetActions: GameState = {
+    ...gameWithLead,
+
+    investigators,
+  };
+
+  /*
+  * Start the new Lead's Action turn.
+  *
+  * startInvestigatorActions() also clears
+  * the active investigator's actions and
+  * pending decision, so we keep it as the
+  * final step of starting the round.
+  */
   return startInvestigatorActions(
-    gameWithLead,
+    gameWithResetActions,
   );
 }

@@ -27,6 +27,21 @@ export function setLeadInvestigator(
     );
   }
 
+  const investigator =
+    game.investigators[investigatorId];
+
+  if (!investigator) {
+    throw new Error(
+      `Investigator "${investigatorId}" does not exist.`,
+    );
+  }
+
+  if (investigator.isDefeated) {
+    throw new Error(
+      `Investigator "${investigatorId}" is defeated and cannot become Lead.`,
+    );
+  }
+
   const rotatedOrder = [
     ...game.investigatorOrder.slice(
       currentIndex,

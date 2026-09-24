@@ -1,4 +1,5 @@
 import type { GameState } from "../models/GameState";
+import type { MapDefinition } from "../models/MapDefinition";
 import type {
   SpellFrontEffect,
   SpellFrontTriggeredEffect,
@@ -23,6 +24,7 @@ export function resolveSpellFrontEffects(
   investigatorId: string,
   spellId: string,
   effect: SpellFrontEffect,
+  map: MapDefinition,
 ): ResolveSpellFrontEffectsResult {
   const investigator =
     game.investigators[investigatorId];
@@ -106,6 +108,7 @@ export function resolveSpellFrontEffects(
         testType,
         modifier,
         1,
+        map,
       );
 
     currentGame =

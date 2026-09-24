@@ -1,5 +1,6 @@
 import type { GameState } from "../models/GameState";
 import type { Skill } from "../models/Investigator";
+import type { MapDefinition } from "../models/MapDefinition";
 
 import { performTest } from "./performTest";
 
@@ -27,6 +28,7 @@ export interface CastSpellResult {
 
 export function castSpell(
   options: CastSpellOptions,
+  map: MapDefinition,
 ): CastSpellResult {
   const {
     game,
@@ -109,6 +111,7 @@ export function castSpell(
       skill,
       modifier,
       1,
+      map,
     );
 
   /*

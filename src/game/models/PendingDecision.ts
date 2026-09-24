@@ -243,6 +243,15 @@ export type PendingDecision =
       investigatorIds: string[];
 
       source?: string;
+
+      resume?:
+        | {
+            type: "defeat-lead";
+
+            phase:
+              | "action"
+              | "mythos";
+          };
     }
 
   | {

@@ -1,10 +1,13 @@
 import type { GameState } from "../models/GameState";
+import type { MapDefinition } from "../models/MapDefinition";
 
 import { canPerformAction } from "./canPerformAction";
+import { endInvestigatorActions } from "./endInvestigatorActions";
 import { resolveConditionTrigger } from "./resolveConditionTrigger";
 
 export function restInvestigator(
   game: GameState,
+  map: MapDefinition,
 ): GameState {
   const investigatorId =
     game.activeInvestigatorId;
@@ -86,10 +89,22 @@ export function restInvestigator(
       currentGame,
       investigatorId,
       "on-rest",
+      map,
     );
 
   currentGame =
     triggerResult.game;
+
+  if (
+    currentGame.phase === "action" &&
+    currentGame.investigators[
+      investigatorId
+    ]?.isDelayed
+  ) {
+    return endInvestigatorActions(
+      currentGame,
+    );
+  }
 
   /*
    * ============================================================

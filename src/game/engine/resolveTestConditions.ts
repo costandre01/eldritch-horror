@@ -1,4 +1,5 @@
 import type { GameState } from "../models/GameState";
+import type { MapDefinition } from "../models/MapDefinition";
 
 import type { TestResult } from "../models/TestResult";
 
@@ -14,6 +15,7 @@ export function resolveTestConditions(
   game: GameState,
   investigatorId: string,
   test: TestResult,
+  map: MapDefinition,
 ): GameState {
   /*
    * Only failed tests can trigger
@@ -56,6 +58,7 @@ export function resolveTestConditions(
         investigatorId,
         triggerResult.conditionId,
         effect,
+        map,
       );
 
     currentGame =

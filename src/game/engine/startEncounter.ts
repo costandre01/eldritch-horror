@@ -77,6 +77,7 @@ export function startEncounter(
       game,
       investigatorId,
       "on-encounter",
+      map,
     );
 
   /*

@@ -25,6 +25,10 @@ import type {
   ConditionFrontEffect,
 } from "../models/ConditionDefinition/frontEffects";
 
+import type {
+  MapDefinition,
+} from "../models/MapDefinition";
+
 vi.mock(
   "../engine/getConditionTriggers",
   () => ({
@@ -50,6 +54,8 @@ const mockedResolveConditionFrontEffects =
   vi.mocked(
     resolveConditionFrontEffects,
   );
+
+const testMap = {} as MapDefinition;
 
 function createOnRestEffect(
   overrides: Partial<
@@ -112,6 +118,7 @@ describe(
             game,
             "investigator-1",
             "on-rest",
+            testMap,
           );
 
         expect(
@@ -156,6 +163,7 @@ describe(
             game,
             "investigator-1",
             "on-rest",
+            testMap,
           );
 
         expect(
@@ -214,6 +222,7 @@ describe(
             game,
             "investigator-1",
             "on-rest",
+            testMap,
           );
 
         expect(
@@ -227,6 +236,7 @@ describe(
           "investigator-1",
           "condition-1",
           effect,
+          testMap,
         );
 
         expect(
@@ -274,6 +284,7 @@ describe(
             game,
             "investigator-1",
             "on-encounter",
+            testMap,
           );
 
         expect(
@@ -291,6 +302,7 @@ describe(
           "investigator-1",
           "condition-encounter",
           effect,
+          testMap,
         );
       },
     );
@@ -326,6 +338,7 @@ describe(
             game,
             "investigator-1",
             "on-encounter",
+            testMap,
           );
 
         expect(
@@ -366,6 +379,7 @@ describe(
             game,
             "investigator-1",
             "on-rest",
+            testMap,
           );
 
         expect(
@@ -434,6 +448,7 @@ describe(
             game,
             "investigator-1",
             "on-rest",
+            testMap,
           );
 
         expect(
@@ -448,6 +463,7 @@ describe(
           "investigator-1",
           "condition-1",
           effect1,
+          testMap,
         );
 
         expect(
@@ -458,6 +474,7 @@ describe(
           "investigator-1",
           "condition-2",
           effect2,
+          testMap,
         );
 
         expect(
@@ -516,6 +533,7 @@ describe(
             game,
             "investigator-1",
             "on-rest",
+            testMap,
           );
 
         expect(
@@ -539,6 +557,7 @@ describe(
           "investigator-1",
           "condition-automatic",
           automaticEffect,
+          testMap,
         );
       },
     );

@@ -22,6 +22,7 @@ import { normalMythos } from "../../content/core/mythos/normalMythos";
 import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { solveMythosRumor } from "./solveMythosRumor";
 import type { EyesEverywhereResume } from "../models/PendingDecision";
+import { defeatInvestigator } from "./defeatInvestigator";
 
 export function resolveEncounterEffects(
   game: GameState,
@@ -140,9 +141,7 @@ export function resolveEncounterEffects(
 
       case "lose-health": {
         const investigator =
-          currentGame.investigators[
-            investigatorId
-          ];
+          currentGame.investigators[investigatorId];
 
         if (!investigator) {
           throw new Error(
@@ -153,6 +152,11 @@ export function resolveEncounterEffects(
         const amount =
           effect.amount ?? 0;
 
+        const newHealth = Math.max(
+          0,
+          investigator.health - amount,
+        );
+
         currentGame = {
           ...currentGame,
 
@@ -161,21 +165,28 @@ export function resolveEncounterEffects(
 
             [investigatorId]: {
               ...investigator,
-
-              health: Math.max(
-                0,
-                investigator.health -
-                  amount,
-              ),
-
-              isDefeated:
-                investigator.health -
-                  amount <=
-                0 ||
-                investigator.sanity <= 0,
+              health: newHealth,
             },
           },
         };
+
+        /*
+        * Investigator is defeated if Health reaches 0
+        * or if Sanity was already 0.
+        */
+        if (
+          newHealth <= 0 ||
+          investigator.sanity <= 0
+        ) {
+          currentGame =
+            defeatInvestigator(
+              currentGame,
+              map,
+              investigatorId,
+            );
+
+          return currentGame;
+        }
 
         break;
       }
@@ -188,9 +199,7 @@ export function resolveEncounterEffects(
 
       case "lose-sanity": {
         const investigator =
-          currentGame.investigators[
-            investigatorId
-          ];
+          currentGame.investigators[investigatorId];
 
         if (!investigator) {
           throw new Error(
@@ -201,6 +210,11 @@ export function resolveEncounterEffects(
         const amount =
           effect.amount ?? 0;
 
+        const newSanity = Math.max(
+          0,
+          investigator.sanity - amount,
+        );
+
         currentGame = {
           ...currentGame,
 
@@ -209,21 +223,28 @@ export function resolveEncounterEffects(
 
             [investigatorId]: {
               ...investigator,
-
-              sanity: Math.max(
-                0,
-                investigator.sanity -
-                  amount,
-              ),
-
-              isDefeated:
-                investigator.health <= 0 ||
-                investigator.sanity -
-                  amount <=
-                0,
+              sanity: newSanity,
             },
           },
         };
+
+        /*
+        * Investigator is defeated if Sanity reaches 0
+        * or if Health was already 0.
+        */
+        if (
+          investigator.health <= 0 ||
+          newSanity <= 0
+        ) {
+          currentGame =
+            defeatInvestigator(
+              currentGame,
+              map,
+              investigatorId,
+            );
+
+          return currentGame;
+        }
 
         break;
       }
@@ -2737,6 +2758,12 @@ export function resolveEncounterEffects(
           );
         }
 
+        /*
+        * Being devoured immediately defeats the Investigator.
+        *
+        * Set Health and Sanity to 0 first so the final
+        * Investigator state reflects the devoured result.
+        */
         currentGame = {
           ...currentGame,
 
@@ -2749,13 +2776,28 @@ export function resolveEncounterEffects(
               health: 0,
 
               sanity: 0,
-
-              isDefeated: true,
             },
           },
         };
 
-        break;
+        /*
+        * Use the centralized defeat flow.
+        *
+        * This applies:
+        * - Doom +1
+        * - move to nearest City
+        * - discard Conditions
+        * - replacement queue
+        * - immediate Lead replacement if necessary
+        */
+        currentGame =
+          defeatInvestigator(
+            currentGame,
+            map,
+            investigatorId,
+          );
+
+        return currentGame;
       }
 
       /*

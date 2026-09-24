@@ -9,6 +9,7 @@ import { coreMaps } from "../../content/core/maps";
 import { gainCondition } from "./gainCondition";
 import { discardCondition } from "./discardCondition";
 import { advanceDoom } from "./doomEngine";
+import { findNearestCity } from "./findNearestCity";
 
 export function resolveCondition(
   game: GameState,
@@ -578,86 +579,25 @@ export function resolveCondition(
        */
 
       case "move-to-nearest-city": {
-        if (
-          investigator.spaceId ===
-            null
-        ) {
+        if (!investigator.spaceId) {
           break;
         }
 
-        /*
-         * Breadth-first search.
-         */
-
-        const queue: string[] = [
-          investigator.spaceId,
-        ];
-
-        const visited =
-          new Set<string>();
-
-        let nearestCityId:
-          | string
-          | null = null;
-
-        while (
-          queue.length > 0
-        ) {
-          const spaceId =
-            queue.shift()!;
-
-          if (
-            visited.has(spaceId)
-          ) {
-            continue;
-          }
-
-          visited.add(spaceId);
-
-          const space =
-            map.spaces.find(
-              (item) =>
-                item.id === spaceId,
-            );
-
-          if (!space) {
-            continue;
-          }
-
-          if (
-            space.type === "city"
-          ) {
-            nearestCityId =
-              space.id;
-
-            break;
-          }
-
-          for (const nextId of
-            space.connectedSpaceIds) {
-            if (
-              !visited.has(
-                nextId,
-              )
-            ) {
-              queue.push(
-                nextId,
-              );
-            }
-          }
-        }
+        const nearestCityId =
+          findNearestCity(
+            map,
+            investigator.spaceId,
+          );
 
         if (nearestCityId) {
           currentGame = {
             ...currentGame,
 
             investigators: {
-              ...currentGame
-                .investigators,
+              ...currentGame.investigators,
 
               [investigatorId]: {
-                ...currentGame
-                  .investigators[
+                ...currentGame.investigators[
                   investigatorId
                 ],
 

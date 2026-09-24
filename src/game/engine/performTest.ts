@@ -4,6 +4,7 @@ import type { TestResult } from "../models/TestResult";
 
 import { rollTest } from "./rollTest";
 import { resolveTestConditions } from "./resolveTestConditions";
+import type { MapDefinition } from "../models/MapDefinition";
 
 export interface PerformTestResult {
   game: GameState;
@@ -16,6 +17,7 @@ export function performTest(
   skill: Skill,
   modifier = 0,
   difficulty = 1,
+  map: MapDefinition,
 ): PerformTestResult {
   const investigator =
     game.investigators[investigatorId];
@@ -66,6 +68,7 @@ export function performTest(
       currentGame,
       investigatorId,
       test,
+      map,
     );
 
   return {

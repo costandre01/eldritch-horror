@@ -1,5 +1,6 @@
 import type { GameState } from "../models/GameState";
 import { coreInvestigators } from "../../content/core/investigators";
+import { endInvestigatorActions } from "./endInvestigatorActions";
 
 export function startInvestigatorActions(
   game: GameState,
@@ -48,6 +49,41 @@ export function startInvestigatorActions(
   }
 
   /*
+  * ============================================================
+  * DELAYED
+  * ============================================================
+  *
+  * A Delayed investigator loses the entire Action Phase.
+  * The Delayed status is removed at the beginning of the
+  * investigator's Action turn, and the turn is immediately
+  * passed to the next investigator.
+  */
+
+  if (investigator.isDelayed) {
+    const gameWithoutDelayed = {
+      ...game,
+
+      investigators: {
+        ...game.investigators,
+
+        [investigatorId]: {
+          ...investigator,
+
+          isDelayed: false,
+
+          actionsPerformed: [],
+        },
+      },
+
+      pendingDecision: null,
+    };
+
+    return endInvestigatorActions(
+      gameWithoutDelayed,
+    );
+  }
+
+  /*
    * ============================================================
    * START ACTIONS
    * ============================================================
@@ -55,7 +91,7 @@ export function startInvestigatorActions(
    * The investigator starts a fresh Action turn.
    */
 
-  return {
+  const updatedGame: GameState = {
     ...game,
 
     investigators: {
@@ -70,4 +106,30 @@ export function startInvestigatorActions(
 
     pendingDecision: null,
   };
+
+  if (
+    updatedGame.investigators[
+      investigatorId
+    ]?.isDelayed
+  ) {
+    return endInvestigatorActions(
+      {
+        ...updatedGame,
+
+        investigators: {
+          ...updatedGame.investigators,
+
+          [investigatorId]: {
+            ...updatedGame.investigators[
+              investigatorId
+            ],
+
+            isDelayed: false,
+          },
+        },
+      },
+    );
+  }
+
+  return updatedGame;
 }
