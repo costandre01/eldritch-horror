@@ -11,6 +11,8 @@ interface GameBoardProps {
 
   mysteryDestinationIds: string[];
 
+  pendingSpaceSelectionIds?: string[];
+
   onSelectSpace: (
     spaceId: string,
   ) => void;
@@ -29,6 +31,7 @@ export default function GameBoard({
   travelDestinationIds,
   byakheeDestinationIds,
   mysteryDestinationIds,
+  pendingSpaceSelectionIds,
   onSelectSpace,
   onSelectByakheeSpace,
   onInspectSpace,
@@ -81,6 +84,9 @@ export default function GameBoard({
             }
             mysteryDestinationIds={
               mysteryDestinationIds
+            }
+            pendingSpaceSelectionIds={
+              pendingSpaceSelectionIds
             }
             onSelectSpace={
               onSelectSpace

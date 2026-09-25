@@ -12,6 +12,7 @@ import CombatOrderModal from "./CombatOrderModal";
 import AncientOneReckoningModal from "./AncientOneReckoningModal";
 import YogSothothReckoningModal from "./YogSothothReckoningModal";
 import InvestigatorPreviewModal from "../../investigators/InvestigatorPreviewModal";
+import EldritchMap from "../board/EldritchMap";
 
 interface GameFlowOverlayProps {
   game: GameState;
@@ -176,7 +177,7 @@ function CombatValueOverlay({
       <div
         className="
           flex
-          min-w-10.5
+          w-fit
           items-baseline
           justify-center
           rounded-md
@@ -190,7 +191,7 @@ function CombatValueOverlay({
       >
         <span
           className={`
-            text-[clamp(14px,2vw,24px)]
+            text-[clamp(12px,2vw,20px)]
             font-black
             leading-none
             ${valueColor}
@@ -486,6 +487,339 @@ export default function GameFlowOverlay({
     }
   }
 
+  /* ============================================================
+   * LEAD INVESTIGATOR SELECTION
+   * ============================================================
+   *
+   * During Lead selection we show the complete current board.
+   *
+   * The map is read-only:
+   * - no movement
+   * - no travel selection
+   * - investigator selection remains in the cards above
+   *
+   * The investigator row is horizontally scrollable only
+   * when the available cards do not fit.
+   */
+
+  if (
+    decision.type ===
+    "select-investigator"
+  ) {
+    return (
+      <div
+        className="
+          fixed inset-0 z-200
+          flex items-center justify-center
+          bg-black/80
+          p-1
+          backdrop-blur-sm
+          sm:p-2
+        "
+      >
+        <div
+          className="
+            flex h-[calc(100vh-8px)]
+            w-[calc(100vw-8px)]
+            flex-col
+            overflow-hidden
+            rounded-3xl
+            border border-gray-700
+            bg-[#172033]
+            text-white
+            shadow-2xl
+            sm:h-[calc(100vh-16px)]
+            sm:w-[calc(100vw-16px)]
+          "
+        >
+
+          {/* ================================================== */}
+          {/* HEADER */}
+          {/* ================================================== */}
+
+          <div
+            className="
+              shrink-0
+              px-4
+              pt-4
+              text-center
+              sm:px-6
+              sm:pt-5
+            "
+          >
+            <p
+              className="
+                text-xs
+                font-bold
+                uppercase
+                tracking-[0.3em]
+                text-blue-300
+              "
+            >
+              LEAD INVESTIGATOR
+            </p>
+
+            <h2
+              className="
+                mt-2
+                text-2xl
+                font-black
+                sm:text-3xl
+              "
+            >
+              {decision.title}
+            </h2>
+
+            <p
+              className="
+                mx-auto
+                mt-2
+                max-w-3xl
+                text-sm
+                text-gray-400
+                sm:text-base
+              "
+            >
+              {decision.message}
+            </p>
+          </div>
+
+
+          {/* ================================================== */}
+          {/* INVESTIGATORS */}
+          {/* ================================================== */}
+
+          <div
+            className="
+              shrink-0
+              px-4
+              pt-4
+              sm:px-6
+              sm:pt-5
+            "
+          >
+            <div
+              className="
+                overflow-x-auto
+                overflow-y-hidden
+                pb-2
+                scrollbar-thin
+              "
+            >
+              <div
+                className="
+                  flex
+                  w-max
+                  min-w-full
+                  justify-center
+                  gap-3
+                  px-1
+                "
+              >
+
+                {decision.investigatorIds.map(
+                  (id) => {
+                    const investigator =
+                      game.investigators[id];
+
+                    const investigatorDefinition =
+                      investigator
+                        ? coreInvestigators.find(
+                            (item) =>
+                              item.id ===
+                              investigator.definitionId,
+                          )
+                        : coreInvestigators.find(
+                            (item) =>
+                              item.id === id,
+                          );
+
+                    const investigatorFileName =
+                      investigatorDefinition?.name.replace(
+                        /\s+/g,
+                        "_",
+                      );
+
+                    const investigatorPortrait =
+                      investigatorFileName
+                        ? `/cards/investigators/${investigatorFileName}/${investigatorFileName}.png`
+                        : "";
+
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() =>
+                          onSelectInvestigator(
+                            id,
+                          )
+                        }
+                        className="
+                          group
+                          w-30
+                          shrink-0
+                          overflow-hidden
+                          rounded-2xl
+                          border
+                          border-gray-700
+                          bg-gray-900
+                          text-left
+                          transition
+                          hover:-translate-y-1
+                          hover:border-blue-400
+                          hover:bg-gray-800
+                          hover:shadow-xl
+                          sm:w-35
+                          lg:w-38.75
+                        "
+                      >
+
+                        {/* PORTRAIT */}
+
+                        <div
+                          className="
+                            aspect-3/4
+                            overflow-hidden
+                            bg-gray-950
+                          "
+                        >
+                          {investigatorPortrait ? (
+                            <img
+                              src={
+                                investigatorPortrait
+                              }
+                              alt={
+                                investigatorDefinition?.name ??
+                                id
+                              }
+                              className="
+                                h-full
+                                w-full
+                                object-cover
+                                transition
+                                duration-200
+                                group-hover:scale-105
+                              "
+                            />
+                          ) : (
+                            <div
+                              className="
+                                flex
+                                h-full
+                                items-center
+                                justify-center
+                                text-xs
+                                text-gray-500
+                              "
+                            >
+                              No image
+                            </div>
+                          )}
+                        </div>
+
+                        {/* NAME */}
+
+                        <div
+                          className="
+                            px-3
+                            py-2
+                            text-center
+                          "
+                        >
+                          <p
+                            className="
+                              truncate
+                              text-sm
+                              font-black
+                            "
+                          >
+                            {
+                              investigatorDefinition?.name ??
+                              id
+                            }
+                          </p>
+
+                          {id ===
+                            game.leadInvestigatorId && (
+                            <p
+                              className="
+                                mt-1
+                                text-[10px]
+                                font-bold
+                                uppercase
+                                tracking-wider
+                                text-amber-400
+                              "
+                            >
+                              Current Lead
+                            </p>
+                          )}
+                        </div>
+
+                      </button>
+                    );
+                  },
+                )}
+
+              </div>
+            </div>
+          </div>
+
+
+          {/* ================================================== */}
+          {/* MAP */}
+          {/* ================================================== */}
+
+          <div
+            className="
+              min-h-0
+              min-w-0
+              flex-1
+              px-2
+              pb-2
+              pt-2
+              sm:px-4
+              sm:pb-4
+            "
+          >
+            <div
+              className="
+                flex
+                h-full
+                w-full
+                items-center
+                justify-center
+                overflow-hidden
+                rounded-2xl
+                border
+                border-gray-700
+                bg-black/30
+              "
+            >
+              <div
+                className="
+                  relative
+                  h-full
+                  w-auto
+                  max-w-full
+                  aspect-3/2
+                "
+              >
+                <EldritchMap
+                  game={game}
+                  investigators={game.investigators}
+                  doom={game.ancientOne.doom}
+                  assetReserve={game.board.assetReserve}
+                />
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   /*
   * ============================================================
   * INVESTIGATOR TURN
@@ -522,8 +856,22 @@ export default function GameFlowOverlay({
         : "";
 
     return (
-      <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-        <div className="w-[min(92vw,650px)] rounded-3xl border border-gray-700 bg-[#172033] p-8 text-center text-white shadow-2xl sm:p-10">
+      <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-4">
+        <div
+          className="
+            mx-auto
+            my-3
+            flex
+            max-h-[calc(100dvh-24px)]
+            w-[min(92vw,650px)]
+            flex-col
+            overflow-y-auto
+            overscroll-contain
+            rounded-3xl
+            border
+            ...
+          "
+        >
 
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-300">
             {decision.phase === "action"
@@ -702,18 +1050,18 @@ export default function GameFlowOverlay({
       curvedPosition.top;
 
     return (
-      <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/75 p-2 backdrop-blur-sm">
+      <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-2 backdrop-blur-sm">
 
         <div
           className="
             flex
-            h-[calc(100vh-16px)]
-            max-h-[calc(100vh-16px)]
+            max-h-[calc(100dvh-16px)]
             w-[min(96vw,1200px)]
             shrink-0
             flex-col
             items-center
-            overflow-hidden
+            overflow-y-auto
+            overscroll-contain
             rounded-3xl
             border
             border-gray-700
@@ -873,9 +1221,9 @@ export default function GameFlowOverlay({
     "mythos-selection"
   ) {
     return (
-      <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+      <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-4 backdrop-blur-sm">
 
-        <div className="flex max-h-[calc(100vh-24px)] w-[min(94vw,1000px)] flex-col items-center overflow-hidden rounded-3xl border border-gray-700 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
+        <div className="flex max-h-[calc(100dvh-24px)] w-[min(94vw,1000px)] flex-col items-center overflow-y-auto overscroll-contain rounded-3xl border border-gray-700 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
 
           {/* ================================================== */}
           {/* HEADER */}
@@ -1571,113 +1919,6 @@ export default function GameFlowOverlay({
         )}
 
         {/* ================================================== */}
-        {/* SELECT INVESTIGATOR */}
-        {/* ================================================== */}
-
-        {decision.type ===
-          "select-investigator" && (
-          <div className="mt-8 grid shrink-0 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {decision.investigatorIds.map(
-              (investigatorId) => {
-                const investigator =
-                  game.investigators[
-                    investigatorId
-                  ];
-
-                if (!investigator) {
-                  return null;
-                }
-
-                const definition =
-                  coreInvestigators.find(
-                    (item) =>
-                      item.id ===
-                      investigator.definitionId,
-                  );
-
-                if (!definition) {
-                  return null;
-                }
-
-                const fileName =
-                  definition.name.replace(
-                    /\s+/g,
-                    "_",
-                  );
-
-                const portrait =
-                  `/cards/investigators/${fileName}/${fileName}-front.png`;
-
-                return (
-                  <button
-                    key={investigatorId}
-                    type="button"
-                    onClick={() =>
-                      onSelectInvestigator(
-                        investigatorId,
-                      )
-                    }
-                    className="
-                      group
-                      overflow-hidden
-                      rounded-2xl
-                      border
-                      border-gray-700
-                      bg-gray-900
-                      text-left
-                      shadow-xl
-                      transition
-                      hover:-translate-y-1
-                      hover:border-amber-400
-                      hover:shadow-amber-500/20
-                    "
-                  >
-                    <div className="overflow-hidden bg-black">
-                      <img
-                        src={portrait}
-                        alt={definition.name}
-                        draggable={false}
-                        className="
-                          block
-                          h-auto
-                          w-full
-                          object-contain
-                          transition
-                          duration-300
-                          group-hover:scale-[1.015]
-                        "
-                      />
-                    </div>
-
-                    <div className="p-4 text-center">
-                      <p className="
-                        text-lg
-                        font-black
-                        text-white
-                        group-hover:text-amber-400
-                      ">
-                        {definition.name}
-                      </p>
-
-                      <p className="
-                        mt-2
-                        text-xs
-                        font-bold
-                        uppercase
-                        tracking-widest
-                        text-gray-500
-                      ">
-                        Choose as Lead Investigator
-                      </p>
-                    </div>
-                  </button>
-                );
-              },
-            )}
-          </div>
-        )}
-
-        {/* ================================================== */}
         {/* SELECT CARD */}
         {/* ================================================== */}
 
@@ -1958,8 +2199,8 @@ export default function GameFlowOverlay({
             "lose-health-and-sanity-unless-spend-clue";
 
           return (
-            <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-              <div className="flex max-h-[calc(100vh-24px)] w-[min(96vw,850px)] flex-col overflow-hidden rounded-3xl border border-red-900/60 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
+            <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-4 backdrop-blur-sm">
+              <div className="flex max-h-[calc(100dvh-24px)] w-[min(96vw,850px)] flex-col overflow-y-auto overscroll-contain rounded-3xl border border-red-900/60 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
 
                 {/* ================================================== */}
                 {/* HEADER */}
@@ -2176,9 +2417,9 @@ export default function GameFlowOverlay({
           */
 
           return (
-            <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-4">
 
-              <div className="flex h-[calc(100vh-32px)] max-h-[calc(100vh-32px)] w-[min(96vw,1050px)] flex-col overflow-hidden rounded-3xl border border-red-900/60 bg-[#172033] p-5 text-white shadow-2xl sm:p-6">
+              <div className="flex max-h-[calc(100dvh-32px)] w-[min(96vw,1050px)] flex-col overflow-y-auto overscroll-contain rounded-3xl border border-red-900/60 bg-[#172033] p-5 text-white shadow-2xl sm:p-6">
 
                 {/* ================================================== */}
                 {/* HEADER */}
@@ -2207,7 +2448,7 @@ export default function GameFlowOverlay({
                 {/* FIGHT */}
                 {/* ================================================== */}
 
-                <div className="mt-4 flex min-h-0 flex-1 items-center justify-center gap-4 sm:mt-5 sm:gap-8">
+                <div className="mt-4 flex shrink-0 items-center justify-center gap-8 sm:mt-5 sm:gap-10">
 
                   {/* ================================================== */}
                   {/* INVESTIGATOR */}
@@ -2215,17 +2456,7 @@ export default function GameFlowOverlay({
 
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center">
 
-                    <div
-                      className="
-                        relative
-                        overflow-hidden
-                        rounded-2xl
-                        border-2
-                        border-blue-500/60
-                        bg-black
-                        shadow-2xl
-                      "
-                    >
+                    <div className="relative">
 
                       {investigatorFrontImage && (
                         <img
@@ -2238,9 +2469,13 @@ export default function GameFlowOverlay({
                           }
                           className="
                             block
-                            max-h-full
-                            w-auto
-                            max-w-[38vw]
+                            h-105 w-75
+                            sm:h-120 sm:w-86.25
+                            md:h-135 md:w-97.5
+                            lg:h-150 lg:w-108.75
+                            max-h-[55vh]
+                            max-w-none
+                            shrink-0
                             object-contain
                           "
                         />
@@ -2261,7 +2496,7 @@ export default function GameFlowOverlay({
                           showMaximum
                           className="
                             left-[72%]
-                            top-[43%]
+                            top-[62%]
                             h-[9%]
                             w-[9%]
                             -translate-x-1/2
@@ -2285,7 +2520,7 @@ export default function GameFlowOverlay({
                           showMaximum
                           className="
                             left-[87%]
-                            top-[43%]
+                            top-[62%]
                             h-[9%]
                             w-[9%]
                             -translate-x-1/2
@@ -2305,7 +2540,7 @@ export default function GameFlowOverlay({
                             absolute
                             left-[12%]
                             right-[8%]
-                            top-[78%]
+                            top-[67%]
                             z-20
                             grid
                             grid-cols-5
@@ -2421,17 +2656,7 @@ export default function GameFlowOverlay({
 
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center">
 
-                    <div
-                      className="
-                        relative
-                        overflow-hidden
-                        rounded-2xl
-                        border-2
-                        border-red-500/60
-                        bg-black
-                        shadow-2xl
-                      "
-                    >
+                    <div className="relative">
 
                       <img
                         src={
@@ -2442,9 +2667,13 @@ export default function GameFlowOverlay({
                         }
                         className="
                           block
-                          max-h-full
-                          w-auto
-                          max-w-[38vw]
+                          h-75 w-52.5
+                          sm:h-90 sm:w-65
+                          md:h-105 md:w-75
+                          lg:h-120 lg:w-86.25
+                          max-h-[55vh]
+                          max-w-none
+                          shrink-0
                           object-contain
                         "
                       />
@@ -2466,7 +2695,7 @@ export default function GameFlowOverlay({
                         showMaximum
                         className="
                           left-[92%]
-                          top-[18%]
+                          top-[35%]
                           h-[10%]
                           w-[12%]
                           -translate-x-1/2
@@ -2499,7 +2728,7 @@ export default function GameFlowOverlay({
                                 pointer-events-none
                                 absolute
                                 left-[30%]
-                                top-[24%]
+                                top-[30%]
                                 z-30
                                 flex
                                 -translate-x-1/2
@@ -2556,7 +2785,7 @@ export default function GameFlowOverlay({
                                 pointer-events-none
                                 absolute
                                 left-[46%]
-                                top-[24%]
+                                top-[30%]
                                 z-30
                                 flex
                                 -translate-x-1/2

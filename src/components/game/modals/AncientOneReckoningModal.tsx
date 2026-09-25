@@ -25,8 +25,8 @@ export default function AncientOneReckoningModal({
     : ancientOne.frontImage;
 
   return (
-    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 p-6">
-      <div className="flex max-h-[95vh] w-full max-w-2xl flex-col items-center rounded-2xl bg-black/95 p-6 shadow-2xl">
+    <div className="fixed inset-0 z-9999 overflow-y-auto bg-black/80 p-4 sm:p-6">
+      <div className="mx-auto my-3 flex max-h-[calc(100dvh-24px)] w-full max-w-2xl flex-col items-center overflow-y-auto overscroll-contain rounded-2xl bg-black/95 p-6 shadow-2xl">
         <h2 className="mb-4 text-center text-2xl font-black uppercase tracking-wide text-white">
           ANCIENT ONE — RECKONING
         </h2>

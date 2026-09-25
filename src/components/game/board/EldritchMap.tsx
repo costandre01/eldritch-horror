@@ -14,6 +14,7 @@ interface EldritchMapProps {
   travelDestinationIds?: string[];
   byakheeDestinationIds?: string[];
   mysteryDestinationIds?: string[];
+  pendingSpaceSelectionIds?: string[];
   onSelectByakheeSpace?: (spaceId: string) => void;
   onSelectSpace?: (spaceId: string) => void;
   onInspectSpace?: (spaceId: string) => void;
@@ -120,6 +121,7 @@ export default function EldritchMap({
   travelDestinationIds = [],
   byakheeDestinationIds = [],
   mysteryDestinationIds = [],
+  pendingSpaceSelectionIds = [],
   onSelectSpace,
   onSelectByakheeSpace,
   onInspectSpace,
@@ -219,7 +221,8 @@ export default function EldritchMap({
       );
     }, DOOM_STEP_DELAY);
 
-    return () => {
+  
+  return () => {
       window.clearTimeout(timer);
     };
   }, [clampedDoom, displayDoom]);
@@ -234,10 +237,6 @@ export default function EldritchMap({
 
   const doomTrackPosition =
     DOOM_POSITIONS[displayDoom];
-
-  {/* ================================================== */}
-  {/* OMEN TRACK TOKEN */}
-  {/* ================================================== */}
 
   const omenTrackPositions = [
     {
@@ -346,6 +345,585 @@ export default function EldritchMap({
     mousePosition.screenY +
       ZOOM_GAP,
   );
+
+  /*
+   * ==================================================
+   * SPACE CONTENTS
+   * ==================================================
+   *
+   * Todos os elementos que pertencem ao mesmo espaço
+   * são desenhados num único "cluster".
+   *
+   * Isto evita que investigadores, monstros, gates,
+   * clues e tokens fiquem exatamente uns por cima dos
+   * outros.
+   *
+   * Em espaços pequenos o cluster pode sair ligeiramente
+   * para fora da área impressa do espaço. A hitbox do
+   * espaço continua a ser a original, por isso isto não
+   * altera a lógica de cliques/movimento.
+   */
+  const getSpaceClusterSize = (position: {
+    hitboxWidth: number;
+    hitboxHeight: number;
+  }) => {
+    const width = Math.min(
+      20,
+      Math.max(8, position.hitboxWidth * 1.8),
+    );
+
+    const height = Math.min(
+      18,
+      Math.max(7, position.hitboxHeight * 2),
+    );
+
+    return {
+      width,
+      height,
+    };
+  };
+
+  const renderCountBadge = (
+    count: number,
+    className = "",
+  ) => {
+    if (count <= 1) {
+      return null;
+    }
+
+    return (
+      <span
+        className={`
+          absolute
+          -right-1
+          -top-1
+          z-20
+          flex
+          min-h-4
+          min-w-4
+          items-center
+          justify-center
+          rounded-full
+          border
+          border-white/80
+          bg-black/90
+          px-1
+          text-[9px]
+          font-black
+          leading-none
+          text-white
+          shadow-[0_1px_4px_rgba(0,0,0,0.9)]
+          ${className}
+        `}
+      >
+        {count}
+      </span>
+    );
+  };
+
+  const renderSpaceContents = (
+    spaceId: string,
+    position: {
+      x: number;
+      y: number;
+      hitboxWidth: number;
+      hitboxHeight: number;
+    },
+  ) => {
+    const boardSpace = game.board.spaces[spaceId];
+
+    const investigatorsAtSpace = Object.values(
+      investigators,
+    ).filter(
+      (investigator) =>
+        investigator.spaceId === spaceId,
+    );
+
+    const monstersAtSpace = Object.values(
+      game?.monsters ?? {},
+    ).filter(
+      (monster) =>
+        monster.spaceId === spaceId,
+    );
+
+    const gatesAtSpace = boardSpace?.gates ?? [];
+
+    const clueCount =
+      boardSpace?.clueTokenIds?.length ?? 0;
+
+    const eldritchTokenCount =
+      boardSpace?.eldritchTokenCount ?? 0;
+
+    const hasRumor = Boolean(boardSpace?.rumor);
+
+    const mysteryTokenCount = Object.values(
+      game.mysteries.progress,
+    ).filter(
+      (progress) =>
+        progress.mysteryTokenSpaceId === spaceId,
+    ).length;
+
+    const hasExpedition =
+      game.board.activeExpeditionSpaceId ===
+      spaceId;
+
+    const hasAnyContent =
+      investigatorsAtSpace.length > 0 ||
+      monstersAtSpace.length > 0 ||
+      gatesAtSpace.length > 0 ||
+      clueCount > 0 ||
+      eldritchTokenCount > 0 ||
+      hasRumor ||
+      mysteryTokenCount > 0 ||
+      hasExpedition;
+
+    if (!hasAnyContent) {
+      return null;
+    }
+
+    const clusterSize =
+      getSpaceClusterSize(position);
+
+    /*
+     * Investigadores e monstros são tratados como peças
+     * individuais. Para um espaço extremamente cheio,
+     * mantemos sempre as primeiras peças visíveis e
+     * indicamos quantas ficaram fora do cluster.
+     */
+    const MAX_VISIBLE_MONSTERS = 6;
+
+    const visibleMonsters =
+      monstersAtSpace.slice(
+        0,
+        MAX_VISIBLE_MONSTERS,
+      );
+
+    const hiddenMonsterCount = Math.max(
+      0,
+      monstersAtSpace.length -
+        visibleMonsters.length,
+    );
+
+    const monsterDefinitions = [
+      ...CORE_MONSTERS,
+      ...CORE_EPIC_MONSTERS,
+    ];
+
+    return (
+      <div
+        key={`contents-${spaceId}`}
+        className="
+          pointer-events-none
+          absolute
+          z-110
+          -translate-x-1/2
+          -translate-y-1/2
+        "
+        style={{
+          left: `${position.x}%`,
+          top: `${position.y}%`,
+          width: `${clusterSize.width}%`,
+          minWidth: "74px",
+          height: `${clusterSize.height}%`,
+          minHeight: "58px",
+        }}
+      >
+        <div
+          className="
+            absolute
+            inset-0
+            flex
+            flex-col
+            items-center
+            justify-center
+            gap-1
+          "
+        >
+          {/* ================================================
+              INVESTIGATORS + MONSTERS
+              ================================================ */}
+          {(investigatorsAtSpace.length > 0 ||
+            visibleMonsters.length > 0) && (
+            <div
+              className="
+                flex
+                max-w-full
+                flex-wrap
+                items-center
+                justify-center
+                gap-1
+                rounded-xl
+                bg-black/20
+                px-1
+                py-1
+                backdrop-blur-[1px]
+              "
+            >
+              {investigatorsAtSpace.map(
+                (investigator) => {
+                  const definition =
+                    coreInvestigators.find(
+                      (item) =>
+                        item.id ===
+                        investigator.definitionId,
+                    );
+
+                  if (!definition) {
+                    return null;
+                  }
+
+                  const fileName =
+                    definition.name.replace(
+                      /\s+/g,
+                      "_",
+                    );
+
+                  const portrait =
+                    `/cards/investigators/${fileName}/${fileName}.png`;
+
+                  return (
+                    <div
+                      key={`investigator-${investigator.id}`}
+                      className="
+                        relative
+                        h-12
+                        w-9
+                        shrink-0
+                        overflow-visible
+                        border-2
+                        border-yellow-400
+                        bg-black
+                        shadow-[0_2px_7px_rgba(0,0,0,0.9)]
+                      "
+                      title={definition.name}
+                    >
+                      <div className="h-full w-full overflow-hidden">
+                        <img
+                          src={portrait}
+                          alt={definition.name}
+                          draggable={false}
+                          className="
+                            h-full
+                            w-full
+                            object-cover
+                            select-none
+                          "
+                        />
+                      </div>
+                    </div>
+                  );
+                },
+              )}
+
+              {visibleMonsters.map((monster) => {
+                const definition =
+                  monsterDefinitions.find(
+                    (item) =>
+                      item.id ===
+                      monster.definitionId,
+                  );
+
+                if (!definition) {
+                  return null;
+                }
+
+                return (
+                  <div
+                    key={`monster-${monster.id}`}
+                    className="
+                      relative
+                      h-9
+                      w-9
+                      shrink-0
+                      overflow-hidden
+                      rounded-full
+                      border-2
+                      border-red-500
+                      bg-black
+                      shadow-[0_2px_6px_rgba(0,0,0,0.9)]
+                    "
+                    title={definition.name}
+                  >
+                    <img
+                      src={definition.frontImage}
+                      alt={definition.name}
+                      draggable={false}
+                      className="
+                        h-full
+                        w-full
+                        object-cover
+                        select-none
+                      "
+                    />
+                  </div>
+                );
+              })}
+
+              {hiddenMonsterCount > 0 && (
+                <div
+                  className="
+                    relative
+                    flex
+                    h-9
+                    min-w-9
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-full
+                    border-2
+                    border-white
+                    bg-black/90
+                    px-1
+                    text-[10px]
+                    font-black
+                    text-white
+                    shadow-[0_2px_6px_rgba(0,0,0,0.9)]
+                  "
+                  title={`${hiddenMonsterCount} more monster(s)`}
+                >
+                  +{hiddenMonsterCount}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ================================================
+              BOARD TOKENS
+              ================================================ */}
+          {(gatesAtSpace.length > 0 ||
+            clueCount > 0 ||
+            eldritchTokenCount > 0 ||
+            hasExpedition ||
+            hasRumor ||
+            mysteryTokenCount > 0) && (
+            <div
+              className="
+                flex
+                max-w-full
+                flex-wrap
+                items-center
+                justify-center
+                gap-1
+                rounded-lg
+                bg-black/35
+                px-1
+                py-0.5
+                backdrop-blur-[1px]
+              "
+            >
+              {/* GATES */}
+              {gatesAtSpace.length > 0 && (
+                <div
+                  className="
+                    relative
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-full
+                    border-[3px]
+                    border-blue-500
+                    bg-black/20
+                    shadow-[0_0_8px_rgba(59,130,246,0.95)]
+                  "
+                  title={`${gatesAtSpace.length} Gate(s)`}
+                >
+                  <img
+                    src="/icons/game/Gate-Token.png"
+                    alt="Gate"
+                    draggable={false}
+                    className="
+                      h-8
+                      w-8
+                      object-contain
+                      select-none
+                      drop-shadow-[0_2px_5px_rgba(0,0,0,0.9)]
+                    "
+                  />
+
+                  {renderCountBadge(
+                    gatesAtSpace.length,
+                  )}
+                </div>
+              )}
+
+              {/* CLUES */}
+              {clueCount > 0 && (
+                <div
+                  className="
+                    relative
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-full
+                    border-[3px]
+                    border-green-500
+                    bg-black/20
+                    shadow-[0_0_8px_rgba(34,197,94,0.95)]
+                  "
+                  title={`${clueCount} Clue(s)`}
+                >
+                  <img
+                    src="/icons/game/clue.png"
+                    alt="Clue"
+                    draggable={false}
+                    className="
+                      h-7
+                      w-7
+                      object-contain
+                      select-none
+                      drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]
+                    "
+                  />
+
+                  {renderCountBadge(
+                    clueCount,
+                  )}
+                </div>
+              )}
+
+              {/* ELDRITCH TOKENS */}
+              {eldritchTokenCount > 0 && (
+                <div
+                  className="
+                    relative
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-full
+                    border-[3px]
+                    border-purple-500
+                    bg-black/20
+                    shadow-[0_0_8px_rgba(168,85,247,0.95)]
+                  "
+                  title={`${eldritchTokenCount} Eldritch Token(s)`}
+                >
+                  <img
+                    src="/icons/game/eldritch-token.png"
+                    alt="Eldritch Token"
+                    draggable={false}
+                    className="
+                      h-7
+                      w-7
+                      object-contain
+                      select-none
+                      drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]
+                    "
+                  />
+
+                  {renderCountBadge(
+                    eldritchTokenCount,
+                  )}
+                </div>
+              )}
+
+              {/* ACTIVE EXPEDITION */}
+              {hasExpedition && (
+                <div
+                  className="
+                    relative
+                    flex
+                    h-9
+                    w-9
+                    shrink-0
+                    items-center
+                    justify-center
+                  "
+                  title="Active Expedition"
+                >
+                  <img
+                    src="/icons/game/Expedition-Token.png"
+                    alt="Active Expedition"
+                    draggable={false}
+                    className="
+                      h-9
+                      w-9
+                      object-contain
+                      select-none
+                      drop-shadow-[0_2px_5px_rgba(0,0,0,0.9)]
+                    "
+                  />
+                </div>
+              )}
+
+              {/* RUMOR */}
+              {hasRumor && (
+                <div
+                  className="
+                    relative
+                    flex
+                    h-9
+                    w-9
+                    shrink-0
+                    items-center
+                    justify-center
+                  "
+                  title="Rumor"
+                >
+                  <img
+                    src="/icons/game/mystery-token.png"
+                    alt="Rumor token"
+                    draggable={false}
+                    className="
+                      h-8
+                      w-8
+                      object-contain
+                      select-none
+                      drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]
+                    "
+                    style={{
+                      clipPath:
+                        "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)",
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* MYSTERY TOKENS */}
+              {mysteryTokenCount > 0 && (
+                <div
+                  className="
+                    relative
+                    flex
+                    h-9
+                    w-9
+                    shrink-0
+                    items-center
+                    justify-center
+                  "
+                  title={`${mysteryTokenCount} Mystery Token(s)`}
+                >
+                  <img
+                    src="/icons/game/mystery-token.png"
+                    alt="Mystery Token"
+                    draggable={false}
+                    className="
+                      h-8
+                      w-8
+                      object-contain
+                      select-none
+                      drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]
+                    "
+                  />
+                  {renderCountBadge(
+                    mysteryTokenCount,
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -558,37 +1136,64 @@ export default function EldritchMap({
                   spaceId,
                 );
 
-              const isMovementDestination =
-                isTravelDestination ||
-                isByakheeDestination;
+              const isPendingSpaceSelection =
+                pendingSpaceSelectionIds.includes(
+                  spaceId,
+                );
 
               const isDecisionDestination =
-                isMovementDestination ||
-                isMysteryDestination;
+                isTravelDestination ||
+                isByakheeDestination ||
+                isMysteryDestination ||
+                isPendingSpaceSelection;
 
               return (
                 <button
                   key={spaceId}
                   type="button"
                   onClick={() => {
-                    if (isMysteryDestination) {
-                      onSelectSpace?.(spaceId);
+                    /*
+                    * ==========================================================
+                    * PENDING SPACE SELECTION
+                    * ==========================================================
+                    *
+                    * Qualquer pendingDecision do tipo select-space
+                    * é resolvido diretamente através do mapa.
+                    */
+                    if (isPendingSpaceSelection) {
+                      if (isByakheeDestination) {
+                        onSelectByakheeSpace?.(
+                          spaceId,
+                        );
+                      } else {
+                        onSelectSpace?.(
+                          spaceId,
+                        );
+                      }
+
                       return;
                     }
 
-                    if (isByakheeDestination) {
-                      onSelectByakheeSpace?.(
+                    /*
+                    * ==========================================================
+                    * NORMAL TRAVEL
+                    * ==========================================================
+                    */
+                    if (isTravelDestination) {
+                      onSelectSpace?.(
                         spaceId,
                       );
                       return;
                     }
 
-                    if (isTravelDestination) {
-                      onSelectSpace?.(spaceId);
-                      return;
-                    }
-
-                    onInspectSpace?.(spaceId);
+                    /*
+                    * ==========================================================
+                    * NORMAL MAP INSPECTION
+                    * ==========================================================
+                    */
+                    onInspectSpace?.(
+                      spaceId,
+                    );
                   }}
                   title={spaceId}
                   className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition ${
@@ -616,575 +1221,19 @@ export default function EldritchMap({
           )}
 
           {/* ================================================== */}
-          {/* ACTIVE EXPEDITION */}
-          {/* ================================================== */}
-
-          {game.board.activeExpeditionSpaceId &&
-            (() => {
-              const position =
-                eldritchMapPositions[
-                  game.board.activeExpeditionSpaceId
-                ];
-
-              if (!position) {
-                return null;
-              }
-
-              return (
-                <div
-                  className="
-                    pointer-events-none
-                    absolute
-                    z-35
-                    flex
-                    items-center
-                    justify-center
-                  "
-                  style={{
-                    left: `${position.x - 3.5}%`,
-                    top: `${position.y - 3.5}%`,
-                    transform:
-                      "translate(-50%, -50%)",
-                  }}
-                >
-                  <img
-                    src="/icons/game/Expedition-Token.png"
-                    alt="Active Expedition"
-                    draggable={false}
-                    className="
-                      h-11
-                      w-11
-                      object-contain
-                      select-none
-                      drop-shadow-[0_2px_5px_rgba(0,0,0,0.8)]
-                    "
-                  />
-                </div>
-              );
-            })()}
-
-          {/* ================================================== */}
-          {/* GATES */}
-          {/* ================================================== */}
-
-          {Object.entries(game.board.spaces).map(
-            ([spaceId, space]) => {
-              if (space.gates.length === 0) {
-                return null;
-              }
-
-              const position =
-                eldritchMapPositions[spaceId];
-
-              if (!position) {
-                return null;
-              }
-
-              return space.gates.map(
-                (gate, index) => (
-                  <div
-                    key={gate.id}
-                    className="
-                      pointer-events-none
-                      absolute
-                      z-25
-                      flex
-                      items-center
-                      justify-center
-                    "
-                    style={{
-                      left: `${position.x + 2.8 + index * 1.5}%`,
-                      top: `${position.y - 3.2}%`,
-                      transform:
-                        "translate(-50%, -50%)",
-                    }}
-                  >
-                    <img
-                      src="/icons/game/Gate-Token.png"
-                      alt="Gate"
-                      draggable={false}
-                      className="
-                        h-12
-                        w-12
-                        object-contain
-                        select-none
-                        drop-shadow-[0_2px_5px_rgba(0,0,0,0.85)]
-                      "
-                    />
-                  </div>
-                ),
-              );
-            },
-          )}
-
-          {/* ================================================== */}
-          {/* CLUES */}
+          {/* SPACE CONTENTS */}
           {/* ================================================== */}
 
           {Object.entries(
-            game.board.spaces,
-          ).map(
-            ([spaceId, space]) => {
-              if (
-                space.clueTokenIds.length === 0
-              ) {
-                return null;
-              }
-
-              const position =
-                eldritchMapPositions[
-                  spaceId
-                ];
-
-              if (!position) {
-                return null;
-              }
-
-              return (
-                <div
-                  key={`clues-${spaceId}`}
-                  className="
-                    pointer-events-none
-                    absolute
-                    z-100
-                    h-8
-                    w-8
-                  "
-                  style={{
-                    left: `${position.x}%`,
-                    top: `${position.y}%`,
-                    transform:
-                      "translate(-50%, -50%)",
-                  }}
-                >
-                  {space.clueTokenIds.map(
-                    (clueId, index) => (
-                      <img
-                        key={clueId}
-                        src="/icons/game/clue.png"
-                        alt="Clue"
-                        draggable={false}
-                        className="
-                          absolute
-                          left-0
-                          top-0
-                          h-8
-                          w-8
-                          object-contain
-                          select-none
-                          drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]
-                        "
-                        style={{
-                          transform: `
-                            translate(
-                              ${(index % 3) * 10}px,
-                              ${Math.floor(index / 3) * 10}px
-                            )
-                          `,
-                        }}
-                      />
-                    ),
-                  )}
-                </div>
-              );
-            },
+            eldritchMapPositions,
+          ).map(([spaceId, position]) =>
+            renderSpaceContents(
+              spaceId,
+              position,
+            ),
           )}
 
-          {/* ================================================== */}
-          {/* RUMORS */}
-          {/* ================================================== */}
-
-          {Object.entries(
-            game.board.spaces,
-          ).map(
-            ([spaceId, space]) => {
-              if (!space.rumor) {
-                return null;
-              }
-
-              const position =
-                eldritchMapPositions[spaceId];
-
-              if (!position) {
-                return null;
-              }
-
-              return (
-                <div
-                  key={`rumor-${spaceId}`}
-                  className="
-                    pointer-events-none
-                    absolute
-                    z-102
-                    flex
-                    h-11
-                    w-11
-                    items-center
-                    justify-center
-                  "
-                  style={{
-                    left: `${position.x}%`,
-                    top: `${position.y}%`,
-                    transform:
-                      "translate(-50%, -50%)",
-                  }}
-                >
-                  <img
-                    src="/icons/game/mystery-token.png"
-                    alt="Rumor token"
-                    draggable={false}
-                    className="
-                      h-10
-                      w-10
-                      object-contain
-                      select-none
-                      drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]
-                    "
-                    style={{
-                      clipPath:
-                        "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)",
-                    }}
-                  />
-                </div>
-              );
-            },
-          )}
-
-          {/* ================================================== */}
-          {/* Mystery Token */}
-          {/* ================================================== */}
-
-          {Object.values(
-            game.mysteries.progress,
-          ).map((progress) => {
-            if (!progress.mysteryTokenSpaceId) {
-              return null;
-            }
-
-            const position =
-              eldritchMapPositions[
-                progress.mysteryTokenSpaceId
-              ];
-
-            if (!position) {
-              return null;
-            }
-
-            return (
-              <div
-                key={`mystery-token-${progress.mysteryId}`}
-                className="
-                  pointer-events-none
-                  absolute
-                  z-100
-                  h-10
-                  w-10
-                "
-                style={{
-                  left: `${position.x}%`,
-                  top: `${position.y}%`,
-                  transform:
-                    "translate(-50%, -50%)",
-                }}
-              >
-                <img
-                  src="/icons/game/mystery-token.png"
-                  alt="Mystery Token"
-                  draggable={false}
-                  className="
-                    h-10
-                    w-10
-                    object-contain
-                    select-none
-                    drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]
-                  "
-                />
-              </div>
-            );
-          })}
-
-          {/* ================================================== */}
-          {/* ELDRITCH TOKENS ON MAP */}
-          {/* ================================================== */}
-
-          {Object.entries(
-            game.board.spaces,
-          ).map(
-            ([spaceId, space]) => {
-              if (
-                space.eldritchTokenCount <= 0
-              ) {
-                return null;
-              }
-
-              const position =
-                eldritchMapPositions[
-                  spaceId
-                ];
-
-              if (!position) {
-                return null;
-              }
-
-              return (
-                <div
-                  key={`eldritch-tokens-${spaceId}`}
-                  className="
-                    pointer-events-none
-                    absolute
-                    z-101
-                    h-8
-                    w-8
-                  "
-                  style={{
-                    left: `${position.x}%`,
-                    top: `${position.y}%`,
-                    transform:
-                      "translate(-50%, -50%)",
-                  }}
-                >
-                  {Array.from({
-                    length:
-                      space.eldritchTokenCount,
-                  }).map(
-                    (_, index) => (
-                      <img
-                        key={`${spaceId}-eldritch-${index}`}
-                        src="/icons/game/eldritch-token.png"
-                        alt="Eldritch Token"
-                        draggable={false}
-                        className="
-                          absolute
-                          left-0
-                          top-0
-                          h-8
-                          w-8
-                          object-contain
-                          select-none
-                          drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]
-                        "
-                        style={{
-                          transform: `
-                            translate(
-                              ${(index % 3) * 8}px,
-                              ${Math.floor(index / 3) * 8}px
-                            )
-                          `,
-                        }}
-                      />
-                    ),
-                  )}
-                </div>
-              );
-            },
-          )}
-
-          {/* ================================================== */}
-          {/* INVESTIGATORS */}
-          {/* ================================================== */}
-
-          {Object.values(
-            investigators,
-          ).map((investigator) => {
-            if (!investigator.spaceId) {
-              return null;
-            }
-
-            const position =
-              eldritchMapPositions[
-                investigator.spaceId
-              ];
-
-            if (!position) {
-              return null;
-            }
-
-            const definition =
-              coreInvestigators.find(
-                (item) =>
-                  item.id ===
-                  investigator.definitionId,
-              );
-
-            if (!definition) {
-              return null;
-            }
-
-            const fileName =
-              definition.name.replace(
-                /\s+/g,
-                "_",
-              );
-
-            const portrait =
-              `/cards/investigators/${fileName}/${fileName}.png`;
-
-            return (
-              <div
-                key={investigator.id}
-                className="
-                  pointer-events-none
-                  absolute
-                  z-40
-                  flex
-                  h-10
-                  w-10
-                  -translate-x-1/2
-                  -translate-y-1/2
-                  overflow-hidden
-                  rounded-full
-                  border-2
-                  border-white
-                  bg-black
-                  shadow-[0_2px_6px_rgba(0,0,0,0.8)]
-                "
-                style={{
-                  left: `${position.x}%`,
-                  top: `${position.y}%`,
-                }}
-                title={definition.name}
-              >
-                <img
-                  src={portrait}
-                  alt={definition.name}
-                  draggable={false}
-                  className="
-                    h-full
-                    w-full
-                    object-cover
-                    select-none
-                  "
-                />
-              </div>
-            );
-          })}
         </div>
-
-        {/* ================================================== */}
-        {/* MONSTERS */}
-        {/* ================================================== */}
-
-        {Object.values(
-          game?.monsters ?? {},
-        ).map((monster) => {
-          if (!monster.spaceId) {
-            return null;
-          }
-
-          const position =
-            eldritchMapPositions[
-              monster.spaceId
-            ];
-
-          if (!position) {
-            return null;
-          }
-
-          const definition = [
-            ...CORE_MONSTERS,
-            ...CORE_EPIC_MONSTERS,
-          ].find(
-            (item) =>
-              item.id ===
-              monster.definitionId,
-          );
-
-          if (!definition) {
-            return null;
-          }
-
-          const monstersAtSpace =
-            Object.values(
-              game?.monsters ?? {},
-            ).filter(
-              (item) =>
-                item.spaceId ===
-                monster.spaceId,
-            );
-
-          const monsterIndex =
-            monstersAtSpace.findIndex(
-              (item) =>
-                item.id === monster.id,
-            );
-
-          /*
-          * Pequeno deslocamento para que
-          * vários monstros não fiquem exatamente
-          * uns por cima dos outros.
-          */
-
-          const offsets = [
-            {
-              x: 0,
-              y: 0,
-            },
-            {
-              x: 2.2,
-              y: -1.5,
-            },
-            {
-              x: -2.2,
-              y: -1.5,
-            },
-            {
-              x: 0,
-              y: -3,
-            },
-          ];
-
-          const offset =
-            offsets[
-              monsterIndex %
-                offsets.length
-            ];
-
-          return (
-            <div
-              key={monster.id}
-              className="
-                pointer-events-none
-                absolute
-                z-50
-                flex
-                h-8
-                w-8
-                -translate-x-1/2
-                -translate-y-1/2
-                items-center
-                justify-center
-              "
-              style={{
-                left: `${
-                  position.x +
-                  (offset?.x ?? 0)
-                }%`,
-                top: `${
-                  position.y +
-                  (offset?.y ?? 0)
-                }%`,
-              }}
-            >
-              <div
-                key={monster.id}
-                className="pointer-events-none absolute z-50 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
-                style={{
-                  left: `${position.x + (offset?.x ?? 0)}%`,
-                  top: `${position.y + (offset?.y ?? 0)}%`,
-                }}
-              >
-                <div className="h-10 w-10 overflow-hidden rounded-full border-2 border-white bg-black shadow-lg">
-                  <img
-                    src={definition.frontImage}
-                    alt={definition.name}
-                    draggable={false}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
 
         {/* ================================================== */}
         {/* MAP ZOOM / MAGNIFIER */}

@@ -55,8 +55,8 @@ export default function CombatOrderModal({
   }
 
   return (
-    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm sm:p-4">
-      <div className="flex max-h-[calc(100vh-24px)] w-[min(96vw,1280px)] flex-col overflow-hidden rounded-3xl border border-gray-700 bg-[#172033] px-4 py-4 text-white shadow-2xl sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+    <div className="fixed inset-0 z-9999 overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:p-4">
+      <div className="mx-auto my-3 flex max-h-[calc(100dvh-24px)] w-[min(96vw,1280px)] flex-col overflow-y-auto overscroll-contain rounded-3xl border border-gray-700 bg-[#172033] px-4 py-4 text-white shadow-2xl sm:px-6 sm:py-5 lg:px-8 lg:py-6">
 
         {/* HEADER */}
 

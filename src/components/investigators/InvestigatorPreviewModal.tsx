@@ -37,11 +37,11 @@ export default function InvestigatorPreviewModal({
 
   return (
     <div
-      className="fixed inset-0 z-200 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-200 overflow-y-auto bg-black/85 p-4 backdrop-blur-md"
       onClick={onClose}
     >
       <div
-        className="relative flex max-h-[95vh] w-[min(95vw,900px)] flex-col items-center"
+        className="relative mx-auto my-3 flex max-h-[calc(100dvh-24px)] w-[min(95vw,900px)] flex-col items-center"
         onClick={(event) =>
           event.stopPropagation()
         }

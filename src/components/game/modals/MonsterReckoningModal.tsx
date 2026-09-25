@@ -83,18 +83,20 @@ export default function MonsterReckoningModal({
       );
 
     return (
-      <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm">
+      <div className="fixed inset-0 z-9999 overflow-y-auto bg-black/80 p-3 backdrop-blur-sm">
 
         <div
           className="
             relative
+            mx-auto
+            my-3
             flex
-            h-[calc(100vh-24px)]
-            max-h-[calc(100vh-24px)]
+            max-h-[calc(100dvh-24px)]
             w-[min(96vw,1100px)]
             flex-col
             items-center
-            overflow-hidden
+            overflow-y-auto
+            overscroll-contain
             rounded-3xl
             border
             border-white/20
@@ -249,16 +251,18 @@ export default function MonsterReckoningModal({
     );
 
   return (
-    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm">
+    <div className="fixed inset-0 z-9999 overflow-y-auto bg-black/80 p-3 backdrop-blur-sm">
 
       <div
         className="
+          mx-auto
+          my-3
           flex
-          h-[calc(100vh-24px)]
-          max-h-[calc(100vh-24px)]
+          max-h-[calc(100dvh-24px)]
           w-[min(96vw,1200px)]
           flex-col
-          overflow-hidden
+          overflow-y-auto
+          overscroll-contain
           rounded-3xl
           border
           border-white/20

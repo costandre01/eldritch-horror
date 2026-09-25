@@ -923,21 +923,28 @@ function App() {
     }
 
     /*
-    * ============================================================
-    * MYSTERY — NEAREST CLUE
-    * ============================================================
-    *
-    * When a Mystery is waiting for the Lead Investigator
-    * to choose between equally near spaces, the selected
-    * space must be resolved as a Mystery decision and not
-    * as normal investigator movement.
-    */
+     * ============================================================
+     * GENERIC PENDING SPACE SELECTION
+     * ============================================================
+     *
+     * Any select-space decision is resolved through
+     * the main map instead of normal investigator travel.
+     */
     if (
       game.pendingDecision?.type ===
-        "select-space" &&
-      game.pendingDecision.source ===
-        "mystery:nearest-clue"
+      "select-space"
     ) {
+      const decision =
+        game.pendingDecision;
+
+      if (
+        !decision.spaceIds.includes(
+          spaceId,
+        )
+      ) {
+        return;
+      }
+
       try {
         const updatedGame =
           resolveEncounterSpaceSelection(
@@ -949,7 +956,7 @@ function App() {
         setGame(updatedGame);
       } catch (error) {
         console.error(
-          "Error resolving Mystery space selection:",
+          "Error resolving pending space selection:",
           error instanceof Error
             ? error.message
             : error,
@@ -3083,6 +3090,11 @@ function App() {
       ? game.pendingDecision.spaceIds
       : [];
 
+  const pendingSpaceSelectionIds =
+    game.pendingDecision?.type === "select-space"
+      ? game.pendingDecision.spaceIds
+      : [];
+
   /*
    * ============================================================
    * INVESTIGATORS
@@ -3469,6 +3481,9 @@ function App() {
               }
               doom={
                 game.ancientOne.doom
+              }
+              pendingSpaceSelectionIds={
+                pendingSpaceSelectionIds
               }
             />
 
@@ -3876,12 +3891,8 @@ function App() {
 
         {game.pendingDecision &&
           singleDieRoll === null &&
-          !(
-            game.pendingDecision.type ===
-              "select-space" &&
-            game.pendingDecision.source ===
-              "byakhee-move"
-          ) && (
+          game.pendingDecision.type !==
+            "select-space" && (
             <GameFlowOverlay
               game={game}
               decision={

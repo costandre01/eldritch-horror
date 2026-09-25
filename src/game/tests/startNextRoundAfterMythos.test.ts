@@ -244,7 +244,7 @@ describe("startNextRoundAfterMythos", () => {
     );
   });
 
-  it("resets the new Lead's actions when the new round starts", () => {
+  it("resets all investigators' actions when the new round starts", () => {
     const game = makeGame({
       investigators: {
         i1: makeInvestigator("i1", {
@@ -281,8 +281,6 @@ describe("startNextRoundAfterMythos", () => {
 
     expect(
       result.investigators.i3.actionsPerformed,
-    ).toEqual([
-      "travel",
-    ]);
+    ).toEqual([]);
   });
 });
