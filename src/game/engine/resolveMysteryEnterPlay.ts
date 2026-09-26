@@ -709,6 +709,18 @@ function processNextSeaClue(
         currentClue.sourceSpaceId
       ];
 
+    if (
+      destinationSpaceId ===
+      currentClue.sourceSpaceId
+    ) {
+      return processNextSeaClue(
+        game,
+        map,
+        mysteryId,
+        remainingClues,
+      );
+    }
+
     const destinationSpace =
       game.board.spaces[
         destinationSpaceId
@@ -919,7 +931,7 @@ function findNearestSeaSpaces(
   return nearestSpaceIds;
 }
 
-function moveCluesToNearestWildernessOrSeaSpaces(
+function moveCluesToNearestWildernessSpaces(
   game: GameState,
   map: MapDefinition,
   mysteryId: string,
@@ -963,7 +975,7 @@ function moveCluesToNearestWildernessOrSeaSpaces(
     return game;
   }
 
-  return processNextWildernessOrSeaClue(
+  return processNextWildernessClue(
     game,
     map,
     mysteryId,
@@ -971,7 +983,7 @@ function moveCluesToNearestWildernessOrSeaSpaces(
   );
 }
 
-function processNextWildernessOrSeaClue(
+function processNextWildernessClue(
   game: GameState,
   map: MapDefinition,
   mysteryId: string,
@@ -989,16 +1001,16 @@ function processNextWildernessOrSeaClue(
     ...remainingClues
   ] = cluesToMove;
 
-  const nearestDestinationSpaceIds =
-    findNearestWildernessOrSeaSpaces(
+  const nearestWildernessSpaceIds =
+    findNearestWildernessSpaces(
       map,
       currentClue.sourceSpaceId,
     );
 
   if (
-    nearestDestinationSpaceIds.length === 0
+    nearestWildernessSpaceIds.length === 0
   ) {
-    return processNextWildernessOrSeaClue(
+    return processNextWildernessClue(
       game,
       map,
       mysteryId,
@@ -1007,13 +1019,29 @@ function processNextWildernessOrSeaClue(
   }
 
   /*
-   * Exactly one nearest Wilderness or Sea.
+   * Exactly one nearest Wilderness.
    */
   if (
-    nearestDestinationSpaceIds.length === 1
+    nearestWildernessSpaceIds.length === 1
   ) {
     const destinationSpaceId =
-      nearestDestinationSpaceIds[0];
+      nearestWildernessSpaceIds[0];
+
+    /*
+     * The Clue is already on the nearest
+     * Wilderness. It does not move.
+     */
+    if (
+      destinationSpaceId ===
+      currentClue.sourceSpaceId
+    ) {
+      return processNextWildernessClue(
+        game,
+        map,
+        mysteryId,
+        remainingClues,
+      );
+    }
 
     const sourceSpace =
       game.board.spaces[
@@ -1066,7 +1094,7 @@ function processNextWildernessOrSeaClue(
       ],
     };
 
-    return processNextWildernessOrSeaClue(
+    return processNextWildernessClue(
       {
         ...game,
 
@@ -1083,8 +1111,9 @@ function processNextWildernessOrSeaClue(
   }
 
   /*
-   * Tie:
-   * the Lead Investigator chooses.
+   * Two or more Wilderness spaces are equally near.
+   *
+   * The Lead Investigator chooses.
    */
   const leadInvestigatorId =
     game.investigatorOrder[0];
@@ -1102,13 +1131,13 @@ function processNextWildernessOrSeaClue(
       type: "select-space",
 
       title:
-        "Choose a Wilderness or Sea Space",
+        "Choose a Wilderness Space",
 
       message:
-        "The Clue can be moved to one of several equally near Wilderness or Sea spaces. The Lead Investigator must choose.",
+        "The Clue can be moved to one of several equally near Wilderness spaces. The Lead Investigator must choose.",
 
       spaceIds:
-        nearestDestinationSpaceIds,
+        nearestWildernessSpaceIds,
 
       source:
         "mystery:nearest-clue",
@@ -1117,23 +1146,23 @@ function processNextWildernessOrSeaClue(
 
       resume: {
         type:
-            "mystery-nearest-clue",
+          "mystery-nearest-clue",
 
         mysteryId,
 
         clueTokenId:
-            currentClue.clueTokenId,
+          currentClue.clueTokenId,
 
         sourceSpaceId:
-            currentClue.sourceSpaceId,
+          currentClue.sourceSpaceId,
 
         remainingClues,
-        },
+      },
     },
   };
 }
 
-function findNearestWildernessOrSeaSpaces(
+function findNearestWildernessSpaces(
   map: MapDefinition,
   startSpaceId: string,
 ): string[] {
@@ -1183,8 +1212,7 @@ function findNearestWildernessOrSeaSpaces(
 
     if (
       currentSpace.type ===
-        "wilderness" ||
-      currentSpace.type === "sea"
+      "wilderness"
     ) {
       if (
         nearestDistance === null
@@ -1222,6 +1250,7 @@ function findNearestWildernessOrSeaSpaces(
       queue.push({
         spaceId:
           connectedSpaceId,
+
         distance:
           current.distance + 1,
       });
@@ -1253,7 +1282,7 @@ export function resumeMysteryNearestClue(
     mysteryId ===
     "shub-niggurath-nature-of-the-all-mother"
   ) {
-    return processNextWildernessOrSeaClue(
+    return processNextWildernessClue(
       game,
       map,
       mysteryId,
@@ -1360,7 +1389,7 @@ export function resolveMysteryEnterPlay(
       return game;
 
     case "shub-niggurath-nature-of-the-all-mother":
-      return moveCluesToNearestWildernessOrSeaSpaces(
+      return moveCluesToNearestWildernessSpaces(
         game,
         map,
         mysteryId,

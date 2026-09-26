@@ -29,7 +29,7 @@ export const SHUB_NIGGURATH_MYSTERIES: MysteryDefinition[] = [
 
     text:
       "When this Mystery enters play, move each Clue on the game board " +
-      "to the nearest Wilderness or Sea space. After an investigator " +
+      "to the nearest Wilderness space. After an investigator " +
       "resolves a Research Encounter, he may spend 1 Clue gained from " +
       "that encounter to place it on this Mystery. At the end of the " +
       "Mythos Phase, if the number of Clues equals the number of " +

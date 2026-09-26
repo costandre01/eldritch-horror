@@ -3,6 +3,7 @@ import type { MapDefinition } from "../models/MapDefinition";
 
 import { canPerformAction } from "./canPerformAction";
 import { rollTest } from "./rollTest";
+import { getEffectiveSkill } from "./getEffectiveSkill";
 
 import type { AcquireAssetsResult } from "../models/AcquireAssetsResult";
 
@@ -20,7 +21,9 @@ export function startAcquireAssets(
   }
 
   const investigator =
-    game.investigators[investigatorId];
+    game.investigators[
+      investigatorId
+    ];
 
   if (!investigator) {
     throw new Error(
@@ -81,8 +84,42 @@ export function startAcquireAssets(
     );
   }
 
+  /*
+   * ============================================================
+   * CALCULATE EFFECTIVE INFLUENCE
+   * ============================================================
+   *
+   * Includes:
+   *
+   * - Investigator base Influence
+   * - Passive Asset skill modifiers
+   *
+   */
+
+  const effectiveInfluence =
+    getEffectiveSkill(
+      game,
+      investigatorId,
+      "influence",
+    );
+
+  /*
+   * ============================================================
+   * ROLL INFLUENCE TEST
+   * ============================================================
+   */
+
   const test = rollTest(
-    investigator,
+    {
+      ...investigator,
+
+      skills: {
+        ...investigator.skills,
+
+        influence:
+          effectiveInfluence,
+      },
+    },
     "influence",
   );
 

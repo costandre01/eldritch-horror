@@ -3,6 +3,7 @@ import type { PendingDecision } from "../models/PendingDecision";
 import type { TestResult } from "../models/TestResult";
 
 import { rollTest } from "./rollTest";
+import { getEffectiveSkill } from "./getEffectiveSkill";
 
 export interface ResolveTestRollResult {
   game: GameState;
@@ -41,6 +42,25 @@ export function resolveTestRoll(
 
   /*
    * ============================================================
+   * CALCULATE EFFECTIVE SKILL
+   * ============================================================
+   *
+   * Includes:
+   *
+   * - Investigator base skill
+   * - Passive Asset skill modifiers
+   *
+   */
+
+  const effectiveSkill =
+    getEffectiveSkill(
+      game,
+      decision.investigatorId,
+      decision.skill,
+    );
+
+  /*
+   * ============================================================
    * ROLL TEST
    * ============================================================
    *
@@ -49,7 +69,16 @@ export function resolveTestRoll(
 
   const testResult =
     rollTest(
-      investigator,
+      {
+        ...investigator,
+
+        skills: {
+          ...investigator.skills,
+
+          [decision.skill]:
+            effectiveSkill,
+        },
+      },
       decision.skill,
       decision.modifier,
       decision.minSuccesses ?? 1,

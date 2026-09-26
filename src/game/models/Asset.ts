@@ -1,3 +1,5 @@
+import type { Skill } from "./Investigator";
+
 export type AssetType =
   | "item"
   | "trinket"
@@ -21,15 +23,10 @@ export interface Asset {
   traits: AssetTrait[];
 
   value: number;
-
+  
   description: string;
 
-  /*
-   * Image of the physical card.
-   *
-   * Optional for now because some of the
-   * old placeholder Assets do not have an
-   * image registered yet.
-   */
+  skillModifiers?: Partial<Record<Skill, number>>;
+
   image?: string;
 }

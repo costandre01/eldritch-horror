@@ -3378,7 +3378,6 @@ function App() {
 
   return (
     <main className="min-h-screen w-full bg-[#111318] p-3 text-white">
-      <div className="game-table-scale">
 
         {/* ================================================== */}
         {/* TOP */}
@@ -3404,7 +3403,7 @@ function App() {
           className="
             grid
             w-full
-            grid-cols-[280px_minmax(700px,1fr)_280px]
+            grid-cols-[190px_minmax(0,1fr)_190px]
             items-start
             gap-3
           "
@@ -3415,7 +3414,7 @@ function App() {
           {/* ================================================== */}
 
           <aside className="min-w-0">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-2">
               {leftInvestigators.map(
                 (investigator) =>
                   renderInvestigatorCard(
@@ -3604,7 +3603,7 @@ function App() {
           {/* ================================================== */}
 
           <aside className="min-w-0">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-2">
               {rightInvestigators.map(
                 (investigator) =>
                   renderInvestigatorCard(
@@ -4297,8 +4296,6 @@ function App() {
             }}
           />
         )}
-
-      </div>
     </main>
   );
 }

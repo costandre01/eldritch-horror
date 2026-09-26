@@ -13,6 +13,7 @@ import { CORE_EPIC_MONSTERS } from "../../../content/core/coreEpicMonsters";
 
 import { resolveMonsterToughness } from "../../../game/engine/resolveMonsterToughness";
 import { resolveMonsterTest } from "../../../game/engine/resolveMonsterTest";
+import { getEffectiveSkill } from "../../../game/engine/getEffectiveSkill";
 
 interface SpaceInspectModalProps {
   game: GameState;
@@ -144,38 +145,60 @@ function ValueOverlay({
  */
 
 interface InvestigatorCardOverlayProps {
+  game: GameState;
   investigator: Investigator;
   definition: InvestigatorDefinition;
 }
 
 function InvestigatorCardOverlay({
+  game,
   investigator,
   definition,
 }: InvestigatorCardOverlayProps) {
   const skills = [
     {
       key: "lore",
-      current: investigator.skills.lore,
+      current: getEffectiveSkill(
+        game,
+        investigator.id,
+        "lore",
+      ),
       base: definition.skills.lore,
     },
     {
       key: "influence",
-      current: investigator.skills.influence,
+      current: getEffectiveSkill(
+        game,
+        investigator.id,
+        "influence",
+      ),
       base: definition.skills.influence,
     },
     {
       key: "observation",
-      current: investigator.skills.observation,
+      current: getEffectiveSkill(
+        game,
+        investigator.id,
+        "observation",
+      ),
       base: definition.skills.observation,
     },
     {
       key: "strength",
-      current: investigator.skills.strength,
+      current: getEffectiveSkill(
+        game,
+        investigator.id,
+        "strength",
+      ),
       base: definition.skills.strength,
     },
     {
       key: "will",
-      current: investigator.skills.will,
+      current: getEffectiveSkill(
+        game,
+        investigator.id,
+        "will",
+      ),
       base: definition.skills.will,
     },
   ];
@@ -1092,6 +1115,7 @@ export default function SpaceInspectModal({
 
                   {!previewFlipped && (
                     <InvestigatorCardOverlay
+                      game={game}
                       investigator={
                         preview.investigator
                       }

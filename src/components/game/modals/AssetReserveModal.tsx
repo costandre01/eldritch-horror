@@ -62,7 +62,7 @@ export default function AssetReserveModal({
     resourcesNeeded <= resources;
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+    <div className="fixed inset-0 z-1000 flex items-center justify-center bg-black/75 backdrop-blur-sm">
       <div className="w-[min(96vw,1100px)] max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-700 bg-[#17191f] p-8 text-white shadow-2xl">
 
         {/* HEADER */}

@@ -2,9 +2,9 @@ import type { GameState } from "../models/GameState";
 
 export function canSelectAsset(
   game: GameState,
-  selectedAssetIds: string[],
+  _selectedAssetIds: string[],
   assetId: string,
-  useBankLoan: boolean,
+  _useBankLoan: boolean,
 ): boolean {
   const investigatorId =
     game.activeInvestigatorId;
@@ -14,9 +14,7 @@ export function canSelectAsset(
   }
 
   const investigator =
-    game.investigators[
-      investigatorId
-    ];
+    game.investigators[investigatorId];
 
   if (!investigator) {
     return false;
@@ -33,61 +31,20 @@ export function canSelectAsset(
   }
 
   /*
-   * ============================================================
-   * CURRENT SELECTION
-   * ============================================================
+   * Selecting an Asset is independent
+   * from being able to acquire it.
+   *
+   * The same selection is used for:
+   *
+   * - Acquire
+   * - Discard 1
+   *
+   * Therefore affordability must NOT
+   * block selection here.
+   *
+   * The Acquire button performs the
+   * affordability validation separately.
    */
 
-  const selectedAssets =
-    game.board.assetReserve.filter(
-      (item) =>
-        selectedAssetIds.includes(
-          item.id,
-        ),
-    );
-
-  const selectedValue =
-    selectedAssets.reduce(
-      (total, item) =>
-        total + item.value,
-      0,
-    );
-
-  /*
-   * ============================================================
-   * BANK LOAN
-   * ============================================================
-   */
-
-  const effectiveSuccesses =
-    (game.lastTest?.successes ?? 0) +
-    (useBankLoan ? 2 : 0);
-
-  /*
-   * ============================================================
-   * NEW SELECTION
-   * ============================================================
-   */
-
-  const newSelectedValue =
-    selectedValue +
-    asset.value;
-
-  const resourcesNeeded =
-    Math.max(
-      0,
-      newSelectedValue -
-        effectiveSuccesses,
-    );
-
-  /*
-   * ============================================================
-   * AFFORDABILITY
-   * ============================================================
-   */
-
-  return (
-    resourcesNeeded <=
-    investigator.resources
-  );
+  return true;
 }

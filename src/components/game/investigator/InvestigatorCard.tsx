@@ -31,7 +31,7 @@ export default function InvestigatorCard({
 }: InvestigatorCardProps) {
   return (
     <div
-      className={`rounded-2xl border p-3 shadow-xl backdrop-blur-sm transition ${
+      className={`mx-auto w-42.5 rounded-2xl border p-2 shadow-xl backdrop-blur-sm transition ${
         isActive
           ? "border-blue-500 bg-blue-950/80 shadow-blue-950/40"
           : "border-gray-700 bg-gray-900/95"
@@ -150,7 +150,7 @@ export default function InvestigatorCard({
         <button
           type="button"
           onClick={onOpenCards}
-          className="rounded-lg bg-gray-800 px-4 py-2 text-[11px] font-bold text-gray-300 transition hover:bg-gray-700 hover:text-white"
+          className="rounded-lg bg-gray-800 px-3 py-1.5 text-[10px] font-bold text-gray-300 transition hover:bg-gray-700 hover:text-white"
         >
           SEE
         </button>

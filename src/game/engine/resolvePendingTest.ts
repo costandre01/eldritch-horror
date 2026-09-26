@@ -2,12 +2,12 @@ import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 
 import { rollTest } from "./rollTest";
+import { getEffectiveSkill } from "./getEffectiveSkill";
 
 export function resolvePendingTest(
   game: GameState,
   _map: MapDefinition,
 ): GameState {
-
   const decision =
     game.pendingDecision;
 
@@ -48,15 +48,43 @@ export function resolvePendingTest(
 
   /*
    * ============================================================
+   * CALCULATE EFFECTIVE SKILL
+   * ============================================================
+   *
+   * Includes:
+   *
+   * - Investigator base skill
+   * - Passive Asset skill modifiers
+   *
+   */
+
+  const effectiveSkill =
+    getEffectiveSkill(
+      game,
+      decision.investigatorId,
+      decision.skill,
+    );
+
+  /*
+   * ============================================================
    * ROLL TEST
    * ============================================================
    *
-   * The actual dice roll is handled by rollTest().
+   * The actual dice calculation remains inside rollTest().
    */
 
   const testResult =
     rollTest(
-      investigator,
+      {
+        ...investigator,
+
+        skills: {
+          ...investigator.skills,
+
+          [decision.skill]:
+            effectiveSkill,
+        },
+      },
       decision.skill,
       decision.modifier,
       1,

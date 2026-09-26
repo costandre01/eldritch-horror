@@ -13,6 +13,7 @@ import AncientOneReckoningModal from "./AncientOneReckoningModal";
 import YogSothothReckoningModal from "./YogSothothReckoningModal";
 import InvestigatorPreviewModal from "../../investigators/InvestigatorPreviewModal";
 import EldritchMap from "../board/EldritchMap";
+import { getEffectiveSkill } from "../../../game/engine/getEffectiveSkill";
 
 interface GameFlowOverlayProps {
   game: GameState;
@@ -540,11 +541,13 @@ export default function GameFlowOverlay({
           <div
             className="
               shrink-0
-              px-4
-              pt-4
+              px-2
+              pt-0
+              pb-0
               text-center
-              sm:px-6
-              sm:pt-5
+              sm:px-3
+              sm:pt-0
+              sm:pb-0
             "
           >
             <p
@@ -593,9 +596,11 @@ export default function GameFlowOverlay({
             className="
               shrink-0
               px-4
-              pt-4
+              pt-1
+              pb-1
               sm:px-6
-              sm:pt-5
+              sm:pt-2
+              sm:pb-2
             "
           >
             <div
@@ -656,10 +661,10 @@ export default function GameFlowOverlay({
                         }
                         className="
                           group
-                          w-30
+                          w-16
                           shrink-0
                           overflow-hidden
-                          rounded-2xl
+                          rounded-xl
                           border
                           border-gray-700
                           bg-gray-900
@@ -669,8 +674,8 @@ export default function GameFlowOverlay({
                           hover:border-blue-400
                           hover:bg-gray-800
                           hover:shadow-xl
-                          sm:w-35
-                          lg:w-38.75
+                          sm:w-20
+                          lg:w-24
                         "
                       >
 
@@ -803,6 +808,7 @@ export default function GameFlowOverlay({
                   w-auto
                   max-w-full
                   aspect-3/2
+                  shrink-0
                 "
               >
                 <EldritchMap
@@ -869,21 +875,16 @@ export default function GameFlowOverlay({
             overscroll-contain
             rounded-3xl
             border
+            bg-gray-900
             ...
           "
         >
-
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-300">
-            {decision.phase === "action"
-              ? "Action Phase"
-              : "Encounter Phase"}
-          </p>
 
           <h2 className="mt-4 text-3xl font-black sm:text-4xl">
             {decision.title}
           </h2>
 
-          <div className="mx-auto mt-8 rounded-2xl border border-gray-700 bg-gray-900 px-6 py-8">
+          <div className="mx-auto mt-8 rounded-2xl bg-gray-900 px-6 py-8">
 
             <p className="text-sm uppercase tracking-widest text-gray-500">
               It is the turn of
@@ -946,7 +947,7 @@ export default function GameFlowOverlay({
     "reveal-encounter"
   ) {
     return (
-      <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-4">
+      <div className="fixed inset-0 z-200 overflow-y-auto bg-black p-3 sm:p-4">
 
         <div className="mx-auto my-3 flex max-h-[calc(100vh-24px)] w-full max-w-300 flex-col overflow-y-auto overscroll-contain rounded-3xl border border-gray-700 bg-[#172033] p-4 text-white shadow-2xl sm:my-4 sm:p-6 lg:p-8">
 
@@ -2551,8 +2552,11 @@ export default function GameFlowOverlay({
                           {[
                             {
                               key: "lore",
-                              current:
-                                investigator.skills.lore,
+                              current: getEffectiveSkill(
+                                game,
+                                investigator.id,
+                                "lore",
+                              ),
                               base:
                                 investigatorDefinition?.skills.lore ??
                                 investigator.skills.lore,
@@ -2560,8 +2564,11 @@ export default function GameFlowOverlay({
 
                             {
                               key: "influence",
-                              current:
-                                investigator.skills.influence,
+                              current: getEffectiveSkill(
+                                game,
+                                investigator.id,
+                                "influence",
+                              ),
                               base:
                                 investigatorDefinition?.skills.influence ??
                                 investigator.skills.influence,
@@ -2569,8 +2576,11 @@ export default function GameFlowOverlay({
 
                             {
                               key: "observation",
-                              current:
-                                investigator.skills.observation,
+                              current: getEffectiveSkill(
+                                game,
+                                investigator.id,
+                                "observation",
+                              ),
                               base:
                                 investigatorDefinition?.skills.observation ??
                                 investigator.skills.observation,
@@ -2578,8 +2588,11 @@ export default function GameFlowOverlay({
 
                             {
                               key: "strength",
-                              current:
-                                investigator.skills.strength,
+                              current: getEffectiveSkill(
+                                game,
+                                investigator.id,
+                                "strength",
+                              ),
                               base:
                                 investigatorDefinition?.skills.strength ??
                                 investigator.skills.strength,
@@ -2587,8 +2600,11 @@ export default function GameFlowOverlay({
 
                             {
                               key: "will",
-                              current:
-                                investigator.skills.will,
+                              current: getEffectiveSkill(
+                                game,
+                                investigator.id,
+                                "will",
+                              ),
                               base:
                                 investigatorDefinition?.skills.will ??
                                 investigator.skills.will,

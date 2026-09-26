@@ -490,6 +490,10 @@ export const coreAssets: Asset[] = [
 
     value: 2,
 
+    skillModifiers: {
+      influence: 1,
+    },
+
     description:
       "Gain +1 [influence].\n\nYou may reroll 1 die when resolving a [influence] test.",
 

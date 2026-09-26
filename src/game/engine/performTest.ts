@@ -3,6 +3,7 @@ import type { Skill } from "../models/Investigator";
 import type { TestResult } from "../models/TestResult";
 
 import { rollTest } from "./rollTest";
+import { getEffectiveSkill } from "./getEffectiveSkill";
 import { resolveTestConditions } from "./resolveTestConditions";
 import type { MapDefinition } from "../models/MapDefinition";
 
@@ -30,12 +31,39 @@ export function performTest(
 
   /*
    * ============================================================
+   * CALCULATE EFFECTIVE SKILL
+   * ============================================================
+   *
+   * Includes:
+   *
+   * - Investigator base skill
+   * - Passive Asset skill modifiers
+   *
+   */
+
+  const effectiveSkill =
+    getEffectiveSkill(
+      game,
+      investigatorId,
+      skill,
+    );
+
+  /*
+   * ============================================================
    * ROLL TEST
    * ============================================================
    */
 
   const test = rollTest(
-    investigator,
+    {
+      ...investigator,
+
+      skills: {
+        ...investigator.skills,
+
+        [skill]: effectiveSkill,
+      },
+    },
     skill,
     modifier,
     difficulty,

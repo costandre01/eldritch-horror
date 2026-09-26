@@ -10,6 +10,7 @@ import type {
 } from "../models/ConditionDefinition/frontEffects";
 import { defeatInvestigator } from "./defeatInvestigator";
 import type { MapDefinition } from "../models/MapDefinition";
+import { getEffectiveSkill } from "./getEffectiveSkill";
 
 export interface ResolveConditionFrontEffectsResult {
   game: GameState;
@@ -139,13 +140,30 @@ export function resolveConditionFrontEffects(
           effect.otherwise.type ===
           "test"
         ) {
+          const effectiveSkill =
+            getEffectiveSkill(
+              currentGame,
+              investigatorId,
+              effect.otherwise.testType,
+            );
+
           const test =
             rollTest(
-              currentGame.investigators[
-                investigatorId
-              ],
-              effect.otherwise
-                .testType,
+              {
+                ...currentGame.investigators[
+                  investigatorId
+                ],
+
+                skills: {
+                  ...currentGame.investigators[
+                    investigatorId
+                  ].skills,
+
+                  [effect.otherwise.testType]:
+                    effectiveSkill,
+                },
+              },
+              effect.otherwise.testType,
               0,
               1,
             );
@@ -431,11 +449,29 @@ export function resolveConditionFrontEffects(
       */
 
       if (effect.testType) {
+        const effectiveSkill =
+          getEffectiveSkill(
+            currentGame,
+            investigatorId,
+            effect.testType,
+          );
+
         const test =
           rollTest(
-            currentGame.investigators[
-              investigatorId
-            ],
+            {
+              ...currentGame.investigators[
+                investigatorId
+              ],
+
+              skills: {
+                ...currentGame.investigators[
+                  investigatorId
+                ].skills,
+
+                [effect.testType]:
+                  effectiveSkill,
+              },
+            },
             effect.testType,
             0,
             1,
@@ -557,16 +593,18 @@ export function resolveConditionFrontEffects(
 
       if (effect.testType) {
         if (treatDiceAsOne) {
-          const investigator =
-            currentGame.investigators[
-              investigatorId
-            ];
+
+          const effectiveSkill =
+            getEffectiveSkill(
+              currentGame,
+              investigatorId,
+              effect.testType,
+            );
 
           const diceRolled = Math.max(
             0,
-            investigator.skills[
-              effect.testType
-            ] + (effect.modifier ?? 0),
+            effectiveSkill +
+              (effect.modifier ?? 0),
           );
 
           const test = {
@@ -602,11 +640,29 @@ export function resolveConditionFrontEffects(
           break;
         }
 
+        const effectiveSkill =
+          getEffectiveSkill(
+            currentGame,
+            investigatorId,
+            effect.testType,
+          );
+
         const test =
           rollTest(
-            currentGame.investigators[
-              investigatorId
-            ],
+            {
+              ...currentGame.investigators[
+                investigatorId
+              ],
+
+              skills: {
+                ...currentGame.investigators[
+                  investigatorId
+                ].skills,
+
+                [effect.testType]:
+                  effectiveSkill,
+              },
+            },
             effect.testType,
             effect.modifier ?? 0,
             1,

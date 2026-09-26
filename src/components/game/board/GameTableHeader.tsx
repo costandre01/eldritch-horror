@@ -50,8 +50,8 @@ function DeckVisual({
       disabled={disabled}
       onClick={onClick}
       className={[
-        "group flex min-w-25 flex-col items-center",
-        "rounded-xl border p-2 transition",
+        "group flex min-w-20 shrink-0 flex-col items-center",
+        "rounded-xl border p-1 transition",
         disabled
           ? "cursor-default border-slate-800 bg-slate-900/40 opacity-55"
           : "cursor-pointer border-slate-700 bg-slate-900/60 hover:border-slate-500 hover:bg-slate-800/70",
@@ -869,7 +869,7 @@ export default function GameTableHeader({
                   alt={
                     game.ancientOne.name
                   }
-                  className="mx-auto h-140 w-auto rounded-lg object-contain shadow-2xl transition group-hover:scale-[1.02]"
+                  className="mx-auto h-105 w-auto rounded-lg object-contain shadow-2xl transition group-hover:scale-[1.02]"
                 />
               </button>
 
@@ -893,7 +893,7 @@ export default function GameTableHeader({
         {/* MYSTERIES + MYTHOS */}
         {/* ================================================== */}
 
-        <section className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
+        <section className="grid min-w-0 grid-cols-2 gap-6">
 
           {/* ================================================= */}
           {/* MYSTERIES */}
@@ -970,7 +970,7 @@ export default function GameTableHeader({
                       alt={
                         activeMystery.name
                       }
-                      className="h-auto max-h-[60vh] w-auto max-w-full rounded object-contain shadow-2xl"
+                      className="h-auto max-h-[45vh] w-auto max-w-full rounded object-contain shadow-2xl"
                     />
 
                     {!solved && (
@@ -1044,7 +1044,7 @@ export default function GameTableHeader({
               </h2>
             </div>
 
-            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-6">
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-0">
 
               {/* MYTHOS DECK */}
 
@@ -1053,7 +1053,7 @@ export default function GameTableHeader({
                 <img
                   src="/cards/Mystery/Mythos-back.jpg"
                   alt="Mythos deck"
-                  className="h-130 w-auto rounded object-cover shadow-lg"
+                  className="h-95 w-auto rounded object-cover shadow-lg"
                 />
 
                 <p className="mt-1 text-center text-[9px] font-bold uppercase text-slate-500">
@@ -1075,7 +1075,7 @@ export default function GameTableHeader({
 
               <div className="min-w-0 overflow-x-auto">
 
-                <div className="flex min-h-130 gap-3">
+                <div className="flex min-h-95 gap-3">
 
                   {mythosInPlay.map(
                     (
@@ -1097,7 +1097,7 @@ export default function GameTableHeader({
                           alt={
                             mythos.name
                           }
-                          className="h-130 w-auto rounded object-cover shadow-lg transition group-hover:scale-[1.02]"
+                          className="h-95 w-auto rounded object-cover shadow-lg transition group-hover:scale-[1.02]"
                         />
 
                         <p className="mt-1 max-w-30 truncate text-center text-[9px] text-slate-400">
@@ -1111,7 +1111,7 @@ export default function GameTableHeader({
 
                   {mythosInPlay.length ===
                     0 && (
-                    <div className="flex min-h-130 min-w-55 items-center justify-center">
+                    <div className="flex min-h-95 min-w-40 items-center justify-center">
                       <p className="text-center text-sm font-medium text-slate-100">
                         No Mythos cards revealed.
                       </p>

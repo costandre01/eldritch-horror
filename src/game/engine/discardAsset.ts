@@ -4,64 +4,44 @@ export function discardAsset(
   game: GameState,
   assetId: string,
 ): GameState {
-  const investigatorId =
-    game.activeInvestigatorId;
-
-  if (!investigatorId) {
-    throw new Error(
-      "There is no active investigator.",
-    );
-  }
-
-  const investigator =
-    game.investigators[
-      investigatorId
-    ];
-
-  if (!investigator) {
-    throw new Error(
-      `Investigator "${investigatorId}" does not exist.`,
-    );
-  }
-
   /*
-   * The Asset must be owned by the Investigator.
+   * The Asset must currently be in
+   * the Asset Reserve.
+   *
+   * This function is used from the
+   * Acquire Assets modal, before the
+   * Asset is acquired by an investigator.
    */
 
-  if (
-    !investigator.assetIds.includes(
-      assetId,
-    )
-  ) {
+  const assetIndex =
+    game.board.assetReserve.findIndex(
+      (asset) =>
+        asset.id === assetId,
+    );
+
+  if (assetIndex === -1) {
     throw new Error(
-      `Asset "${assetId}" is not owned by Investigator "${investigatorId}".`,
+      `Asset "${assetId}" is not in the Asset Reserve.`,
     );
   }
 
   const asset =
-    game.assets[assetId];
-
-  if (!asset) {
-    throw new Error(
-      `Asset "${assetId}" does not exist.`,
-    );
-  }
+    game.board.assetReserve[
+      assetIndex
+    ];
 
   /*
-   * Remove the Asset from the Investigator.
+   * Remove the Asset from the Reserve.
    */
 
-  const assetIds =
-    investigator.assetIds.filter(
-      (id) =>
-        id !== assetId,
+  const assetReserve =
+    game.board.assetReserve.filter(
+      (asset) =>
+        asset.id !== assetId,
     );
 
   /*
-   * Add the Asset to the discard pile.
-   *
-   * The Asset Reserve is NOT changed.
-   * This Asset was already owned by the Investigator.
+   * Put the Asset in the discard pile.
    */
 
   const assetDiscard = [
@@ -72,18 +52,10 @@ export function discardAsset(
   return {
     ...game,
 
-    investigators: {
-      ...game.investigators,
-
-      [investigatorId]: {
-        ...investigator,
-
-        assetIds,
-      },
-    },
-
     board: {
       ...game.board,
+
+      assetReserve,
 
       assetDiscard,
     },
