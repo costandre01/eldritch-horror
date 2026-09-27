@@ -112,6 +112,7 @@ export function castSpell(
       modifier,
       1,
       map,
+      { spell: true },
     );
 
   /*

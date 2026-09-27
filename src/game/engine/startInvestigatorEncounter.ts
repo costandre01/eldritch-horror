@@ -52,6 +52,13 @@ export function startInvestigatorEncounter(
         investigator.spaceId,
     );
 
+  if (game.ignoreMonstersForNextEncounter) {
+    return startEncounter(
+      { ...game, ignoreMonstersForNextEncounter: false },
+      map,
+    );
+  }
+
   /*
    * ============================================================
    * COMBAT

@@ -23,4 +23,8 @@ export interface Spell {
   pendingTestResult: TestResult | null;
 
   pendingChosenInvestigatorId: string | null;
+
+  pendingChosenMonsterId?: string | null;
+
+  pendingChosenClueId?: string | null;
 }

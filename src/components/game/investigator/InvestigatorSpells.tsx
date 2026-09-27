@@ -1,5 +1,6 @@
 import type { Spell } from "../../../game/models/Spell";
 import type { SpellDefinition } from "../../../game/models/SpellDefinition";
+import InvestigatorCardThumbnail from "./InvestigatorCardThumbnail";
 
 interface InvestigatorSpellsProps {
   spells: Spell[];
@@ -27,7 +28,7 @@ export default function InvestigatorSpells({
     );
 
   return (
-    <section className="mt-8">
+    <section className="min-w-0 rounded-xl border border-slate-700/70 bg-slate-900/50 p-3">
 
       {/* ================================================== */}
       {/* HEADER */}
@@ -35,11 +36,11 @@ export default function InvestigatorSpells({
 
       <div className="flex items-center justify-between">
 
-        <h3 className="text-lg font-bold">
+        <h3 className="text-sm font-bold text-slate-100">
           Spells
         </h3>
 
-        <span className="text-sm text-gray-500">
+        <span className="rounded-full bg-purple-500/15 px-2 py-0.5 text-xs font-semibold text-purple-300">
           {spells.length}
         </span>
 
@@ -51,13 +52,14 @@ export default function InvestigatorSpells({
 
       {spells.length === 0 ? (
 
-        <div className="mt-3 rounded-xl border border-gray-800 bg-gray-900 p-5 text-center text-sm text-gray-500">
-          This investigator has no Spells.
+        <div className="mt-3 flex min-h-14 items-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-950/40 px-3 text-xs text-slate-400">
+          <span className="text-base text-slate-500">＋</span>
+          No spells yet
         </div>
 
       ) : (
 
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
 
           {spells.map((spell) => {
 
@@ -92,91 +94,14 @@ export default function InvestigatorSpells({
              */
 
             return (
-              <button
+              <InvestigatorCardThumbnail
                 key={spell.id}
-                type="button"
-                onClick={() =>
-                  onSelect(
-                    spell,
-                    spellDefinition,
-                  )
-                }
-                className="group overflow-hidden rounded-xl border border-purple-900/60 bg-purple-950/20 text-left transition hover:-translate-y-1 hover:border-purple-500 hover:bg-purple-950/40 hover:shadow-lg"
-              >
-
-                {/* ========================================== */}
-                {/* IMAGE */}
-                {/* ========================================== */}
-
-                <div className="relative h-44 overflow-hidden bg-gray-950">
-
-                  <img
-                    src={
-                      spell.flipped
-                        ? spell.backImage
-                        : spell.frontImage
-                    }
-                    alt={
-                      spellDefinition.name
-                    }
-                    className="absolute inset-0 h-auto w-full object-cover object-top transition duration-300 group-hover:scale-105"
-                  />
-
-                  <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-gray-900 to-transparent" />
-
-                  {spell.exhausted && (
-                    <span className="absolute right-3 top-3 rounded-full bg-gray-900/90 px-2 py-1 text-[10px] font-bold uppercase text-gray-400">
-                      Exhausted
-                    </span>
-                  )}
-
-                </div>
-
-                {/* ========================================== */}
-                {/* INFORMATION */}
-                {/* ========================================== */}
-
-                <div className="p-4">
-
-                  <h4 className="font-bold text-white">
-                    {spellDefinition.name}
-                  </h4>
-
-                  <p className="mt-1 text-xs uppercase tracking-wide text-purple-400">
-                    {spellDefinition.type}
-                  </p>
-
-                  <p className="mt-3 text-sm leading-5 text-gray-400">
-                    {spellDefinition.description}
-                  </p>
-
-                  {/* ======================================== */}
-                  {/* LORE BONUS */}
-                  {/* ======================================== */}
-
-                  {spellDefinition.loreBonus !==
-                    0 && (
-                    <p className="mt-3 text-xs text-gray-500">
-                      Lore bonus:{" "}
-                      <span className="font-bold text-white">
-                        {spellDefinition.loreBonus >
-                        0
-                          ? "+"
-                          : ""}
-                        {
-                          spellDefinition.loreBonus
-                        }
-                      </span>
-                    </p>
-                  )}
-
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-600 transition group-hover:text-purple-400">
-                    Click to view card
-                  </p>
-
-                </div>
-
-              </button>
+                image={spell.flipped ? spell.backImage : spell.frontImage}
+                name={spellDefinition.name}
+                kind="spell"
+                badge={spell.exhausted ? "Exhausted" : undefined}
+                onClick={() => onSelect(spell, spellDefinition)}
+              />
             );
           })}
 

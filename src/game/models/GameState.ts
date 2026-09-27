@@ -16,8 +16,26 @@ import type { PendingDecision } from "./PendingDecision";
 import type { EncounterDeckType } from "./BoardState";
 import type { GameStatus } from "../types/GameStatus";
 import type { FinalMysteryState } from "./FinalMystery";
+import type { PendingSpellBackResolution } from "./PendingSpellBackResolution";
+import type { GainedCardReveal } from "./GainedCardReveal";
 
 export interface GameState {
+  cardRevealQueue?: GainedCardReveal[];
+  cardRerollUsedRound?: Record<string, number>;
+  activeTestRerolls?: {
+    id: string;
+    investigatorId: string;
+    skill: import("./Investigator").Skill;
+    amount: number;
+    duration: "this-test" | "this-combat-encounter";
+  }[];
+  activeCombatSkillModifiers?: {
+    id: string;
+    investigatorId: string;
+    skill: import("./Investigator").Skill;
+    amount: number;
+    duration?: "this-combat-encounter";
+  }[];
   /*
    * ============================================================
    * GAME
@@ -126,6 +144,12 @@ export interface GameState {
   currentEncounterIsResearch:
     boolean;
 
+  ignoreMonstersForNextEncounter?: boolean;
+
+  spellEncounterReturnSpaceId?: string | null;
+
+  researchEncounterBonusDice?: Record<string, number>;
+
   /*
   * Number of Clues gained during the
   * current Research Encounter.
@@ -187,6 +211,8 @@ export interface GameState {
   pendingSpellChoice:
     SpellChoice | null;
 
+  pendingSpellBackResolution?: PendingSpellBackResolution | null;
+
   /*
    * ============================================================
    * ENCOUNTER CHOICE
@@ -240,4 +266,15 @@ export interface GameState {
 
   pendingDecision:
     PendingDecision | null;
+
+  pendingAcquireAssetEffects?: {
+    investigatorId: string;
+    assetIds: string[];
+  } | null;
+
+  pendingCombatLoss?: {
+    testDecision: Extract<PendingDecision, { type: "test" }>;
+    diceTest: TestResult;
+    stat: "health" | "sanity";
+  } | null;
 }

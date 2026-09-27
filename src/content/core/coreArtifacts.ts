@@ -15,7 +15,7 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "Action: Test [lore] Lore. If you pass, you may spend [sanity] 1 Sanity to gain [clue] 2 Clues.",
 
-        image: "/cards/artifacts/cultes-des-goules.png",
+        image: "/cards/artifacts/Cultes_des_Goules.png",
     },
 
     {
@@ -32,7 +32,7 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "Action: Test [lore] Lore. If you pass, you may spend [sanity] 1 Sanity to improve 1 skill of your choice.",
 
-        image: "/cards/artifacts/de-vermis-mysteriis.png",
+        image: "/cards/artifacts/De_Vermis_Mysteriis.png",
     },
 
     {
@@ -49,11 +49,11 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "Action: Spend [health] 2 Health and [sanity] 2 Sanity to defeat all Monsters on your space.",
 
-        image: "/cards/artifacts/flute-of-the-outer-gods.png",
+        image: "/cards/artifacts/Flute_of_the_Outer_Gods.png",
     },
 
     {
-        id: "gate-box",
+    id: "gate-box",
 
         name: "Gate Box",
 
@@ -63,14 +63,16 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
             "magical",
         ],
 
+        passiveTestModifiers: [{ bonusDice: 1, otherWorldOnly: true, investigatorsOnOwnerSpace: true }],
+
         description:
             "Investigators on your space roll 1 additional die when resolving tests during Other World Encounters.\n\nIf you close a Gate during an Other World Encounter, gain [clue] 1 Clue.",
 
-        image: "/cards/artifacts/gate-box.png",
+        image: "/cards/artifacts/Gate_Box.png",
     },
 
     {
-        id: "glass-of-mortlan",
+    id: "glass-of-mortlan",
 
         name: "Glass of Mortlan",
 
@@ -80,10 +82,12 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
             "magical",
         ],
 
+        passiveTestModifiers: [{ spellOnly: true, sixCountsAsTwo: true }],
+
         description:
             "Each 6 you roll when resolving a Spell effect counts as 2 successes.\n\nYou may prevent the loss of [sanity] 1 Sanity when resolving your Spell effects.",
 
-        image: "/cards/artifacts/glass-of-mortlan.png",
+        image: "/cards/artifacts/Glass_of_Mortlan.png",
     },
 
     {
@@ -98,11 +102,11 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "When you gain this card from the deck, gain [clue] 5 Clues.\n\nOnce per round, you may spend [clue] 1 Clue to prevent all [sanity] Sanity loss from a single effect.",
 
-        image: "/cards/artifacts/grotesque-statue.png",
+        image: "/cards/artifacts/Grotesque_Statue.png",
     },
 
     {
-        id: "lightning-gun",
+    id: "lightning-gun",
 
         name: "Lightning Gun",
 
@@ -113,10 +117,12 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
             "weapon",
         ],
 
+        contextualSkillModifiers: { combat: { strength: 6 } },
+
         description:
             "Gain [strength] +6 Strength when resolving a Combat Encounter.\n\nAction: You and each Monster on your space lose [health] 1 Health.",
 
-        image: "/cards/artifacts/lightning-gun.png",
+        image: "/cards/artifacts/Lightning_Gun.png",
     },
 
     {
@@ -134,7 +140,7 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "Action: You and another investigator may trade possessions. In addition, he may move to your space; if he does, move to his previous space.",
 
-        image: "/cards/artifacts/mi-go-brain-case.png",
+        image: "/cards/artifacts/Mi-go_Brain_Case.png",
     },
 
     {
@@ -151,7 +157,7 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "Action: Test [lore] Lore. If you pass, you may spend [sanity] 1 Sanity to gain [spell] 2 Spells.",
 
-        image: "/cards/artifacts/necronomicon.png",
+        image: "/cards/artifacts/Necronomicon.png",
     },
 
     {
@@ -168,7 +174,7 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "During the Encounter Phase, you may choose an encounter as if there are no Monsters on your space.",
 
-        image: "/cards/artifacts/pallid-mask.png",
+        image: "/cards/artifacts/Pallid_Mask.png",
     },
 
     {
@@ -185,11 +191,11 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "Once per round, during the Action Phase, you may spend [sanity] 1 Sanity and perform 1 additional action.",
 
-        image: "/cards/artifacts/ruby-of-rlyeh.png",
+        image: "/cards/artifacts/Ruby_of_R'lyeh.png",
     },
 
     {
-        id: "sword-of-saint-jerome",
+    id: "sword-of-saint-jerome",
 
         name: "Sword of Saint Jerome",
 
@@ -200,10 +206,12 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
             "weapon",
         ],
 
+        contextualSkillModifiers: { combat: { will: 2, strength: 5 } },
+
         description:
             "Gain [will] +2 Will and [strength] +5 Strength when resolving Combat Encounters.\n\nIf you defeat a Monster during a Combat Encounter, recover [sanity] 1 Sanity.",
 
-        image: "/cards/artifacts/sword-of-saint-jerome.png",
+        image: "/cards/artifacts/Sword_of_Saint_Jerome.png",
     },
 
     {
@@ -220,7 +228,7 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "Action: Test [lore] Lore. If you pass, you may spend [sanity] 1 Sanity to choose 1 Monster on your space to lose [health] 3 Health.",
 
-        image: "/cards/artifacts/tka-halot.png",
+        image: "/cards/artifacts/T'tka_Halot.png",
     },
 
     {
@@ -234,10 +242,12 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
             "magical",
         ],
 
+        testRerolls: [{ amount: 1, otherWorldOnly: true }],
+
         description:
             "Once per round, you may spend 1 less [clue] Clue to pay for an effect.\n\nYou may reroll 1 die when resolving a test during an Other World Encounter.",
 
-        image: "/cards/artifacts/the-silver-key.png",
+        image: "/cards/artifacts/The_Silver_Key.png",
     },
 ];
 

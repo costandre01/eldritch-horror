@@ -42,9 +42,14 @@ import { restInvestigator } from "./game/engine/restInvestigator";
 import { prepareForTravel } from "./game/engine/prepareForTravel";
 import { acquireAssets } from "./game/engine/acquireAssets";
 import { confirmAcquireAssets } from "./game/engine/confirmAcquireAssets";
-import { discardAsset } from "./game/engine/discardAsset";
+import { discardAssetFromReserve } from "./game/engine/discardAssetFromReserve";
 
 import { resolveSpellChoice } from "./game/engine/resolveSpellChoice";
+import { resolveSpellFrontEffects } from "./game/engine/resolveSpellFrontEffects";
+import { resolveSpellBackChoice } from "./game/engine/resolveSpellBackChoice";
+import { resolveSpell } from "./game/engine/resolveSpell";
+import { activatePossessionAbility } from "./game/engine/activatePossessionAbility";
+import { canPerformAction } from "./game/engine/canPerformAction";
 
 import { tradeInvestigator } from "./game/engine/tradeInvestigator";
 import { endInvestigatorEncounter } from "./game/engine/endInvestigatorEncounter";
@@ -63,6 +68,7 @@ import TradeModal from "./components/game/trade/TradeModal";
 
 import GameTableHeader from "./components/game/board/GameTableHeader";
 import type { PendingDecision } from "./game/models/PendingDecision";
+import type { TestRerollAbility } from "./game/models/Asset";
 import HomeScreen from "./components/home/HomeScreen";
 import SaveGameModal from "./components/game/SaveGameModal";
 
@@ -96,6 +102,59 @@ import {
 import { startNextRoundAfterMythos } from "./game/engine/startNextRoundAfterMythos";
 import GameEndModal from "./components/game/modals/GameEndModal";
 import { resolveDefeatedInvestigatorReplacement } from "./game/engine/resolveDefeatedInvestigatorReplacement.ts";
+import { getConditionLocalActions, hasDetainedActionRestriction, resolveConditionLocalActionTest, startConditionLocalAction } from "./game/engine/conditionLocalAction";
+
+function getTestRerollOptions(
+  game: GameState,
+  decision: Extract<PendingDecision, { type: "test" }>,
+  axePaidThisTest = false,
+) {
+  const investigator = game.investigators[decision.investigatorId];
+  if (!investigator) return [];
+
+  const combatTest = decision.source?.startsWith("combat:") ?? false;
+  const cards = [
+    ...investigator.assetIds.map((id) => game.assets[id]).filter(Boolean),
+    ...investigator.artifactIds.map((id) => game.artifacts[id]).filter(Boolean),
+  ];
+
+  return cards.flatMap((card) =>
+    (card.testRerolls ?? []).flatMap((ability: TestRerollAbility, index: number) => {
+      if (ability.sanityCost && !axePaidThisTest && investigator.sanity <= ability.sanityCost) return [];
+      if (ability.oncePerRound && game.cardRerollUsedRound?.[`${card.id}:${index}`] === game.round) return [];
+      if (ability.otherWorldOnly && !game.currentEncounterId?.startsWith("other-world-encounter")) return [];
+      if (ability.skill && ability.skill !== decision.skill) return [];
+      if (ability.combatOnly && !combatTest) return [];
+      return [{
+        id: `${card.id}:${index}`,
+        name: card.name,
+        image: card.image,
+        description: card.description,
+        amount: ability.rerollEachDieOnce ? 99 : ability.amount,
+        ...(ability.sanityCost && !axePaidThisTest ? { sanityCost: ability.sanityCost } : {}),
+        ...(ability.rerollEachDieOnce ? { rerollEachDieOnce: true } : {}),
+        ...(ability.resultModifier !== undefined ? { resultModifier: ability.resultModifier } : {}),
+      }];
+    }),
+  ).concat(
+    (game.activeTestRerolls ?? [])
+      .filter((ability) => ability.investigatorId === investigator.id)
+      .filter((ability) => ability.skill === decision.skill)
+      .filter((ability) => ability.duration !== "this-combat-encounter" || combatTest)
+      .map((ability) => {
+        const spellId = ability.id.split(":")[1];
+        const spell = spellId ? game.spells[spellId] : undefined;
+        const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+        return {
+          id: ability.id,
+          name: definition?.name ?? "Spell",
+          image: spell?.frontImage,
+          description: definition?.description ?? "Reroll dice as indicated by this Spell effect.",
+          amount: ability.amount,
+        };
+      }),
+  );
+}
 
 
 function App() {
@@ -117,6 +176,7 @@ function App() {
 
   const [diceTest, setDiceTest] =
     useState<TestResult | null>(null);
+  const [axePaidThisTest, setAxePaidThisTest] = useState(false);
 
   const [singleDieRoll, setSingleDieRoll] =
     useState<number | null>(null);
@@ -137,6 +197,7 @@ function App() {
 
   const [spellTest, setSpellTest] =
     useState<TestResult | null>(null);
+  const [spellTestEffectIndex, setSpellTestEffectIndex] = useState<number | null>(null);
 
   const [
     prepareForTravelChoice,
@@ -150,6 +211,7 @@ function App() {
 
   const [tradeOpen, setTradeOpen] =
     useState(false);
+  const [brainCaseTrade, setBrainCaseTrade] = useState(false);
 
   const [
     spellTestSpellId,
@@ -188,12 +250,15 @@ function App() {
   const [inspectedSpaceId, setInspectedSpaceId] =
     useState<string | null>(null);
 
+  const gamePhase = game?.phase;
+  const investigatorTurnIndex = game?.investigatorTurnIndex;
+
   useEffect(() => {
-    if (!game) {
+    if (gamePhase === undefined) {
       return;
     }
 
-    if (game.phase !== "encounter") {
+    if (gamePhase !== "encounter") {
       setEncounterTurnIndex(null);
       setEncounterStartedForTurn(false);
       return;
@@ -201,15 +266,15 @@ function App() {
 
     if (
       encounterTurnIndex !== null &&
-      game.investigatorTurnIndex !==
+      investigatorTurnIndex !==
         encounterTurnIndex
     ) {
       setEncounterStartedForTurn(false);
       setEncounterTurnIndex(null);
     }
   }, [
-    game?.phase,
-    game?.investigatorTurnIndex,
+    gamePhase,
+    investigatorTurnIndex,
     encounterTurnIndex,
   ]);
 
@@ -309,6 +374,7 @@ function App() {
    */
   
   function handleOpenTrade() {
+    setBrainCaseTrade(false);
     setTradeTargetId(null);
     setTradeTargetSelectionOpen(true);
   }
@@ -379,6 +445,7 @@ function App() {
     }
 
     try {
+      const resolvingSpellId = game.pendingSpellChoice?.spellId;
       const updatedGame =
         resolveSpellChoice(
           game,
@@ -386,12 +453,126 @@ function App() {
         );
 
       setGame(updatedGame);
+      if (resolvingSpellId && !updatedGame.pendingSpellChoice && updatedGame.spells[resolvingSpellId]?.pendingTestResult) {
+        setSpellPreviewId(resolvingSpellId);
+      }
     } catch (error) {
       console.error(
         error instanceof Error
           ? error.message
           : error,
       );
+    }
+  }
+
+  function getSpellChoiceOptions(currentGame: GameState) {
+    const choice = currentGame.pendingSpellChoice;
+    if (!choice || choice.type === "choose-investigator") return undefined;
+    const labelSpaces = new Map(eldritchBaseMap.spaces.map((space) => [space.id, space.name]));
+    if (choice.type === "choose-monster") {
+      const owner = currentGame.investigators[choice.investigatorId];
+      const ids = owner?.spaceId ? currentGame.board.spaces[owner.spaceId]?.monsterIds ?? [] : [];
+      return ids.map((id) => ({ id, label: currentGame.monsters[id]?.definitionId ?? "Monster" }));
+    }
+    if (choice.type === "choose-skill") {
+      return ["lore", "influence", "observation", "strength", "will"].map((skill) => ({ id: skill, label: skill[0].toUpperCase() + skill.slice(1) }));
+    }
+    if (choice.type === "choose-asset") {
+      const maxValue = choice.maxValueFromTestResult
+        ? currentGame.spells[choice.spellId]?.pendingTestResult?.successes ?? 0
+        : Number.POSITIVE_INFINITY;
+      return currentGame.board.assetReserve
+        .filter((asset) => choice.assetTypes?.includes(asset.type as "item" | "trinket"))
+        .filter((asset) => asset.value <= maxValue)
+        .map((asset) => ({ id: asset.id, label: asset.name, description: `Value ${asset.value}` }));
+    }
+    if (choice.type === "choose-space") {
+      return eldritchBaseMap.spaces.map((space) => ({ id: space.id, label: space.name }));
+    }
+    if (choice.type === "choose-clue") {
+      return Object.values(currentGame.board.spaces).flatMap((space) =>
+        space.clueTokenIds.map((id) => ({ id, label: `Clue at ${labelSpaces.get(space.spaceId) ?? space.spaceId}` })),
+      );
+    }
+    if (choice.type === "choose-encounter") {
+      return [{ id: "resolve-encounter", label: "Resolve an Encounter", description: "Ignore Monsters for this Encounter." }];
+    }
+    return [];
+  }
+
+  function handleActivateSpell(spellId: string, frontEffectIndex: number) {
+    if (!game) return;
+    const investigatorId = game.activeInvestigatorId;
+    if (!investigatorId) return;
+    const spell = game.spells[spellId];
+    const investigator = game.investigators[investigatorId];
+    const definition = spell && coreSpells.find((item) => item.id === spell.definitionId);
+    const effect = definition?.frontEffects[frontEffectIndex];
+    if (!spell || !investigator || !definition || !effect || spell.flipped || !investigator.spellIds.includes(spellId)) return;
+    if (effect.type === "action-test") {
+      if (
+        game.phase !== "action" ||
+        investigator.isDelayed ||
+        investigator.actionsPerformed.length >= 2 + (investigator.additionalActionsThisRound ?? 0)
+      ) return;
+    } else if (effect.type === "on-encounter-phase" || effect.type === "on-combat-encounter") {
+      if (game.phase !== "encounter") return;
+    } else {
+      // Health/Sanity-loss effects are reaction abilities and are resolved by
+      // the loss event, never as a freely activated test from the card panel.
+      return;
+    }
+    try {
+      const result = resolveSpellFrontEffects(game, investigatorId, spellId, effect, eldritchBaseMap, {
+        deferTriggeredEffects: true,
+      });
+      const resolvedGame = effect.type === "action-test"
+        ? {
+            ...result.game,
+            investigators: {
+              ...result.game.investigators,
+              [investigatorId]: {
+                ...result.game.investigators[investigatorId],
+                actionsPerformed: [...result.game.investigators[investigatorId].actionsPerformed, "component" as const],
+              },
+            },
+          }
+        : result.game;
+      setGame(resolvedGame);
+      if (result.testResult) {
+        setAxePaidThisTest(false);
+        setSpellTest(result.testResult);
+        setSpellTestSpellId(spellId);
+        setSpellTestEffectIndex(frontEffectIndex);
+      }
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+    }
+  }
+
+  function handleActivatePossession(kind: "asset" | "artifact", cardId: string, ability: string) {
+    if (!game?.activeInvestigatorId) return;
+    if (kind === "artifact" && cardId === "mi-go-brain-case" && ability === "action") {
+      if (hasDetainedActionRestriction(game, game.activeInvestigatorId)) return;
+      const investigator = game.investigators[game.activeInvestigatorId];
+      if (!investigator || game.phase !== "action" || !canPerformAction(investigator, "component")) return;
+      setBrainCaseTrade(true);
+      setTradeTargetId(null);
+      setTradeTargetSelectionOpen(true);
+      return;
+    }
+    try {
+      const updated = activatePossessionAbility(
+        game,
+        game.activeInvestigatorId,
+        kind,
+        cardId,
+        ability as "action" | "combat" | "free-action" | "action-heal" | "encounter",
+        eldritchBaseMap,
+      );
+      setGame(updated);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
     }
   }
 
@@ -431,13 +612,27 @@ function App() {
 
     const spellId =
       spellTestSpellId;
+    let hasPendingSpellChoice = false;
+
+    if (game && spellTest && spellTestEffectIndex !== null) {
+      const investigatorId = game.activeInvestigatorId;
+      const spell = game.spells[spellId];
+      const definition = spell && coreSpells.find((item) => item.id === spell.definitionId);
+      const effect = definition?.frontEffects[spellTestEffectIndex];
+      if (investigatorId && effect) {
+        const result = resolveSpellFrontEffects(game, investigatorId, spellId, effect, eldritchBaseMap, {
+          testResultOverride: spellTest,
+        });
+        hasPendingSpellChoice = !!result.game.pendingSpellChoice;
+        setGame(result.game);
+      }
+    }
 
     setSpellTest(null);
     setSpellTestSpellId(null);
+    setSpellTestEffectIndex(null);
 
-    setSpellPreviewId(
-      spellId,
-    );
+    if (!hasPendingSpellChoice) setSpellPreviewId(spellId);
   }
 
   /*
@@ -447,41 +642,22 @@ function App() {
    */
 
   function handleCloseSpellPreview() {
-    if (!spellPreviewId) {
-      return;
-    }
-
-    const spellId =
-      spellPreviewId;
-
-    setGame((current) => {
-      if (!current) {
-        return current;
-      }
-
-      const currentSpell =
-        current.spells[spellId];
-
-      if (!currentSpell) {
-        return current;
-      }
-
-      return {
-        ...current,
-
-        spells: {
-          ...current.spells,
-
-          [spellId]: {
-            ...currentSpell,
-
-            flipped: false,
-          },
-        },
-      };
-    });
-
+    if (!spellPreviewId) return;
     setSpellPreviewId(null);
+  }
+
+  function handleResolveSpellBack() {
+    if (!game || !spellPreviewId) return;
+    const spell = game.spells[spellPreviewId];
+    const investigatorId = Object.values(game.investigators).find((investigator) => investigator.spellIds.includes(spellPreviewId))?.id;
+    if (!spell || !spell.pendingTestResult || !investigatorId) return;
+    try {
+      const updatedGame = resolveSpell(game, investigatorId, spellPreviewId);
+      setGame(updatedGame);
+      setSpellPreviewId(null);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+    }
   }
 
   /*
@@ -555,7 +731,7 @@ function App() {
 
     try {
       const updatedGame =
-        discardAsset(
+        discardAssetFromReserve(
           game,
           assetId,
         );
@@ -781,16 +957,35 @@ function App() {
     }
 
     try {
+      const activeId = game.activeInvestigatorId;
+      const target = game.investigators[tradeTargetId];
+      const targetPreviousSpace = target?.spaceId ?? null;
       const updatedGame =
         tradeInvestigator(
           game,
           tradeTargetId,
           offer,
+          { brainCase: brainCaseTrade },
         );
 
-      setGame(updatedGame);
+      setGame(brainCaseTrade && activeId && target
+        ? {
+            ...updatedGame,
+            pendingDecision: {
+              type: "choice",
+              title: "Mi-Go Brain Case",
+              message: "The other investigator may move to your space. If he does, you move to his previous space.",
+              options: [
+                { id: `brain-case:move:${activeId}:${tradeTargetId}:${targetPreviousSpace ?? ""}`, title: "Swap spaces" },
+                { id: "brain-case:stay", title: "Stay where you are" },
+              ],
+              source: "artifact:mi-go-brain-case",
+            },
+          }
+        : updatedGame);
       setTradeTargetId(null);
       setTradeOpen(false);
+      setBrainCaseTrade(false);
     } catch (error) {
       console.error(
         "Error completing Trade:",
@@ -804,6 +999,7 @@ function App() {
   function handleCancelTrade() {
     setTradeTargetId(null);
     setTradeOpen(false);
+    setBrainCaseTrade(false);
   }
 
   /*
@@ -836,6 +1032,34 @@ function App() {
           ? error.message
           : error,
       );
+    }
+  }
+
+  function handleConditionLocalAction(conditionId: string) {
+    if (!game) return;
+    try {
+      const result = startConditionLocalAction(game, conditionId, eldritchBaseMap);
+      const investigatorId = result.game.activeInvestigatorId;
+      if (!investigatorId) return;
+      const condition = result.game.conditions[conditionId];
+      const conditionName = condition
+        ? getConditionLocalActions(result.game, investigatorId).find((action) => action.condition.id === conditionId)?.conditionName
+        : undefined;
+      const decision: PendingDecision = {
+        type: "test",
+        title: `${conditionName ?? "Condition"} Local Action`,
+        message: `Test ${result.effect.testType}. If you pass, resolve this Condition's Local Action.`,
+        skill: result.effect.testType,
+        modifier: "modifier" in result.effect ? result.effect.modifier ?? 0 : 0,
+        investigatorId,
+        source: `condition-local-action:${conditionId}`,
+      };
+      pendingTestDecisionRef.current = decision;
+      setPendingTestDecision(decision);
+      setGame(result.game);
+      setDiceTest(result.test);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
     }
   }
 
@@ -1024,151 +1248,6 @@ function App() {
   }
 
   /*
-  * ============================================================
-  * TEST — SPAWN MONSTERS ON MAP
-  * ============================================================
-  *
-  * Temporário.
-  *
-  * Pega em monstros que estão no Monster Cup
-  * e espalha-os pelo mapa para testar:
-  *
-  * - imagens
-  * - posições
-  * - popup
-  * - múltiplos monstros no mesmo espaço
-  */
-
-  function handleTestSpawnMonsters() {
-    setGame((currentGame) => {
-      if (!currentGame) {
-        return currentGame;
-      }
-
-      const shanghai =
-        currentGame.board.spaces["shanghai"];
-
-      if (!shanghai) {
-        console.error(
-          'Space "shanghai" does not exist.',
-        );
-
-        return currentGame;
-      }
-
-      /*
-      * ============================================================
-      * TEST MONSTERS
-      * ============================================================
-      *
-      * Coloca vários monstros diferentes em Shanghai
-      * para testar o Mythos Reckoning.
-      */
-
-      const testDefinitionIds = [
-        "deep-one",
-        "gnoph-keh",
-      ];
-
-      const availableMonsters =
-        Object.values(
-          currentGame.monsters,
-        ).filter(
-          (monster) =>
-            testDefinitionIds.includes(
-              monster.definitionId,
-            ),
-        );
-
-      if (availableMonsters.length === 0) {
-        console.error(
-          "No test monsters found in game.monsters.",
-        );
-
-        return currentGame;
-      }
-
-      /*
-      * Remove estes monstros de qualquer
-      * espaço onde estejam atualmente.
-      */
-
-      const updatedSpaces = {
-        ...currentGame.board.spaces,
-      };
-
-      for (const spaceId of Object.keys(
-        updatedSpaces,
-      )) {
-        updatedSpaces[spaceId] = {
-          ...updatedSpaces[spaceId],
-
-          monsterIds:
-            updatedSpaces[spaceId].monsterIds.filter(
-              (monsterId) =>
-                !availableMonsters.some(
-                  (monster) =>
-                    monster.id === monsterId,
-                ),
-            ),
-        };
-      }
-
-      /*
-      * Coloca todos em Shanghai.
-      */
-
-      const updatedMonsters = {
-        ...currentGame.monsters,
-      };
-
-      const monsterIdsToAdd: string[] = [];
-
-      for (const monster of availableMonsters) {
-        updatedMonsters[monster.id] = {
-          ...monster,
-
-          spaceId: "shanghai",
-
-          engagedInvestigatorId: null,
-        };
-
-        monsterIdsToAdd.push(
-          monster.id,
-        );
-      }
-
-      updatedSpaces["shanghai"] = {
-        ...updatedSpaces["shanghai"],
-
-        monsterIds: [
-          ...updatedSpaces["shanghai"]
-            .monsterIds,
-
-          ...monsterIdsToAdd,
-        ],
-      };
-
-      console.log(
-        "TEST — MONSTERS SPAWNED IN SHANGHAI:",
-        monsterIdsToAdd,
-      );
-
-      return {
-        ...currentGame,
-
-        monsters: updatedMonsters,
-
-        board: {
-          ...currentGame.board,
-
-          spaces: updatedSpaces,
-        },
-      };
-    });
-  }
-
-  /*
    * ============================================================
    * ACTIVE INVESTIGATOR
    * ============================================================
@@ -1238,12 +1317,9 @@ function App() {
     }
 
     try {
-      const updatedGame =
-        resolveGameFlowChoice(
-          game,
-          choiceId,
-          eldritchBaseMap,
-        );
+      const updatedGame = game.pendingSpellBackResolution
+        ? resolveSpellBackChoice(game, choiceId)
+        : resolveGameFlowChoice(game, choiceId, eldritchBaseMap);
 
       setGame(updatedGame);
     } catch (error) {
@@ -1903,9 +1979,61 @@ function App() {
 
       return;
     }
+    setAxePaidThisTest(false);
 
     const currentGame =
       game;
+
+    if (testDecision.source?.startsWith("condition-local-action:")) {
+      const conditionId = testDecision.source.slice("condition-local-action:".length);
+      const resolved = resolveConditionLocalActionTest(
+        currentGame,
+        testDecision.investigatorId,
+        conditionId,
+        diceTest,
+        eldritchBaseMap,
+      );
+      setGame(resolved);
+      setDiceTest(null);
+      setPendingTestDecision(null);
+      pendingTestDecisionRef.current = null;
+      return;
+    }
+
+    if ((testDecision.source ?? "").startsWith("combat:spell:loss:")) {
+      const [, , , spellId, ownerId, rawStat, rawIndex] = testDecision.source!.split(":");
+      const pending = currentGame.pendingCombatLoss;
+      const spellOwner = currentGame.investigators[ownerId];
+      const spell = currentGame.spells[spellId];
+      const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+      const effectIndex = Number(rawIndex);
+      const effect = Number.isInteger(effectIndex) ? definition?.frontEffects[effectIndex] : undefined;
+      if (pending && spell && spellOwner?.spellIds.includes(spellId) && definition && effect && (effect.type === "on-health-loss" || effect.type === "on-sanity-loss")) {
+        const preventType = rawStat === "health" ? "prevent-health-loss" : "prevent-sanity-loss";
+        const prevention = effect.onSuccess.find((candidate) => candidate.type === preventType);
+        const prevented = diceTest.passed && prevention && (prevention.type === preventType)
+          ? prevention.amount
+          : 0;
+        const resolved = resolveCombatTest({
+          ...currentGame,
+          pendingDecision: null,
+          pendingCombatLoss: null,
+          spells: {
+            ...currentGame.spells,
+            [spellId]: { ...spell, flipped: diceTest.passed },
+          },
+        }, pending.testDecision, pending.diceTest, {
+          skip: true,
+          preventHealth: rawStat === "health" ? prevented : 0,
+          preventSanity: rawStat === "sanity" ? prevented : 0,
+        });
+        setGame(resolved);
+        setDiceTest(null);
+        setPendingTestDecision(null);
+        pendingTestDecisionRef.current = null;
+        return;
+      }
+    }
 
     /*
     * ============================================================
@@ -1972,7 +2100,19 @@ function App() {
             diceTest,
           );
 
-        setGame(resolvedGame);
+        setGame(
+          combatSource.startsWith("combat:strength:")
+            ? {
+                ...resolvedGame,
+                activeTestRerolls: resolvedGame.activeTestRerolls?.filter(
+                  (ability) => ability.investigatorId !== testDecision.investigatorId || ability.duration !== "this-combat-encounter",
+                ),
+                activeCombatSkillModifiers: resolvedGame.activeCombatSkillModifiers?.filter(
+                  (modifier) => modifier.investigatorId !== testDecision.investigatorId,
+                ),
+              }
+            : resolvedGame,
+        );
 
         setDiceTest(null);
         setPendingTestDecision(null);
@@ -2261,6 +2401,49 @@ function App() {
         setGame(updatedGame);
         setSingleDieRoll(null);
 
+        return;
+      }
+
+      if (
+        decision.type === "single-die-roll" &&
+        decision.source?.startsWith("asset:cat-burglar:")
+      ) {
+        const assetId = decision.source.slice("asset:cat-burglar:".length);
+        const investigatorId = decision.investigatorId;
+        const investigator = game.investigators[investigatorId];
+        if (!investigator) return;
+        if (singleDieRoll === 1) {
+          const asset = game.assets[assetId];
+          setGame({
+            ...game,
+            pendingDecision: null,
+            investigators: {
+              ...game.investigators,
+              [investigatorId]: { ...investigator, assetIds: investigator.assetIds.filter((id) => id !== assetId) },
+            },
+            board: asset ? { ...game.board, assetDiscard: [...game.board.assetDiscard, asset] } : game.board,
+          });
+        } else if (singleDieRoll >= 5) {
+          const eligible = game.board.assetReserve.filter((asset) => asset.type === "item" || asset.type === "trinket");
+          setGame({
+            ...game,
+            pendingDecision: eligible.length > 0 ? {
+              type: "select-card",
+              title: "Cat Burglar",
+              message: "Choose an Item or Trinket Asset from the reserve.",
+              cardIds: eligible.map((asset) => asset.id),
+              selectableCardIds: eligible.map((asset) => asset.id),
+              minSelections: 1,
+              maxSelections: 1,
+              selectedCardIds: [],
+              investigatorId,
+              source: `asset:cat-burglar-gain:${assetId}`,
+            } : null,
+          });
+        } else {
+          setGame({ ...game, pendingDecision: null });
+        }
+        setSingleDieRoll(null);
         return;
       }
 
@@ -3063,6 +3246,10 @@ function App() {
         ]
       : null;
 
+  const activeInvestigatorIsDetained = activeInvestigator
+    ? hasDetainedActionRestriction(game, activeInvestigator.id)
+    : false;
+
   const travelDestinationIds =
     activeInvestigator?.travelActive
       ? getTravelReachableSpaces(
@@ -3112,8 +3299,7 @@ function App() {
           (investigator) =>
             investigator.id !==
               activeInvestigator.id &&
-            investigator.spaceId ===
-              activeInvestigator.spaceId,
+            (brainCaseTrade || investigator.spaceId === activeInvestigator.spaceId),
         )
       : [];
 
@@ -3432,32 +3618,6 @@ function App() {
 
             {/* MAP */}
 
-            <div className="mb-3 flex justify-end">
-              <button
-                type="button"
-                onClick={
-                  handleTestSpawnMonsters
-                }
-                className="
-                  rounded-lg
-                  border
-                  border-red-400/40
-                  bg-red-500/10
-                  px-3
-                  py-2
-                  text-xs
-                  font-bold
-                  uppercase
-                  tracking-wider
-                  text-red-300
-                  transition
-                  hover:bg-red-500/20
-                "
-              >
-                TEST — SPAWN MONSTERS
-              </button>
-            </div>
-
             <GameBoard
               game={game}
               travelDestinationIds={
@@ -3497,11 +3657,13 @@ function App() {
                   }
 
                   canTravel={
+                    !activeInvestigatorIsDetained &&
                     !activeInvestigator.travelActive &&
                     activeInvestigator.actionsPerformed.length < 2
                   }
 
                   canRest={
+                    !activeInvestigatorIsDetained &&
                     !activeInvestigator.travelActive &&
                     activeInvestigator.actionsPerformed.length < 2 &&
                     !activeInvestigator.actionsPerformed.includes(
@@ -3515,6 +3677,7 @@ function App() {
                   }
 
                   canPrepareForTravel={
+                    !activeInvestigatorIsDetained &&
                     !activeInvestigator.travelActive &&
                     activeInvestigator.actionsPerformed.length < 2 &&
                     !activeInvestigator.actionsPerformed.includes(
@@ -3530,6 +3693,7 @@ function App() {
                   }
 
                   canTrade={
+                    !activeInvestigatorIsDetained &&
                     !activeInvestigator.travelActive &&
                     activeInvestigator.actionsPerformed.length < 2 &&
                     !activeInvestigator.actionsPerformed.includes(
@@ -3547,6 +3711,7 @@ function App() {
                   }
 
                   canAcquireAssets={
+                    !activeInvestigatorIsDetained &&
                     !activeInvestigator.travelActive &&
                     activeInvestigator.actionsPerformed.length < 2 &&
                     !activeInvestigator.actionsPerformed.includes(
@@ -3558,8 +3723,10 @@ function App() {
                           activeInvestigator.spaceId &&
                         space.type ===
                           "city",
-                    )
+                      )
                   }
+
+                  conditionActions={getConditionLocalActions(game, activeInvestigator.id)}
 
                   onStartTravel={
                     handleStartTravel
@@ -3580,6 +3747,8 @@ function App() {
                   onAcquireAssets={
                     handleAcquireAssets
                   }
+
+                  onConditionAction={handleConditionLocalAction}
 
                   onEndTravel={
                     handleEndTravel
@@ -3622,6 +3791,8 @@ function App() {
         {activeInvestigator && (
           <ActiveInvestigatorPanel
             investigator={activeInvestigator}
+
+            game={game}
 
             investigatorName={
               getInvestigatorName(
@@ -3697,6 +3868,9 @@ function App() {
                 activeInvestigator.id,
               )
             }
+            onInspectSpace={handleInspectSpace}
+            onActivateSpell={handleActivateSpell}
+            onActivatePossession={handleActivatePossession}
           />
         )}
 
@@ -3778,10 +3952,57 @@ function App() {
             results={
               diceTest.results
             }
-            title={`Teste de ${diceTest.skill}`}
+            title={`${diceTest.skill[0].toUpperCase()}${diceTest.skill.slice(1)} Test`}
+            sixCountsAsTwo={diceTest.sixCountsAsTwo}
             onComplete={
               handleCompleteDiceTest
             }
+            rerollAbilities={
+              game && (pendingTestDecision ?? pendingTestDecisionRef.current)
+                ? getTestRerollOptions(game, (pendingTestDecision ?? pendingTestDecisionRef.current)!, axePaidThisTest)
+                : []
+            }
+            onReroll={(dieIndex, abilityId) => {
+              const [cardId, abilityIndex] = abilityId.split(":");
+              const cardAbility = game
+                ? (game.assets[cardId]?.testRerolls ?? game.artifacts[cardId]?.testRerolls)?.[Number(abilityIndex)]
+                : undefined;
+              if (cardAbility?.sanityCost && !axePaidThisTest) {
+                setGame((current) => {
+                  if (!current) return current;
+                  const investigatorId = (pendingTestDecision ?? pendingTestDecisionRef.current)?.investigatorId;
+                  const investigator = investigatorId ? current.investigators[investigatorId] : undefined;
+                  if (!investigator || investigator.sanity <= cardAbility.sanityCost!) return current;
+                  return {
+                    ...current,
+                    investigators: { ...current.investigators, [investigatorId!]: { ...investigator, sanity: investigator.sanity - cardAbility.sanityCost! } },
+                  };
+                });
+                setAxePaidThisTest(true);
+              }
+              setGame((current) => current ? {
+                ...current,
+                cardRerollUsedRound: cardAbility?.oncePerRound ? { ...current.cardRerollUsedRound, [abilityId]: current.round } : current.cardRerollUsedRound,
+                activeTestRerolls: current.activeTestRerolls?.filter((ability) => ability.id !== abilityId),
+              } : current);
+              setDiceTest((current) => {
+                if (!current) return current;
+                const results = [...current.results];
+                results[dieIndex] = cardAbility?.resultModifier
+                  ? Math.min(6, results[dieIndex] + cardAbility.resultModifier)
+                  : Math.floor(Math.random() * 6) + 1;
+                const successes = results.reduce(
+                  (total, result) => total + (result >= 5 ? 1 : 0) + (result === 6 && current.sixCountsAsTwo ? 1 : 0),
+                  0,
+                );
+                return {
+                  ...current,
+                  results,
+                  successes,
+                  passed: successes >= current.difficulty,
+                };
+              });
+            }}
           />
         )}
 
@@ -3794,10 +4015,66 @@ function App() {
             results={
               spellTest.results
             }
-            title={`Teste de ${spellTest.skill}`}
+            title={`${spellTest.skill[0].toUpperCase()}${spellTest.skill.slice(1)} Test`}
+            sixCountsAsTwo={spellTest.sixCountsAsTwo}
             onComplete={
               handleCompleteSpellTest
             }
+            rerollAbilities={game && game.activeInvestigatorId && spellTestSpellId ? getTestRerollOptions(game, {
+              type: "test",
+              title: "Spell Test",
+              skill: spellTest.skill,
+              modifier: 0,
+              investigatorId: game.activeInvestigatorId,
+              source: (() => {
+                const spell = game.spells[spellTestSpellId];
+                const definition = spell && coreSpells.find((item) => item.id === spell.definitionId);
+                const effect = spellTestEffectIndex === null ? undefined : definition?.frontEffects[spellTestEffectIndex];
+                return effect?.type === "on-combat-encounter"
+                  ? `combat:spell:${spellTestSpellId}`
+                  : `spell:${spellTestSpellId}`;
+              })(),
+            }, axePaidThisTest) : []}
+            onReroll={(dieIndex, abilityId) => {
+              const [cardId, abilityIndex] = abilityId.split(":");
+              const cardAbility = game
+                ? (game.assets[cardId]?.testRerolls ?? game.artifacts[cardId]?.testRerolls)?.[Number(abilityIndex)]
+                : undefined;
+              if (cardAbility?.sanityCost && !axePaidThisTest) {
+                const investigatorId = game?.activeInvestigatorId;
+                const investigator = investigatorId && game ? game.investigators[investigatorId] : undefined;
+                if (!investigator || investigator.sanity < cardAbility.sanityCost) return;
+                setGame((current) => {
+                  if (!current || !investigatorId) return current;
+                  const owner = current.investigators[investigatorId];
+                  if (!owner || owner.sanity <= cardAbility.sanityCost!) return current;
+                  return {
+                    ...current,
+                    investigators: {
+                      ...current.investigators,
+                      [investigatorId]: { ...owner, sanity: owner.sanity - cardAbility.sanityCost! },
+                    },
+                  };
+                });
+                setAxePaidThisTest(true);
+              }
+              setGame((current) => current ? {
+                ...current,
+                cardRerollUsedRound: cardAbility?.oncePerRound
+                  ? { ...current.cardRerollUsedRound, [abilityId]: current.round }
+                  : current.cardRerollUsedRound,
+                activeTestRerolls: current.activeTestRerolls?.filter((ability) => ability.id !== abilityId),
+              } : current);
+              setSpellTest((current) => {
+                if (!current) return current;
+                const results = [...current.results];
+                results[dieIndex] = cardAbility?.resultModifier
+                  ? Math.min(6, results[dieIndex] + cardAbility.resultModifier)
+                  : Math.floor(Math.random() * 6) + 1;
+                const successes = results.reduce((total, result) => total + (result >= 5 ? 1 : 0) + (result === 6 && current.sixCountsAsTwo ? 1 : 0), 0);
+                return { ...current, results, successes, passed: successes >= current.difficulty };
+              });
+            }}
           />
         )}
 
@@ -3813,6 +4090,8 @@ function App() {
                   spellPreviewId
                 ].backImage
               }
+              canResolve={!!game.spells[spellPreviewId].pendingTestResult}
+              onResolve={handleResolveSpellBack}
               onClose={
                 handleCloseSpellPreview
               }
@@ -4187,8 +4466,7 @@ function App() {
         {/* SPELL CHOICE */}
         {/* ================================================== */}
 
-        {game.pendingSpellChoice?.type ===
-          "choose-investigator" && (
+        {game.pendingSpellChoice && (
           <SpellChoiceModal
             investigators={Object.values(
               game.investigators,
@@ -4216,6 +4494,17 @@ function App() {
               game.conditions
             }
 
+            options={getSpellChoiceOptions(game)}
+
+            title={game.pendingSpellChoice.type === "choose-investigator" ? undefined : {
+              "choose-monster": "Choose a Monster",
+              "choose-clue": "Choose a Clue",
+              "choose-asset": "Choose an Asset",
+              "choose-skill": "Choose a Skill",
+              "choose-space": "Choose a Space",
+              "choose-encounter": "Resolve an Encounter",
+            }[game.pendingSpellChoice.type]}
+
             onChoose={
               handleSpellChoice
             }
@@ -4230,6 +4519,7 @@ function App() {
           cardsInvestigator &&
           cardsInvestigatorDefinition && (
             <InvestigatorCardsModal
+              game={game}
               investigator={
                 cardsInvestigator
               }
@@ -4296,6 +4586,25 @@ function App() {
             }}
           />
         )}
+
+        {game.cardRevealQueue?.[0] && (() => {
+          const reveal = game.cardRevealQueue[0];
+          return (
+            <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <section role="dialog" aria-modal="true" aria-labelledby="gained-card-title" className="w-full max-w-lg rounded-2xl border border-slate-600 bg-slate-900 p-6 text-center text-white shadow-2xl">
+                <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-sky-300">New {reveal.kind} gained</p>
+                <h2 id="gained-card-title" className="mb-5 text-2xl font-bold">{reveal.name}</h2>
+                {reveal.image && <img src={reveal.image} alt={reveal.name} className="mx-auto max-h-[55vh] max-w-full rounded-xl object-contain" />}
+                {!reveal.image && reveal.description && <p className="mx-auto mt-4 max-w-md text-left leading-relaxed text-slate-300">{reveal.description}</p>}
+                <button
+                  type="button"
+                  className="mt-6 rounded-lg bg-red-700 px-8 py-3 font-bold uppercase tracking-wide hover:bg-red-600"
+                  onClick={() => setGame((current) => current ? { ...current, cardRevealQueue: (current.cardRevealQueue ?? []).slice(1) } : current)}
+                >Continue</button>
+              </section>
+            </div>
+          );
+        })()}
     </main>
   );
 }

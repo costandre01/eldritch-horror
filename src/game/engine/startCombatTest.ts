@@ -2,6 +2,7 @@ import type { GameState } from "../models/GameState";
 
 import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
+import { resolveMonsterTest } from "./resolveMonsterTest";
 import type {
   ArrestsMadeResume,
   DarkPowerResume,
@@ -84,10 +85,11 @@ export function startCombatTest(
    * ============================================================
    */
 
-  const test =
-    stage === "horror"
-      ? definition.horrorTest
-      : definition.combatTest;
+  const test = resolveMonsterTest(
+    game,
+    definition,
+    stage === "horror" ? "horror" : "combat",
+  );
 
   /*
    * ============================================================
@@ -101,7 +103,7 @@ export function startCombatTest(
 
   if (!test) {
     if (stage === "horror") {
-      if (!definition.combatTest) {
+      if (!resolveMonsterTest(game, definition, "combat")) {
         throw new Error(
           `Monster "${definition.name}" has no combat test.`,
         );

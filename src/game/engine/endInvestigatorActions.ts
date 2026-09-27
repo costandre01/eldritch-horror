@@ -113,7 +113,7 @@ export function endInvestigatorActions(
         title: "Action Phase",
 
         message:
-          `É a vez de ${investigatorName}.`,
+          `It is ${investigatorName}'s turn.`,
 
         investigatorId:
           nextInvestigatorId,
@@ -206,7 +206,7 @@ export function endInvestigatorActions(
       title: "Encounter Phase",
 
       message:
-        `É a vez de ${investigatorName}.`,
+        `It is ${investigatorName}'s turn.`,
 
       investigatorId:
         firstInvestigatorId,

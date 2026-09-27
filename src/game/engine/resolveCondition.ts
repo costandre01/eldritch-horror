@@ -10,6 +10,10 @@ import { gainCondition } from "./gainCondition";
 import { discardCondition } from "./discardCondition";
 import { advanceDoom } from "./doomEngine";
 import { findNearestCity } from "./findNearestCity";
+import { advanceOmen } from "./omenEngine";
+import { spawnMythosGates } from "./spawnMythosGates";
+import { defeatInvestigator } from "./defeatInvestigator";
+import { resolveEncounterEffects } from "./resolveEncounterEffects";
 
 export function resolveCondition(
   game: GameState,
@@ -157,6 +161,26 @@ export function resolveCondition(
    */
 
   let shouldDiscard = false;
+  let gainedAssetId: string | null = null;
+
+  const commitProgress = (): GameState => {
+    let next: GameState = {
+      ...currentGame,
+      conditions: {
+        ...currentGame.conditions,
+        [conditionId]: { ...currentGame.conditions[conditionId], flipped },
+      },
+      investigators: {
+        ...currentGame.investigators,
+        [investigatorId]: {
+          ...currentGame.investigators[investigatorId],
+          health, sanity, clues, assetIds, isDelayed,
+        },
+      },
+    };
+    if (shouldDiscard) next = discardCondition(next, investigatorId, conditionId);
+    return next;
+  };
 
   /*
    * ============================================================
@@ -561,13 +585,27 @@ export function resolveCondition(
        */
 
       case "if-on-sea-space": {
-        /*
-         * The effect contains nested effects.
-         *
-         * We currently only resolve the condition itself
-         * here. The generic recursive resolver should be
-         * extracted before relying on complex nested effects.
-         */
+        if (currentSpace?.type === "sea") {
+          const devoured = effect.effects.some((nested) => nested.type === "devoured");
+          if (devoured) {
+            const liveInvestigator = currentGame.investigators[investigatorId];
+            if (liveInvestigator) {
+              currentGame = {
+                ...currentGame,
+                investigators: {
+                  ...currentGame.investigators,
+                  [investigatorId]: { ...liveInvestigator, health: 0, sanity: 0 },
+                },
+              };
+              return defeatInvestigator(currentGame, map, investigatorId);
+            }
+          }
+        } else {
+          for (const nested of effect.otherwise) {
+            if (nested.type === "lose-health") health = Math.max(0, health - nested.amount);
+            if (nested.type === "discard-self") shouldDiscard = true;
+          }
+        }
 
         break;
       }
@@ -851,38 +889,45 @@ export function resolveCondition(
         return currentGame;
       }
 
-      /*
-       * ========================================================
-       * NOT IMPLEMENTED YET
-       * TODO
-       * ========================================================
-       *
-       * These effects require systems that we have not created
-       * yet, such as Monsters, Tests or player Choices.
-       */
+      /* Special backs with tests, combat, and player choices. */
 
       case "discard-gained-asset": {
-        throw new Error(
-          "Effect 'discard-gained-asset' is not implemented yet.",
-        );
+        if (!gainedAssetId || !assetIds.includes(gainedAssetId)) break;
+        const gainedAsset = currentGame.assets[gainedAssetId];
+        assetIds = assetIds.filter((id) => id !== gainedAssetId);
+        if (gainedAsset) currentGame = { ...currentGame, board: { ...currentGame.board, assetDiscard: [...currentGame.board.assetDiscard, gainedAsset] } };
+        break;
       }
 
       case "on-monster-ambush": {
-        throw new Error(
-          "Effect 'on-monster-ambush' is not implemented yet.",
-        );
+        if (!investigator.spaceId) break;
+        if (currentGame.board.monsterCup.length === 0) {
+          flipped = false;
+          break;
+        }
+        flipped = false;
+        currentGame = commitProgress();
+        return resolveEncounterEffects(currentGame, investigatorId, [{ type: "combat-random-monster" }], map);
       }
 
       case "devoured": {
-        throw new Error(
-          "Effect 'devoured' is not implemented yet.",
-        );
+        const liveInvestigator = currentGame.investigators[investigatorId];
+        if (!liveInvestigator) break;
+        currentGame = { ...currentGame, investigators: { ...currentGame.investigators,
+          [investigatorId]: { ...liveInvestigator, health: 0, sanity: 0 } } };
+        return defeatInvestigator(currentGame, map, investigatorId);
       }
 
       case "devour-other-investigator": {
-        throw new Error(
-          "Effect 'devour-other-investigator' is not implemented yet.",
-        );
+        const otherIds = currentGame.investigatorOrder.filter((id) => id !== investigatorId && !currentGame.investigators[id]?.isDefeated);
+        if (otherIds.length === 0) break;
+        currentGame = { ...currentGame, pendingDecision: {
+          type: "choice", title: "One of the Thousand", message: "Choose another investigator to be devoured.",
+          image: back.backImage,
+          options: otherIds.map((id) => ({ id: `condition:devour-other:${investigatorId}:${conditionId}:${id}`, title: currentGame.investigators[id]?.definitionId ?? id, description: "This investigator is devoured." })),
+          source: `condition:devour-other:${investigatorId}:${conditionId}`,
+        } };
+        return commitProgress();
       }
 
       case "spend-clue-or-test": {
@@ -941,45 +986,80 @@ export function resolveCondition(
       }
 
       case "choose-gain-condition-or": {
-        throw new Error(
-          "Effect 'choose-gain-condition-or' is not implemented yet.",
-        );
+        currentGame = { ...currentGame, pendingDecision: {
+          type: "choice", title: "Make a Deal", message: `Gain ${coreConditionDefinitions.find((d) => d.id === effect.conditionDefinitionId)?.name ?? "the offered Condition"}, or advance Doom by 1.`, image: back.backImage,
+          options: [
+            { id: `condition:deal:gain:${investigatorId}:${conditionId}`, title: "Accept the Deal", description: "Gain the offered Condition." },
+            { id: `condition:deal:refuse:${investigatorId}:${conditionId}`, title: "Refuse", description: "Advance Doom by 1." },
+          ],
+          source: `condition:deal:${investigatorId}:${conditionId}:${effect.conditionDefinitionId}`,
+        } };
+        return commitProgress();
       }
 
       case "gain-random-item-and-test": {
-        throw new Error(
-          "Effect 'gain-random-item-and-test' is not implemented yet.",
-        );
+        const eligible = currentGame.board.assetDeck.map((asset, index) => ({ asset, index })).filter(({ asset }) => asset.type === "item");
+        const selected = eligible[Math.floor(Math.random() * eligible.length)];
+        if (!selected) { shouldDiscard = true; break; }
+        gainedAssetId = selected.asset.id;
+        assetIds = [...assetIds, selected.asset.id];
+        const assetDeck = [...currentGame.board.assetDeck];
+        assetDeck.splice(selected.index, 1);
+        const latest = currentGame.investigators[investigatorId];
+        if (!latest) break;
+        currentGame = { ...currentGame, board: { ...currentGame.board, assetDeck }, investigators: { ...currentGame.investigators,
+          [investigatorId]: { ...latest, assetIds: [...latest.assetIds, selected.asset.id] } },
+          cardRevealQueue: [...(currentGame.cardRevealQueue ?? []), { id: selected.asset.id, kind: "Asset", name: selected.asset.name, image: selected.asset.image, description: selected.asset.description }],
+        };
+        currentGame = commitProgress();
+        currentGame = discardCondition(currentGame, investigatorId, conditionId);
+        return { ...currentGame, pendingDecision: {
+          type: "test", title: "Kleptomania", message: `Test ${effect.testType}. You need at least ${selected.asset.value} success${selected.asset.value === 1 ? "" : "es"}.`,
+          skill: effect.testType, modifier: 0, minSuccesses: selected.asset.value, investigatorId,
+          onSuccess: [],
+          onFail: [ { type: "discard-item", amount: 1, assetId: selected.asset.id }, { type: "gain-condition", conditionDefinitionId: "condition-detained" } ],
+          image: back.backImage, source: `condition:kleptomania:${investigatorId}`,
+        } };
       }
 
       case "become-delayed-or-flip": {
-        throw new Error(
-          "Effect 'become-delayed-or-flip' is not implemented yet.",
-        );
+        currentGame = { ...currentGame, pendingDecision: {
+          type: "choice", title: "Leg Injury", message: "Become Delayed or flip this Condition.", image: back.backImage,
+          options: [
+            { id: `condition:leg-injury:delayed:${investigatorId}:${conditionId}`, title: "Become Delayed", description: "Become Delayed and discard this Condition." },
+            { id: `condition:leg-injury:flip:${investigatorId}:${conditionId}`, title: "Flip the Condition", description: "Return it to its front." },
+          ], source: `condition:leg-injury:${investigatorId}:${conditionId}`,
+        } };
+        return commitProgress();
       }
 
       case "lose-health-unless-delayed": {
-        throw new Error(
-          "Effect 'lose-health-unless-delayed' is not implemented yet.",
-        );
+        if (!isDelayed) health = Math.max(0, health - effect.amount);
+        break;
       }
 
       case "advance-omen": {
-        throw new Error(
-          "Effect 'advance-omen' is not implemented yet.",
-        );
+        currentGame = advanceOmen(currentGame, effect.amount);
+        break;
       }
 
       case "spawn-gates-per-spell": {
-        throw new Error(
-          "Effect 'spawn-gates-per-spell' is not implemented yet.",
-        );
+        const spellCount = currentGame.investigators[investigatorId]?.spellIds.length ?? 0;
+        if (spellCount > 0) currentGame = spawnMythosGates(currentGame, 0, spellCount, false);
+        break;
       }
 
       case "other-investigators-on-space-lose-health": {
-        throw new Error(
-          "Effect 'other-investigators-on-space-lose-health' is not implemented yet.",
-        );
+        if (!investigator.spaceId) break;
+        for (const otherId of currentGame.investigatorOrder) {
+          if (otherId === investigatorId) continue;
+          const other = currentGame.investigators[otherId];
+          if (!other || other.spaceId !== investigator.spaceId || other.isDefeated) continue;
+          const nextHealth = Math.max(0, other.health - effect.amount);
+          currentGame = { ...currentGame, investigators: { ...currentGame.investigators, [otherId]: { ...other, health: nextHealth } } };
+          if (nextHealth === 0) currentGame = defeatInvestigator(currentGame, map, otherId);
+        }
+        break;
       }
 
       /*
@@ -1060,6 +1140,10 @@ export function resolveCondition(
         investigatorId,
         conditionId,
       );
+  }
+
+  if (health <= 0 && !currentGame.investigators[investigatorId]?.isDefeated) {
+    return defeatInvestigator(currentGame, map, investigatorId);
   }
 
   /*

@@ -1,6 +1,7 @@
 import type { GameState } from "../models/GameState";
 
 import { canPerformAction } from "./canPerformAction";
+import { assertNormalActionAllowed } from "./conditionRestrictions";
 
 export function startTravel(
   game: GameState,
@@ -22,6 +23,8 @@ export function startTravel(
       `Investigator "${investigatorId}" does not exist.`,
     );
   }
+
+  assertNormalActionAllowed(game, investigatorId);
 
   if (investigator.travelActive) {
     throw new Error(

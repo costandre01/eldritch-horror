@@ -5,7 +5,7 @@ import type { InvestigatorDefinition } from "../../game/models/InvestigatorDefin
 import {
   getInvestigatorFrontImage,
   getInvestigatorBackImage,
-} from "./InvestigatorSelection";
+} from "./investigatorImages";
 
 interface InvestigatorPreviewModalProps {
   investigator: InvestigatorDefinition;

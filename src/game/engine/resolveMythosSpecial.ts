@@ -4912,33 +4912,6 @@ export function resolveMythosSpecial(
       };
     }
 
-    case "web-between-worlds": {
-      /*
-      * ============================================================
-      * WEB BETWEEN WORLDS
-      * ============================================================
-      *
-      * When the Rumor enters play, spawn the Spinner of Webs
-      * Epic Monster on Space 9.
-      */
-
-      if (
-        mythos.id !==
-        "web-between-worlds"
-      ) {
-        throw new Error(
-          `Invalid Mythos for Web Between Worlds: "${mythos.id}".`,
-        );
-      }
-
-      return spawnEpicMonsterAtSpace(
-        game,
-        map,
-        "space-9",
-        "spinner-of-webs",
-      );
-    }
-
     /*
     * No supported special effect.
     */

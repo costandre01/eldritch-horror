@@ -14,4 +14,6 @@ export interface TestResult {
   successes: number;
 
   passed: boolean;
+
+  sixCountsAsTwo?: boolean;
 }

@@ -1,4 +1,5 @@
 import type { GameState } from "../models/GameState";
+import { coreInvestigators } from "../../content/core/investigators";
 
 import { setLeadInvestigator } from "./setLeadInvestigator";
 import { startInvestigatorActions } from "./startInvestigatorActions";
@@ -72,6 +73,7 @@ export function startNextRoundAfterMythos(
         {
           ...investigator,
           actionsPerformed: [],
+          additionalActionsThisRound: 0,
         },
       ],
     ),
@@ -91,7 +93,44 @@ export function startNextRoundAfterMythos(
   * pending decision, so we keep it as the
   * final step of starting the round.
   */
-  return startInvestigatorActions(
+  const startedGame = startInvestigatorActions(
     gameWithResetActions,
   );
+
+  // A Delayed Lead loses this Action Phase and is immediately skipped by
+  // startInvestigatorActions/endInvestigatorActions. Preserve that flow.
+  if (
+    startedGame.activeInvestigatorId !==
+      leadInvestigatorId ||
+    startedGame.pendingDecision
+  ) {
+    return startedGame;
+  }
+
+  const lead =
+    startedGame.investigators[leadInvestigatorId];
+  const definition = lead
+    ? coreInvestigators.find(
+        (candidate) => candidate.id === lead.definitionId,
+      )
+    : undefined;
+  const investigatorName =
+    definition?.name ?? leadInvestigatorId;
+  const fileName = definition?.name.replace(/\s+/g, "_");
+
+  return {
+    ...startedGame,
+    pendingDecision: {
+      type: "investigator-turn",
+      title: `Action Phase — Round ${startedGame.round}`,
+      message: `It is ${investigatorName}'s turn.`,
+      investigatorId: leadInvestigatorId,
+      investigatorName,
+      phase: "action",
+      source: "mythos:new-round-lead",
+      image: fileName
+        ? `/cards/investigators/${fileName}/${fileName}.png`
+        : undefined,
+    },
+  };
 }

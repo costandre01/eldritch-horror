@@ -7,10 +7,13 @@ import type { SpellDefinition } from "../../../game/models/SpellDefinition";
 import type { Condition } from "../../../game/models/Condition";
 import type { Investigator } from "../../../game/models/Investigator";
 import type { InvestigatorDefinition } from "../../../game/models/InvestigatorDefinition";
+import type { GameState } from "../../../game/models/GameState";
+import { getEffectiveSkill } from "../../../game/engine/getEffectiveSkill";
 
 import InvestigatorItems from "../investigator/InvestigatorItems";
 
 interface InvestigatorCardsModalProps {
+  game: GameState;
   investigator: Investigator;
   definition: InvestigatorDefinition;
 
@@ -140,6 +143,7 @@ function ValueOverlay({
 }
 
 export default function InvestigatorCardsModal({
+  game,
   investigator,
   definition,
   assets,
@@ -356,27 +360,27 @@ export default function InvestigatorCardsModal({
   }[] = [
     {
       key: "lore",
-      value: investigator.skills.lore,
+      value: getEffectiveSkill(game, investigator.id, "lore"),
       base: definition.skills.lore,
     },
     {
       key: "influence",
-      value: investigator.skills.influence,
+      value: getEffectiveSkill(game, investigator.id, "influence"),
       base: definition.skills.influence,
     },
     {
       key: "observation",
-      value: investigator.skills.observation,
+      value: getEffectiveSkill(game, investigator.id, "observation"),
       base: definition.skills.observation,
     },
     {
       key: "strength",
-      value: investigator.skills.strength,
+      value: getEffectiveSkill(game, investigator.id, "strength"),
       base: definition.skills.strength,
     },
     {
       key: "will",
-      value: investigator.skills.will,
+      value: getEffectiveSkill(game, investigator.id, "will"),
       base: definition.skills.will,
     },
   ];

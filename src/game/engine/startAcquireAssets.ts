@@ -4,6 +4,8 @@ import type { MapDefinition } from "../models/MapDefinition";
 import { canPerformAction } from "./canPerformAction";
 import { rollTest } from "./rollTest";
 import { getEffectiveSkill } from "./getEffectiveSkill";
+import { getPassiveTestModifiers } from "./getPassiveTestModifiers";
+import { assertNormalActionAllowed } from "./conditionRestrictions";
 
 import type { AcquireAssetsResult } from "../models/AcquireAssetsResult";
 
@@ -30,6 +32,8 @@ export function startAcquireAssets(
       `Investigator "${investigatorId}" does not exist.`,
     );
   }
+
+  assertNormalActionAllowed(game, investigatorId);
 
   if (
     !canPerformAction(
@@ -109,6 +113,11 @@ export function startAcquireAssets(
    * ============================================================
    */
 
+  const passiveModifiers = getPassiveTestModifiers(game, investigatorId, {
+    skill: "influence",
+    acquireAssets: true,
+  });
+
   const test = rollTest(
     {
       ...investigator,
@@ -121,6 +130,9 @@ export function startAcquireAssets(
       },
     },
     "influence",
+    passiveModifiers.bonusDice,
+    1,
+    { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
   );
 
   return {

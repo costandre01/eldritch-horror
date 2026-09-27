@@ -14,6 +14,7 @@ import YogSothothReckoningModal from "./YogSothothReckoningModal";
 import InvestigatorPreviewModal from "../../investigators/InvestigatorPreviewModal";
 import EldritchMap from "../board/EldritchMap";
 import { getEffectiveSkill } from "../../../game/engine/getEffectiveSkill";
+import { eldritchMapPositions } from "../../../content/core/maps/eldritchMapPositions";
 
 interface GameFlowOverlayProps {
   game: GameState;
@@ -137,6 +138,38 @@ function getMonsterSkillIcon(
   }
 }
 
+const ENCOUNTER_TEXT_ICONS = new Set([
+  "clue",
+  "health",
+  "influence",
+  "lore",
+  "observation",
+  "sanity",
+  "strength",
+  "will",
+]);
+
+function renderEncounterText(text: string) {
+  return text
+    .split(/(\[[a-z-]+\])/gi)
+    .map((part, index) => {
+      const token = part.match(/^\[([a-z-]+)\]$/i)?.[1]?.toLowerCase();
+      if (!token || !ENCOUNTER_TEXT_ICONS.has(token)) {
+        return <span key={index}>{part}</span>;
+      }
+
+      return (
+        <img
+          key={index}
+          src={`/icons/game/${token}.png`}
+          alt={token}
+          title={token}
+          className="mx-1 inline-block h-5 w-5 align-[-0.25em] object-contain"
+        />
+      );
+    });
+}
+
 
 /*
  * ============================================================
@@ -242,6 +275,9 @@ export default function GameFlowOverlay({
   const isMythosOmen =
     decision.type === "mythos-omen";
 
+  const isMythosClues =
+    decision.type === "mythos-clues";
+
   const omenCurrentPosition =
     isMythosOmen
       ? ((decision.currentPosition % 4) + 4) % 4
@@ -257,6 +293,8 @@ export default function GameFlowOverlay({
 
   const [omenProgress, setOmenProgress] =
     useState(0);
+
+  const [clueAnimationComplete, setClueAnimationComplete] = useState(false);
 
   const [
     previewInvestigatorId,
@@ -350,6 +388,19 @@ export default function GameFlowOverlay({
     omenCurrentPosition,
     omenTargetPosition,
   ]);
+
+  useEffect(() => {
+    if (!isMythosClues || decision.type !== "mythos-clues") {
+      setClueAnimationComplete(false);
+      return;
+    }
+    setClueAnimationComplete(false);
+    const timer = window.setTimeout(
+      () => setClueAnimationComplete(true),
+      850 + Math.max(0, decision.spaceIds.length - 1) * 320,
+    );
+    return () => window.clearTimeout(timer);
+  }, [isMythosClues, decision]);
   /*
   * ============================================================
   * ENCOUNTER
@@ -1211,6 +1262,92 @@ export default function GameFlowOverlay({
     );
   }
 
+  if (decision.type === "mythos-clues") {
+    const clueSpaceNames = decision.spaceNames?.length
+      ? decision.spaceNames
+      : decision.spaceIds.map((spaceId) => spaceId.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
+    const newlySpawnedClueIds = new Set(
+      decision.clueTokenIds ?? decision.spaceIds.map((spaceId) => `clue-${spaceId}`),
+    );
+    const mapDisplayGame: GameState = {
+      ...game,
+      board: {
+        ...game.board,
+        spaces: Object.fromEntries(
+          Object.entries(game.board.spaces).map(([spaceId, space]) => {
+            const visibleClueTokenIds = space.clueTokenIds.filter(
+              (clueTokenId) => !newlySpawnedClueIds.has(clueTokenId),
+            );
+            const hiddenCount = space.clueTokenIds.length - visibleClueTokenIds.length;
+            return [
+              spaceId,
+              hiddenCount > 0
+                ? { ...space, clueTokenIds: visibleClueTokenIds, clues: Math.max(0, space.clues - hiddenCount) }
+                : space,
+            ];
+          }),
+        ),
+      },
+    };
+    return (
+      <div className="fixed inset-0 z-200 flex items-center justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm">
+        <section className="mx-auto my-auto flex max-h-[calc(100dvh-24px)] w-[min(94vw,1200px)] flex-col items-center overflow-y-auto rounded-3xl border border-gray-700 bg-[#172033] p-5 text-white shadow-2xl sm:p-7">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-300">MYTHOS PHASE</p>
+          <h2 className="mt-2 text-3xl font-black">{decision.title}</h2>
+          <p className="mt-2 text-center text-gray-300">{decision.message}</p>
+
+          <div className="mt-5 flex w-full justify-center">
+            <div className="relative aspect-3/2 w-full max-w-[1000px] overflow-hidden rounded-xl border-2 border-slate-600 bg-black shadow-2xl">
+              <EldritchMap
+                game={mapDisplayGame}
+                investigators={game.investigators}
+                doom={game.ancientOne.doom}
+                omenPosition={game.ancientOne.omenPosition}
+                assetReserve={game.board.assetReserve}
+              />
+            {decision.spaceIds.map((spaceId, index) => {
+              const position = eldritchMapPositions[spaceId];
+              if (!position) return null;
+              return (
+                <div
+                  key={`${spaceId}-${index}`}
+                  className="pointer-events-none absolute z-20 h-[5.5%] w-[3.8%] -translate-x-1/2 -translate-y-1/2"
+                  style={{
+                    left: `${position.x}%`,
+                    top: `${position.y}%`,
+                    animation: `mythosClueDrop 700ms cubic-bezier(.2,.8,.3,1) ${index * 320}ms both`,
+                  }}
+                  title={spaceId}
+                >
+                  <span className="absolute -inset-[28%] rounded-full border-[3px] border-yellow-300 shadow-[0_0_16px_rgba(250,204,21,0.95)]" />
+                  <img src="/icons/game/clue.png" alt="New clue" className="relative h-full w-full rounded-full border-2 border-yellow-200 bg-amber-400 p-[2px] object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" />
+                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-yellow-300 px-1.5 py-0.5 text-[9px] font-black uppercase leading-none text-slate-950 shadow-lg">NEW</span>
+                </div>
+              );
+            })}
+            </div>
+          </div>
+
+          <p className="mt-4 text-center text-sm font-semibold uppercase tracking-widest text-slate-400">
+            {decision.spaceIds.length === 1 ? "1 clue placed on the map" : `${decision.spaceIds.length} clues placed on the map`}
+          </p>
+          <p className="mt-1 text-center text-sm font-bold text-yellow-200">
+            New clue{clueSpaceNames.length === 1 ? "" : "s"}: {clueSpaceNames.join(", ")}
+          </p>
+          <button
+            type="button"
+            onClick={onContinue}
+            disabled={!clueAnimationComplete}
+            className="mt-4 rounded-xl bg-blue-600 px-10 py-3 text-lg font-black text-white shadow-lg transition hover:bg-blue-500 disabled:cursor-wait disabled:opacity-50"
+          >
+            CONTINUE
+          </button>
+          <style>{`@keyframes mythosClueDrop { from { opacity: 0; transform: translate(-50%, -220%) scale(.55); } 70% { opacity: 1; transform: translate(-50%, 12%) scale(1.12); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }`}</style>
+        </section>
+      </div>
+    );
+  }
+
   /*
    * ============================================================
    * MYTHOS DECK SELECTION
@@ -1222,9 +1359,9 @@ export default function GameFlowOverlay({
     "mythos-selection"
   ) {
     return (
-      <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-4 backdrop-blur-sm">
+      <div className="fixed inset-0 z-200 flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm">
 
-        <div className="flex max-h-[calc(100dvh-24px)] w-[min(94vw,1000px)] flex-col items-center overflow-y-auto overscroll-contain rounded-3xl border border-gray-700 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
+        <div className="mx-auto my-auto flex max-h-[calc(100dvh-32px)] w-[min(94vw,1000px)] flex-col items-center overflow-y-auto overscroll-contain rounded-3xl border border-gray-700 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
 
           {/* ================================================== */}
           {/* HEADER */}
@@ -1488,12 +1625,13 @@ export default function GameFlowOverlay({
         {/* MESSAGE */}
         {/* ================================================== */}
 
-        {decision.message &&
-          !isEncounter && (
+        {decision.message && (
             <div className="mt-6 shrink-0">
 
-              <p className="mx-auto max-w-3xl whitespace-pre-line text-xl leading-9 text-gray-200">
-                {decision.message}
+              <p className="mx-auto max-w-4xl whitespace-pre-line rounded-2xl border border-gray-700 bg-gray-900/70 p-5 text-base leading-7 text-gray-200 sm:p-6 sm:text-lg sm:leading-8">
+                {isEncounter
+                  ? renderEncounterText(decision.message)
+                  : decision.message}
               </p>
 
             </div>
@@ -2124,6 +2262,21 @@ export default function GameFlowOverlay({
                     );
                   }
 
+                  const artifact = game.artifacts[cardId];
+                  if (artifact) {
+                    return (
+                      <button
+                        key={cardId}
+                        type="button"
+                        disabled={!isSelectable}
+                        onClick={() => isSelectable && onSelectCard(cardId)}
+                        className={`group overflow-hidden rounded-xl border-4 bg-gray-900 transition ${isSelected ? "border-green-400 shadow-xl shadow-green-500/40 -translate-y-1" : isSelectable ? "cursor-pointer border-red-500 shadow-lg shadow-red-500/30 hover:-translate-y-1 hover:border-red-400" : "cursor-not-allowed border-gray-800 opacity-45"}`}
+                      >
+                        <img src={artifact.image} alt={artifact.name} className="block w-full object-contain" />
+                      </button>
+                    );
+                  }
+
                   return null;
                 },
               )}
@@ -2200,8 +2353,8 @@ export default function GameFlowOverlay({
             "lose-health-and-sanity-unless-spend-clue";
 
           return (
-            <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-4 backdrop-blur-sm">
-              <div className="flex max-h-[calc(100dvh-24px)] w-[min(96vw,850px)] flex-col overflow-y-auto overscroll-contain rounded-3xl border border-red-900/60 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
+            <div className="fixed inset-0 z-200 flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm">
+              <div className="mx-auto my-auto flex max-h-[calc(100dvh-32px)] w-[min(96vw,850px)] flex-col overflow-y-auto overscroll-contain rounded-3xl border border-red-900/60 bg-[#172033] p-6 text-white shadow-2xl sm:p-8">
 
                 {/* ================================================== */}
                 {/* HEADER */}
@@ -2418,9 +2571,9 @@ export default function GameFlowOverlay({
           */
 
           return (
-            <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-4">
+            <div className="fixed inset-0 z-200 flex items-center justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-4">
 
-              <div className="flex max-h-[calc(100dvh-32px)] w-[min(96vw,1050px)] flex-col overflow-y-auto overscroll-contain rounded-3xl border border-red-900/60 bg-[#172033] p-5 text-white shadow-2xl sm:p-6">
+              <div className="mx-auto my-auto flex max-h-[calc(100dvh-32px)] w-[min(96vw,1050px)] flex-col overflow-y-auto overscroll-contain rounded-3xl border border-red-900/60 bg-[#172033] p-5 text-white shadow-2xl sm:p-6">
 
                 {/* ================================================== */}
                 {/* HEADER */}
@@ -2556,6 +2709,7 @@ export default function GameFlowOverlay({
                                 game,
                                 investigator.id,
                                 "lore",
+                                "combat",
                               ),
                               base:
                                 investigatorDefinition?.skills.lore ??
@@ -2568,6 +2722,7 @@ export default function GameFlowOverlay({
                                 game,
                                 investigator.id,
                                 "influence",
+                                "combat",
                               ),
                               base:
                                 investigatorDefinition?.skills.influence ??
@@ -2580,6 +2735,7 @@ export default function GameFlowOverlay({
                                 game,
                                 investigator.id,
                                 "observation",
+                                "combat",
                               ),
                               base:
                                 investigatorDefinition?.skills.observation ??
@@ -2592,6 +2748,7 @@ export default function GameFlowOverlay({
                                 game,
                                 investigator.id,
                                 "strength",
+                                "combat",
                               ),
                               base:
                                 investigatorDefinition?.skills.strength ??
@@ -2604,6 +2761,7 @@ export default function GameFlowOverlay({
                                 game,
                                 investigator.id,
                                 "will",
+                                "combat",
                               ),
                               base:
                                 investigatorDefinition?.skills.will ??

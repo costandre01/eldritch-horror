@@ -886,6 +886,8 @@ const selectedSpecialEncounters =
    */
 
   const game: GameState = {
+    cardRevealQueue: [],
+
     scenarioId:
       options.scenarioId,
 

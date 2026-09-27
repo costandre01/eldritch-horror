@@ -10,6 +10,7 @@ export function rollTest(
   skill: Skill,
   modifier = 0,
   difficulty = 1,
+  options: { sixCountsAsTwo?: boolean } = {},
 ): TestResult {
   const skillValue =
     investigator.skills[skill];
@@ -35,9 +36,8 @@ export function rollTest(
 
     results.push(roll);
 
-    if (roll >= 5) {
-      successes++;
-    }
+    if (roll >= 5) successes++;
+    if (roll === 6 && options.sixCountsAsTwo) successes++;
   }
 
   return {
@@ -49,5 +49,6 @@ export function rollTest(
     successes,
     passed:
       successes >= difficulty,
+    sixCountsAsTwo: options.sixCountsAsTwo,
   };
 }

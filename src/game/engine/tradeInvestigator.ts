@@ -1,6 +1,7 @@
 import type { GameState } from "../models/GameState";
 
 import { canPerformAction } from "./canPerformAction";
+import { assertNormalActionAllowed } from "./conditionRestrictions";
 
 /*
  * ============================================================
@@ -52,6 +53,7 @@ export function tradeInvestigator(
   game: GameState,
   targetInvestigatorId: string,
   offer: TradeOffer,
+  options: { brainCase?: boolean } = {},
 ): GameState {
   /*
    * ==========================================================
@@ -78,6 +80,8 @@ export function tradeInvestigator(
       `Investigator "${investigatorId}" does not exist.`,
     );
   }
+
+  assertNormalActionAllowed(game, investigatorId);
 
   /*
    * ==========================================================
@@ -118,6 +122,7 @@ export function tradeInvestigator(
    */
 
   if (
+    !options.brainCase &&
     investigator.spaceId !==
     targetInvestigator.spaceId
   ) {
@@ -133,10 +138,7 @@ export function tradeInvestigator(
    */
 
   if (
-    !canPerformAction(
-      investigator,
-      "trade",
-    )
+    !canPerformAction(investigator, options.brainCase ? "component" : "trade")
   ) {
     throw new Error(
       "Investigator cannot perform Trade.",
@@ -476,7 +478,7 @@ export function tradeInvestigator(
 
         actionsPerformed: [
           ...investigator.actionsPerformed,
-          "trade",
+          options.brainCase ? "component" : "trade",
         ],
       },
 

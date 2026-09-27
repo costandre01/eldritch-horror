@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Investigator } from "../../../game/models/Investigator";
+import type { ConditionLocalAction } from "../../../game/engine/conditionLocalAction";
 
 import ActionButton from "./ActionButton";
 import ActionTooltip from "./ActionTooltip";
@@ -12,12 +13,14 @@ interface InvestigatorActionsPanelProps {
   canPrepareForTravel: boolean;
   canTrade: boolean;
   canAcquireAssets: boolean;
+  conditionActions: ConditionLocalAction[];
 
   onStartTravel: () => void;
   onRest: () => void;
   onPrepareForTravel: () => void;
   onTrade: () => void;
   onAcquireAssets: () => void;
+  onConditionAction: (conditionId: string) => void;
 
   onEndTravel: () => void;
   onUndoTravel: () => void;
@@ -32,12 +35,14 @@ export default function InvestigatorActionsPanel({
   canPrepareForTravel,
   canTrade,
   canAcquireAssets,
+  conditionActions,
 
   onStartTravel,
   onRest,
   onPrepareForTravel,
   onTrade,
   onAcquireAssets,
+  onConditionAction,
 
   onEndTravel,
   onUndoTravel,
@@ -180,6 +185,17 @@ export default function InvestigatorActionsPanel({
         </span>
       ),
     },
+    ...conditionActions.map((action) => ({
+      label: `${action.conditionName} Action`,
+      icon: `/icons/game/${action.effect.testType}.png`,
+      disabled: false,
+      onClick: () => onConditionAction(action.condition.id),
+      description: (
+        <span>
+          Local Action: Test {action.effect.testType}. If you pass, resolve this Condition's action.
+        </span>
+      ),
+    })),
   ];
 
   return (

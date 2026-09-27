@@ -212,7 +212,12 @@ describe("startNextRoundAfterMythos", () => {
       "i1",
     ]);
 
-    expect(result.pendingDecision).toBeNull();
+    expect(result.pendingDecision).toMatchObject({
+      type: "investigator-turn",
+      phase: "action",
+      investigatorId: "i2",
+      title: "Action Phase — Round 4",
+    });
   });
 
   it("rotates the investigator order when the new Lead is not first", () => {

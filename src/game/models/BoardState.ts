@@ -106,6 +106,9 @@ export interface BoardState {
 
   monsterCup: Monster[];
 
+  /** Monster tokens removed from the cup during setup for named spawns. */
+  monsterSetAside?: Monster[];
+
   monsterDiscard: Monster[];
 
   /*

@@ -964,61 +964,6 @@ describe(
     );
 
     it(
-      "does nothing for the currently unsupported local action effects",
-      () => {
-        const game =
-          prepareGame();
-
-        addCondition(game);
-
-        const localAction =
-          resolveConditionFrontEffectsTest(
-            game,
-            "investigator-1",
-            "condition-1",
-            {
-              type: "local-action-test",
-              testType: "influence",
-              onSuccess: [
-                {
-                  type: "flip-self",
-                },
-              ],
-            },
-          );
-
-        expect(
-          localAction.game.conditions[
-            "condition-1"
-          ].flipped,
-        ).toBe(false);
-
-        const onLocalAction =
-          resolveConditionFrontEffectsTest(
-            game,
-            "investigator-1",
-            "condition-1",
-            {
-              type: "on-local-action-test",
-              action: "deal",
-              testType: "influence",
-              effects: [
-                {
-                  type: "flip-self",
-                },
-              ],
-            },
-          );
-
-        expect(
-          onLocalAction.game.conditions[
-            "condition-1"
-          ].flipped,
-        ).toBe(false);
-      },
-    );
-
-    it(
       "does nothing for modify-test-successes",
       () => {
         const game =

@@ -54,6 +54,8 @@ describe("createSpell", () => {
       exhausted: false,
       pendingTestResult: null,
       pendingChosenInvestigatorId: null,
+      pendingChosenMonsterId: null,
+      pendingChosenClueId: null,
     });
   });
 

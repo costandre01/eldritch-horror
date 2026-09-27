@@ -81,7 +81,11 @@ export interface EncounterEffect {
     | "retreat-doom"
     | "start-other-world-encounter"
     | "solve-mythos-rumor"
-    | "roll-single-die";
+    | "roll-single-die"
+    | "resolve-spell-loss";
+
+  ignoreSpellLossReactions?: boolean;
+  ignorePocketWatch?: boolean;
 
   amount?: number;
 
@@ -96,6 +100,8 @@ export interface EncounterEffect {
   artifactId?: string;
 
   itemType?: string;
+
+  assetId?: string;
 
   location?: string;
 
@@ -154,6 +160,9 @@ export interface EncounterEffect {
     | "spell";
 
   spellId?: string;
+  spellLossStat?: "health" | "sanity";
+  preventedAmount?: number;
+  lossAmount?: number;
 
   skillType?:
     | "strength"

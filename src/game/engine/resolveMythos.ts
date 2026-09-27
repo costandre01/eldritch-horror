@@ -252,10 +252,39 @@ export function resolveMythos(
         */
 
         case "spawn-clues": {
+          const clueIdsBefore = new Set(
+            Object.values(currentGame.board.spaces).flatMap(
+              (space) => space.clueTokenIds ?? [],
+            ),
+          );
           currentGame =
             spawnMythosClues(
               currentGame,
             );
+
+          const newClues = Object.entries(currentGame.board.spaces).flatMap(
+            ([spaceId, space]) => (space.clueTokenIds ?? [])
+              .filter((clueId) => !clueIdsBefore.has(clueId))
+              .map((clueTokenId) => ({ clueTokenId, spaceId })),
+          );
+
+          if (newClues.length > 0) {
+            return {
+              ...currentGame,
+              pendingDecision: {
+                type: "mythos-clues",
+                title: "Spawn Clues",
+                message: "Clues are placed on the map.",
+                spaceIds: newClues.map(({ spaceId }) => spaceId),
+                clueTokenIds: newClues.map(({ clueTokenId }) => clueTokenId),
+                spaceNames: newClues.map(({ spaceId }) =>
+                  map.spaces.find((space) => space.id === spaceId)?.name ?? spaceId,
+                ),
+                nextIconIndex: iconIndex + 1,
+                source: "mythos:spawn-clues",
+              },
+            };
+          }
 
           return showMythosContinue(
             currentGame,

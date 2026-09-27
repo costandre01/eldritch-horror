@@ -8,6 +8,8 @@ import type { TestResult } from "../models/TestResult";
 
 import { performTest } from "./performTest";
 import { resolveSpellFrontTriggeredEffects } from "./resolveSpellFrontTriggeredEffects";
+import { canPerformAction } from "./canPerformAction";
+import { assertNormalActionAllowed } from "./conditionRestrictions";
 
 export interface ResolveSpellFrontEffectsResult {
   game: GameState;
@@ -25,6 +27,7 @@ export function resolveSpellFrontEffects(
   spellId: string,
   effect: SpellFrontEffect,
   map: MapDefinition,
+  options: { deferTriggeredEffects?: boolean; testResultOverride?: TestResult } = {},
 ): ResolveSpellFrontEffectsResult {
   const investigator =
     game.investigators[investigatorId];
@@ -75,6 +78,20 @@ export function resolveSpellFrontEffects(
     };
   }
 
+  if (effect.type === "action-test") assertNormalActionAllowed(game, investigatorId);
+  if (effect.type === "action-test" && (game.phase !== "action" || !canPerformAction(investigator, "component"))) {
+    throw new Error("This Spell action can only be used during the Action Phase when the investigator can perform an action.");
+  }
+  if (effect.type === "on-encounter-phase" && game.phase !== "encounter") {
+    throw new Error("This Spell ability can only be used during the Encounter Phase.");
+  }
+  if (effect.type === "on-combat-encounter") {
+    const space = investigator.spaceId ? game.board.spaces[investigator.spaceId] : undefined;
+    if (game.phase !== "encounter" || !space || space.monsterIds.length === 0) {
+      throw new Error("This Spell ability can only be used during a Combat Encounter.");
+    }
+  }
+
   let currentGame = game;
 
   let testResult: TestResult | null =
@@ -100,7 +117,14 @@ export function resolveSpellFrontEffects(
     modifier: number,
 
     onSuccess: SpellFrontTriggeredEffect[],
+    combat = false,
   ): TestResult => {
+    if (options.testResultOverride) {
+      testResult = options.testResultOverride;
+      currentGame = { ...currentGame, lastTest: testResult };
+      if (testResult.passed) triggeredEffects = onSuccess;
+      return testResult;
+    }
     const result =
       performTest(
         currentGame,
@@ -109,6 +133,7 @@ export function resolveSpellFrontEffects(
         modifier,
         1,
         map,
+        { spell: true, combat },
       );
 
     currentGame =
@@ -173,6 +198,7 @@ export function resolveSpellFrontEffects(
         effect.testType,
         effect.modifier ?? 0,
         effect.onSuccess,
+        true,
       );
   }
 
@@ -235,7 +261,7 @@ export function resolveSpellFrontEffects(
             testResult,
 
           flipped:
-            testResult.passed,
+            options.deferTriggeredEffects ? false : true,
         },
       },
     };
@@ -261,9 +287,7 @@ export function resolveSpellFrontEffects(
    * -> choose Skill
    */
 
-  if (
-    triggeredEffects.length > 0
-  ) {
+  if (triggeredEffects.length > 0 && !options.deferTriggeredEffects) {
     const triggeredResult =
       resolveSpellFrontTriggeredEffects(
         currentGame,

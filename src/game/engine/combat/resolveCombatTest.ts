@@ -6,6 +6,7 @@ import type { MonsterDefinition } from "../../models/Monster";
 import { CORE_MONSTERS } from "../../../content/core/coreMonsters";
 import { CORE_EPIC_MONSTERS } from "../../../content/core/coreEpicMonsters";
 import { coreInvestigators } from "../../../content/core/investigators";
+import { coreSpells } from "../../../content/core/coreSpell";
 
 import { resolveMonsterTest } from "../resolveMonsterTest";
 import { resolveMonsterToughness } from "../resolveMonsterToughness";
@@ -15,6 +16,23 @@ import {
   getMonsterStrengthResultAbilities,
   getMonsterDefeatAbilities,
 } from "../monsterAbilities";
+
+function getLossReactionSpells(game: GameState, stat: "health" | "sanity") {
+  const triggerType = stat === "health" ? "on-health-loss" : "on-sanity-loss";
+  return Object.values(game.investigators).flatMap((owner) => owner.spellIds.flatMap((spellId) => {
+    const spell = game.spells[spellId];
+    const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+    if (!spell || spell.flipped || !definition) return [];
+    return definition.frontEffects.flatMap((effect, effectIndex) => {
+      if (effect.type !== triggerType) return [];
+      const preventType = stat === "health" ? "prevent-health-loss" : "prevent-sanity-loss";
+      if (!effect.onSuccess.some((item) => item.type === preventType)) return [];
+      const key = `${spellId}:${stat}-loss:${effectIndex}`;
+      if (effect.oncePerRound && game.cardRerollUsedRound?.[key] === game.round) return [];
+      return [{ spellId, ownerId: owner.id, definition, effectIndex, key, testType: effect.testType, modifier: effect.modifier ?? 0 }];
+    });
+  }));
+}
 
 
 function getMonsterDefinition(
@@ -175,6 +193,7 @@ export function resolveCombatTest(
     { type: "test" }
   >,
   diceTest: TestResult,
+  lossReaction: { skip: boolean; preventHealth: number; preventSanity: number } = { skip: false, preventHealth: 0, preventSanity: 0 },
 ): GameState {
   const source =
     testDecision.source ?? "";
@@ -262,12 +281,13 @@ export function resolveCombatTest(
       );
     }
 
-    const sanityLoss =
+    const unpreventedSanityLoss =
       Math.max(
         0,
         horrorTest.damage -
           diceTest.successes,
       );
+    const sanityLoss = Math.max(0, unpreventedSanityLoss - lossReaction.preventSanity);
 
     const newSanity =
       Math.max(
@@ -280,6 +300,39 @@ export function resolveCombatTest(
       getMonsterHorrorResultAbilities(
         monsterDefinition,
       );
+
+    const lossReactionSpells = getLossReactionSpells(game, "sanity");
+
+    if (unpreventedSanityLoss > 0 && !lossReaction.skip) {
+      const nearbyWhiskey = Object.values(game.investigators)
+        .filter((owner) => owner.spaceId === investigator.spaceId)
+        .flatMap((owner) => owner.assetIds
+          .filter((assetId) => game.assets[assetId]?.name === "Whiskey")
+          .map((assetId) => ({ ownerId: owner.id, assetId })));
+      const statueKey = `${investigator.id}:grotesque-statue`;
+      const hasStatue = investigator.clues > 0
+        && game.cardRerollUsedRound?.[statueKey] !== game.round
+        && investigator.artifactIds.some((id) => game.artifacts[id]?.name === "Grotesque Statue");
+      if (nearbyWhiskey.length > 0 || hasStatue) {
+        return {
+          ...game,
+          lastTest: diceTest,
+          pendingCombatLoss: { testDecision, diceTest, stat: "sanity" },
+          pendingDecision: {
+            type: "choice",
+            title: "Prevent Horror Damage?",
+            message: `You are about to lose ${unpreventedSanityLoss} Sanity.`,
+            options: [
+              ...nearbyWhiskey.map(({ ownerId, assetId }) => ({ id: `combat-loss:whiskey:${ownerId}:${assetId}`, title: `Whiskey (${getInvestigatorName(game, ownerId)})`, description: "Discard to prevent up to 2 Sanity loss." })),
+              ...(hasStatue ? [{ id: "combat-loss:grotesque-statue", title: "Grotesque Statue", description: "Spend 1 Clue to prevent all of this Sanity loss." }] : []),
+              ...lossReactionSpells.map(({ spellId, ownerId, definition, effectIndex }) => ({ id: `combat-loss:spell:${spellId}:${ownerId}:${effectIndex}`, title: `${definition.name} (${getInvestigatorName(game, ownerId)})`, description: "Test Lore; on a pass, prevent the amount shown on the Spell." })),
+              { id: "combat-loss:skip", title: "Do not prevent this loss" },
+            ],
+            source: "combat-health-loss",
+          },
+        };
+      }
+    }
 
     /*
     * ==========================================================
@@ -795,12 +848,26 @@ export function resolveCombatTest(
         diceTest.successes,
     );
 
-  const healthLoss =
+  const monsterDamageReduction =
+    [...investigator.assetIds, ...investigator.artifactIds].reduce(
+      (total, cardId) =>
+        total +
+        (game.assets[cardId]?.monsterDamageReduction ??
+          game.artifacts[cardId]?.monsterDamageReduction ?? 0),
+      0,
+    );
+
+  const adjustedMonsterDamage =
+    monsterDamageReduction > 0
+      ? Math.max(1, strengthTest.damage - monsterDamageReduction)
+      : strengthTest.damage;
+
+  const unpreventedHealthLoss =
     Math.max(
       0,
-      strengthTest.damage -
-        diceTest.successes,
+      adjustedMonsterDamage - diceTest.successes,
     );
+  const healthLoss = Math.max(0, unpreventedHealthLoss - lossReaction.preventHealth);
 
   const strengthAbilities =
     getMonsterStrengthResultAbilities(
@@ -1089,6 +1156,63 @@ export function resolveCombatTest(
               monsterDefinition.id,
             ],
     };
+  }
+
+    if (unpreventedHealthLoss > 0 && !lossReaction.skip) {
+      const lossReactionSpells = getLossReactionSpells(game, "health");
+    const nearbyBandages = Object.values(game.investigators)
+      .filter((owner) => owner.spaceId === investigator.spaceId)
+      .flatMap((owner) => owner.assetIds
+        .filter((assetId) => game.assets[assetId]?.name === "Bandages")
+        .map((assetId) => ({ ownerId: owner.id, assetId })));
+    if (nearbyBandages.length > 0 || lossReactionSpells.length > 0) {
+      return {
+        ...game,
+        lastTest: diceTest,
+        pendingCombatLoss: { testDecision, diceTest, stat: "health" },
+        pendingDecision: {
+          type: "choice",
+          title: "Prevent Combat Damage?",
+          message: `You are about to lose ${unpreventedHealthLoss} Health. Bandages can prevent up to 2.`,
+          options: [
+            ...nearbyBandages.map(({ ownerId, assetId }) => ({ id: `combat-loss:bandages:${ownerId}:${assetId}`, title: `Bandages (${getInvestigatorName(game, ownerId)})`, description: "Discard to prevent up to 2 Health loss." })),
+            ...lossReactionSpells.map(({ spellId, ownerId, definition, effectIndex }) => ({ id: `combat-loss:spell:${spellId}:${ownerId}:${effectIndex}`, title: `${definition.name} (${getInvestigatorName(game, ownerId)})`, description: "Test Lore; on a pass, prevent the amount shown on the Spell." })),
+            { id: "combat-loss:skip", title: "Do not prevent this loss" },
+          ],
+          source: "combat-health-loss",
+        },
+      };
+    }
+  }
+
+  if (newMonsterHealth <= 0) {
+    const defeatedInvestigator = combatGame.investigators[investigator.id];
+    if (defeatedInvestigator) {
+      const carriedAssets = defeatedInvestigator.assetIds
+        .map((id) => combatGame.assets[id])
+        .filter(Boolean);
+      const carriedArtifacts = defeatedInvestigator.artifactIds
+        .map((id) => combatGame.artifacts[id])
+        .filter(Boolean);
+      const rewardsSanity =
+        carriedAssets.filter((card) => card.name === "Lodge Researcher").length +
+        carriedArtifacts.filter((card) => card.name === "Sword of Saint Jerome").length;
+      const rewardClues = carriedAssets.filter((card) => card.name === "Lodge Researcher").length;
+
+      if (rewardsSanity > 0 || rewardClues > 0) {
+        combatGame = {
+          ...combatGame,
+          investigators: {
+            ...combatGame.investigators,
+            [investigator.id]: {
+              ...defeatedInvestigator,
+              sanity: Math.min(defeatedInvestigator.maxSanity, defeatedInvestigator.sanity + rewardsSanity),
+              clues: defeatedInvestigator.clues + rewardClues,
+            },
+          },
+        };
+      }
+    }
   }
 
   /*
@@ -1439,6 +1563,11 @@ export function resolveCombatTest(
     if (artifact) {
       combatGame = {
         ...combatGame,
+
+        cardRevealQueue: [
+          ...(combatGame.cardRevealQueue ?? []),
+          { id: artifact.id, kind: "Artifact", name: artifact.name, image: artifact.image, description: artifact.description },
+        ],
 
         board: {
           ...combatGame.board,

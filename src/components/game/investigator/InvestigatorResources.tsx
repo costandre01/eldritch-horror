@@ -14,7 +14,7 @@ export default function InvestigatorResources({
       {/* RESOURCES */}
       {/* ================================================== */}
 
-      <div className="flex flex-col items-center justify-center rounded-xl border border-gray-700 bg-[#111318] p-2">
+      <div title="Resources" className="flex flex-col items-center justify-center rounded-xl border border-gray-700 bg-[#111318] p-2 transition-colors hover:border-slate-500 hover:bg-slate-900">
 
         <img
           src="/icons/game/resource.png"
@@ -25,6 +25,7 @@ export default function InvestigatorResources({
         <span className="mt-1 text-sm font-black">
           {investigator.resources}
         </span>
+        <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wide text-slate-400">Resources</span>
 
       </div>
 
@@ -32,7 +33,7 @@ export default function InvestigatorResources({
       {/* CLUES */}
       {/* ================================================== */}
 
-      <div className="flex flex-col items-center justify-center rounded-xl border border-gray-700 bg-[#111318] p-2">
+      <div title="Clues" className="flex flex-col items-center justify-center rounded-xl border border-gray-700 bg-[#111318] p-2 transition-colors hover:border-slate-500 hover:bg-slate-900">
 
         <img
           src="/icons/game/clue.png"
@@ -43,6 +44,7 @@ export default function InvestigatorResources({
         <span className="mt-1 text-sm font-black">
           {investigator.clues}
         </span>
+        <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wide text-slate-400">Clues</span>
 
       </div>
 
@@ -50,7 +52,7 @@ export default function InvestigatorResources({
       {/* TRAIN */}
       {/* ================================================== */}
 
-      <div className="flex flex-col items-center justify-center rounded-xl border border-gray-700 bg-[#111318] p-2">
+      <div title="Train Tickets" className="flex flex-col items-center justify-center rounded-xl border border-gray-700 bg-[#111318] p-2 transition-colors hover:border-slate-500 hover:bg-slate-900">
 
         <img
           src="/icons/game/train.png"
@@ -61,6 +63,7 @@ export default function InvestigatorResources({
         <span className="mt-1 text-sm font-black">
           {investigator.trainTickets}
         </span>
+        <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wide text-slate-400">Train</span>
 
       </div>
 
@@ -68,7 +71,7 @@ export default function InvestigatorResources({
       {/* SHIP */}
       {/* ================================================== */}
 
-      <div className="flex flex-col items-center justify-center rounded-xl border border-gray-700 bg-[#111318] p-2">
+      <div title="Ship Tickets" className="flex flex-col items-center justify-center rounded-xl border border-gray-700 bg-[#111318] p-2 transition-colors hover:border-slate-500 hover:bg-slate-900">
 
         <img
           src="/icons/game/ship.png"
@@ -79,6 +82,7 @@ export default function InvestigatorResources({
         <span className="mt-1 text-sm font-black">
           {investigator.shipTickets}
         </span>
+        <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wide text-slate-400">Ship</span>
 
       </div>
 

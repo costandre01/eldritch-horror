@@ -4,6 +4,7 @@ import type { TestResult } from "../models/TestResult";
 
 import { rollTest } from "./rollTest";
 import { getEffectiveSkill } from "./getEffectiveSkill";
+import { getPassiveTestModifiers, type PassiveTestContext } from "./getPassiveTestModifiers";
 import { resolveTestConditions } from "./resolveTestConditions";
 import type { MapDefinition } from "../models/MapDefinition";
 
@@ -19,6 +20,7 @@ export function performTest(
   modifier = 0,
   difficulty = 1,
   map: MapDefinition,
+  context: Omit<PassiveTestContext, "skill"> = {},
 ): PerformTestResult {
   const investigator =
     game.investigators[investigatorId];
@@ -46,7 +48,19 @@ export function performTest(
       game,
       investigatorId,
       skill,
+      context.spell && context.combat
+        ? "combat-spell"
+        : context.spell
+          ? "spell"
+          : context.combat
+            ? "combat"
+            : null,
     );
+
+  const passiveModifiers = getPassiveTestModifiers(game, investigatorId, {
+    skill,
+    ...context,
+  });
 
   /*
    * ============================================================
@@ -65,8 +79,9 @@ export function performTest(
       },
     },
     skill,
-    modifier,
+    modifier + passiveModifiers.bonusDice,
     difficulty,
+    { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
   );
 
   /*

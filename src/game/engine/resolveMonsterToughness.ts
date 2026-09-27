@@ -66,19 +66,11 @@ export function resolveMonsterToughness(
       );
     }
 
-    /*
-     * The game is currently using the front
-     * Cultist statistics.
-     *
-     * We will later switch this to the
-     * awakened statistics when the Ancient One
-     * awakening state is represented in GameState.
-     */
+    const cultist = game.ancientOne.awakened
+      ? ancientOne.cultist.awakened
+      : ancientOne.cultist.front;
 
-    return (
-      ancientOne.cultist.front
-        .toughness
-    );
+    return cultist.toughness;
   }
 
   /*

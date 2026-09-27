@@ -109,6 +109,17 @@ export function resolveGameFlowContinue(
     };
   }
 
+  if (game.pendingDecision?.type === "mythos-clues") {
+    const decision = game.pendingDecision;
+    return {
+      game: showMythosContinue(
+        { ...game, pendingDecision: null },
+        decision.nextIconIndex,
+      ),
+      resetEncounterStartedForTurn: false,
+    };
+  }
+
   const decision =
     game.pendingDecision;
 
@@ -3008,34 +3019,14 @@ export function resolveGameFlowContinue(
   * Preserve the original fallback behaviour.
   */
 
-  const resolvedPendingGame  =
+  const resolvedPendingGame =
     resolvePendingDecision(
       game,
       map,
     );
 
   return {
-    game: resolvedPendingGame ,
-    resetEncounterStartedForTurn:
-      false,
-  };
-
-  /*
-   * ============================================================
-   * GENERIC PENDING DECISION
-   * ============================================================
-   *
-   * Preserve the original fallback behaviour.
-   */
-
-  const updatedGame =
-    resolvePendingDecision(
-      game,
-      map,
-    );
-
-  return {
-    game: updatedGame,
+    game: resolvedPendingGame,
     resetEncounterStartedForTurn:
       false,
   };

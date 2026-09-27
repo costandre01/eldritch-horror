@@ -886,6 +886,11 @@ export const generalEncounters: EncounterDefinition[] = [
             {
                 text: "Spend 1 Clue.",
 
+                requirement: {
+                    type: "clues",
+                    amount: 1,
+                },
+
                 effects: [
                     {
                         type: "lose-clues",

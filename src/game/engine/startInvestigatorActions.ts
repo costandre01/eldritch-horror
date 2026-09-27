@@ -72,6 +72,7 @@ export function startInvestigatorActions(
           isDelayed: false,
 
           actionsPerformed: [],
+          additionalActionsThisRound: 0,
         },
       },
 
@@ -101,6 +102,7 @@ export function startInvestigatorActions(
         ...investigator,
 
         actionsPerformed: [],
+        additionalActionsThisRound: 0,
       },
     },
 

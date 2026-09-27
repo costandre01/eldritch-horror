@@ -1,65 +1,42 @@
 import type { GameState } from "../models/GameState";
 
+/** Discard an Asset owned by the active Investigator. */
 export function discardAsset(
   game: GameState,
   assetId: string,
 ): GameState {
-  /*
-   * The Asset must currently be in
-   * the Asset Reserve.
-   *
-   * This function is used from the
-   * Acquire Assets modal, before the
-   * Asset is acquired by an investigator.
-   */
-
-  const assetIndex =
-    game.board.assetReserve.findIndex(
-      (asset) =>
-        asset.id === assetId,
-    );
-
-  if (assetIndex === -1) {
-    throw new Error(
-      `Asset "${assetId}" is not in the Asset Reserve.`,
-    );
+  const investigatorId = game.activeInvestigatorId;
+  if (!investigatorId) {
+    throw new Error("There is no active investigator.");
   }
 
-  const asset =
-    game.board.assetReserve[
-      assetIndex
-    ];
+  const investigator = game.investigators[investigatorId];
+  if (!investigator) {
+    throw new Error(`Investigator "${investigatorId}" does not exist.`);
+  }
 
-  /*
-   * Remove the Asset from the Reserve.
-   */
+  if (!investigator.assetIds.includes(assetId)) {
+    throw new Error(`Asset "${assetId}" is not owned by Investigator "${investigatorId}".`);
+  }
 
-  const assetReserve =
-    game.board.assetReserve.filter(
-      (asset) =>
-        asset.id !== assetId,
-    );
-
-  /*
-   * Put the Asset in the discard pile.
-   */
-
-  const assetDiscard = [
-    ...game.board.assetDiscard,
-    asset,
-  ];
+  const asset = game.assets[assetId];
+  if (!asset) {
+    throw new Error(`Asset "${assetId}" does not exist.`);
+  }
 
   return {
     ...game,
-
+    investigators: {
+      ...game.investigators,
+      [investigatorId]: {
+        ...investigator,
+        assetIds: investigator.assetIds.filter((id) => id !== assetId),
+      },
+    },
     board: {
       ...game.board,
-
-      assetReserve,
-
-      assetDiscard,
+      assetDiscard: [...game.board.assetDiscard, asset],
     },
-
     lastTest: null,
   };
 }

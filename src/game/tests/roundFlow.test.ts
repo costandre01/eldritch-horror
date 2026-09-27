@@ -63,7 +63,12 @@ describe(
 
         expect(
           result.pendingDecision,
-        ).toBeNull();
+        ).toMatchObject({
+          type: "investigator-turn",
+          phase: "action",
+          investigatorId: "investigator-2",
+          title: "Action Phase — Round 2",
+        });
 
         expect(
           result.investigators[

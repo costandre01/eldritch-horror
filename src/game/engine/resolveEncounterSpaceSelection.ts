@@ -1,5 +1,6 @@
 import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
+import { continueAcquireAssetEffects } from "./continueAcquireAssetEffects";
 import { advanceDoom } from "./doomEngine";
 
 import { moveInvestigator } from "./moveInvestigator";
@@ -189,6 +190,48 @@ export function resolveEncounterSpaceSelection(
       investigatorIds,
       nextInvestigatorIndex,
     );
+  }
+
+  if (decision.source?.startsWith("asset:agency-quarantine:")) {
+    const space = game.board.spaces[spaceId];
+    if (!space) throw new Error(`Selected space "${spaceId}" does not exist.`);
+    const monsters = { ...game.monsters };
+    const defeated: string[] = [];
+    const defeatedMonsters = [];
+    for (const monsterId of space.monsterIds) {
+      const monster = monsters[monsterId];
+      if (!monster) continue;
+      const health = Math.max(0, monster.health - 4);
+      monsters[monsterId] = { ...monster, health, spaceId: health > 0 ? spaceId : null };
+      if (health === 0) {
+        defeated.push(monsterId);
+        defeatedMonsters.push(monsters[monsterId]);
+      }
+    }
+    return continueAcquireAssetEffects({
+      ...game,
+      pendingDecision: null,
+      monsters,
+      board: {
+        ...game.board,
+        monsterDiscard: [...game.board.monsterDiscard, ...defeatedMonsters],
+        spaces: { ...game.board.spaces, [spaceId]: { ...space, monsterIds: space.monsterIds.filter((id) => !defeated.includes(id)) } },
+      },
+    });
+  }
+
+  if (decision.source?.startsWith("asset:charter-flight:")) {
+    const investigatorId = decision.source.slice("asset:charter-flight:".length);
+    const investigator = game.investigators[investigatorId];
+    if (!investigator) throw new Error(`Investigator "${investigatorId}" does not exist.`);
+    return continueAcquireAssetEffects({
+      ...game,
+      pendingDecision: null,
+      investigators: {
+        ...game.investigators,
+        [investigatorId]: { ...investigator, spaceId },
+      },
+    });
   }
 
   /*

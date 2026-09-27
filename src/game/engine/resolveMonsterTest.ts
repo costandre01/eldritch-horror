@@ -33,8 +33,9 @@ export function resolveMonsterTest(
     );
   }
 
-  const cultist =
-    ancientOneDefinition.cultist.front;
+  const cultist = game.ancientOne.awakened
+    ? ancientOneDefinition.cultist.awakened
+    : ancientOneDefinition.cultist.front;
 
   return type === "horror"
     ? cultist.horrorTest

@@ -107,5 +107,9 @@ export function createSpell(
 
     pendingChosenInvestigatorId:
       null,
+
+    pendingChosenMonsterId: null,
+
+    pendingChosenClueId: null,
   };
 }

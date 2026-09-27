@@ -6,6 +6,7 @@ export interface TravelReachableSpace {
   moves: number;
   trainTicketsUsed: number;
   shipTicketsUsed: number;
+  route: string[];
 }
 
 interface SearchState {
@@ -13,6 +14,7 @@ interface SearchState {
   moves: number;
   trainTicketsUsed: number;
   shipTicketsUsed: number;
+  route: string[];
 }
 
 export function getTravelReachableSpaces(
@@ -53,6 +55,7 @@ export function getTravelReachableSpaces(
       moves: 0,
       trainTicketsUsed: 0,
       shipTicketsUsed: 0,
+      route: [],
     },
   ];
 
@@ -104,7 +107,11 @@ export function getTravelReachableSpaces(
       /*
        * First movement is free.
        */
-      if (current.moves > 0) {
+      const isFirstTravelMove =
+        investigator.travelMoves === 0 &&
+        current.moves === 0;
+
+      if (!isFirstTravelMove) {
         if (path.type === "train") {
           if (
             nextTrainTicketsUsed >=
@@ -143,6 +150,7 @@ export function getTravelReachableSpaces(
           nextTrainTicketsUsed,
         shipTicketsUsed:
           nextShipTicketsUsed,
+        route: [...current.route, path.toSpaceId],
       };
 
       /*
@@ -170,6 +178,7 @@ export function getTravelReachableSpaces(
             nextState.trainTicketsUsed,
           shipTicketsUsed:
             nextState.shipTicketsUsed,
+          route: nextState.route,
         });
       }
 

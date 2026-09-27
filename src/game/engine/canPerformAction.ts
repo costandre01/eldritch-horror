@@ -9,11 +9,12 @@ export function canPerformAction(
     return false;
   }
 
-  if (investigator.actionsPerformed.length >= 2) {
+  if (investigator.actionsPerformed.length >= 2 + (investigator.additionalActionsThisRound ?? 0)) {
     return false;
   }
 
   if (
+    action !== "component" &&
     investigator.actionsPerformed.includes(action)
   ) {
     return false;

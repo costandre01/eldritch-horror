@@ -343,40 +343,46 @@ describe(
           ]),
         );
 
-        /*
-         * The spawn-clues icon must pause the Mythos
-         * and ask the player to continue.
-         */
+        /* The clue-spawn overlay should identify the new Clues. */
 
         expect(
           resolvedGame.pendingDecision,
         ).toEqual(
           expect.objectContaining({
-            type:
-              "continue",
-
-            source:
-              "mythos-card:1",
+            type: "mythos-clues",
+            source: "mythos:spawn-clues",
+            clueTokenIds: expect.arrayContaining([
+              "clue-san-francisco",
+              "clue-arkham",
+            ]),
+            spaceIds: expect.arrayContaining([
+              "san-francisco",
+              "arkham",
+            ]),
           }),
         );
 
-        /*
-         * ----------------------------------------------------------
-         * Continue the Mythos.
-         *
-         * The engine resumes at icon index 1 and finishes
-         * the Mythos card.
-         * ----------------------------------------------------------
-         */
-
-        const continueResult =
+        /* Continue past the clue map, then finish the Mythos card. */
+        const clueContinueResult =
           resolveGameFlowContinue(
             resolvedGame,
             eldritchBaseMap,
           );
 
         resolvedGame =
-          continueResult.game;
+          clueContinueResult.game;
+
+        expect(resolvedGame.pendingDecision).toEqual(
+          expect.objectContaining({
+            type: "continue",
+            source: "mythos-card:1",
+          }),
+        );
+
+        resolvedGame = resolveGameFlowContinue(
+          resolvedGame,
+          eldritchBaseMap,
+        ).game;
 
         /*
          * ----------------------------------------------------------

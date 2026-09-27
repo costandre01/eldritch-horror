@@ -78,7 +78,7 @@ export default function AncientOnePreviewModal({
           onClick={onClose}
           className="mt-2 rounded-xl bg-red-700 px-7 py-3 font-bold text-white transition hover:bg-red-600"
         >
-          Fechar
+          Close
         </button>
       </div>
     </div>

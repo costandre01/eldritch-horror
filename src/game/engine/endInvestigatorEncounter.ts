@@ -47,6 +47,20 @@ export function endInvestigatorEncounter(
     );
   }
 
+  if (game.spellEncounterReturnSpaceId) {
+    const investigator = game.investigators[investigatorId];
+    if (investigator) {
+      return endInvestigatorEncounter({
+        ...game,
+        spellEncounterReturnSpaceId: null,
+        investigators: {
+          ...game.investigators,
+          [investigatorId]: { ...investigator, spaceId: game.spellEncounterReturnSpaceId },
+        },
+      });
+    }
+  }
+
   /*
   * ============================================================
   * OCCULT RESEARCH
@@ -88,6 +102,8 @@ export function endInvestigatorEncounter(
     */
     return {
       ...game,
+
+      activeCombatSkillModifiers: (game.activeCombatSkillModifiers ?? []).filter((modifier) => modifier.investigatorId !== investigatorId),
 
       currentEncounterId:
         null,
@@ -144,6 +160,16 @@ export function endInvestigatorEncounter(
         source:
           "mystery:occult-research",
       },
+    };
+  }
+
+  if (game.currentEncounterIsResearch || game.researchEncounterBonusDice?.[investigatorId]) {
+    const researchEncounterBonusDice = { ...game.researchEncounterBonusDice };
+    delete researchEncounterBonusDice[investigatorId];
+    game = {
+      ...game,
+      currentEncounterIsResearch: false,
+      researchEncounterBonusDice,
     };
   }
 
@@ -238,6 +264,8 @@ export function endInvestigatorEncounter(
     return {
       ...game,
 
+      activeCombatSkillModifiers: (game.activeCombatSkillModifiers ?? []).filter((modifier) => modifier.investigatorId !== investigatorId),
+
       activeInvestigatorId:
         nextInvestigatorId,
 
@@ -263,7 +291,7 @@ export function endInvestigatorEncounter(
           "Encounter Phase",
 
         message:
-          `É a vez de ${investigatorName}.`,
+          `It is ${investigatorName}'s turn.`,
 
         investigatorId:
           nextInvestigatorId,
@@ -287,6 +315,8 @@ export function endInvestigatorEncounter(
 
   const mythosGame: GameState = {
     ...game,
+
+    activeCombatSkillModifiers: [],
 
     phase: "mythos",
 

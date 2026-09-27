@@ -15,6 +15,8 @@ import type {
     ArtifactType,
     ArtifactTrait,
 } from "./Artifact";
+import type { PassiveTestModifier, TestRerollAbility } from "./Asset";
+import type { Skill } from "./Investigator";
 
 export interface ArtifactDefinition {
     /*
@@ -50,6 +52,16 @@ export interface ArtifactDefinition {
      */
 
     description: string;
+
+    testRerolls?: TestRerollAbility[];
+
+    passiveTestModifiers?: PassiveTestModifier[];
+
+    monsterDamageReduction?: number;
+
+    skillModifiers?: Partial<Record<Skill, number>>;
+
+    contextualSkillModifiers?: Partial<Record<"combat" | "spell", Partial<Record<Skill, number>>>>;
 
     /*
      * ========================================================

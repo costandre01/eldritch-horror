@@ -2,6 +2,7 @@ import type { GameState } from "../models/GameState";
 import type { InvestigatorAction } from "../types/InvestigatorAction";
 
 import { canPerformAction } from "./canPerformAction";
+import { assertNormalActionAllowed } from "./conditionRestrictions";
 
 export function performAction(
   game: GameState,
@@ -24,6 +25,8 @@ export function performAction(
       `Investigator "${investigatorId}" does not exist.`,
     );
   }
+
+  assertNormalActionAllowed(game, investigatorId);
 
   if (!canPerformAction(investigator, action)) {
     throw new Error(

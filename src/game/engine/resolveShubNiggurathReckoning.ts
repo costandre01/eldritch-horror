@@ -78,6 +78,12 @@ export function resolveShubNiggurathReckoning(
     );
   }
 
+  if (!map.spaces.some((space) => space.id === monster.spaceId)) {
+    throw new Error(
+      `Shub-Niggurath's Monster references unknown map space "${monster.spaceId}".`,
+    );
+  }
+
   /*
    * ============================================================
    * FIND NEXT INVESTIGATOR

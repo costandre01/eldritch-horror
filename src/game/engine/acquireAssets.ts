@@ -4,6 +4,7 @@ import type { Investigator } from "../models/Investigator";
 
 import { canPerformAction } from "./canPerformAction";
 import { performTest } from "./performTest";
+import { assertNormalActionAllowed } from "./conditionRestrictions";
 
 export function acquireAssets(
   game: GameState,
@@ -26,6 +27,8 @@ export function acquireAssets(
       `Investigator "${investigatorId}" does not exist.`,
     );
   }
+
+  assertNormalActionAllowed(game, investigatorId);
 
   /*
    * ============================================================
@@ -162,6 +165,7 @@ export function acquireAssets(
       1,
 
       map,
+      { acquireAssets: true },
     );
 
   /*

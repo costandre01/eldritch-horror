@@ -9,6 +9,7 @@ import { CORE_ARTIFACTS } from "../../content/core/coreArtifacts";
 import { createArtifact } from "./createArtifact";
 import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { createMonster } from "./createMonster";
+import { getSetAsideMonsterCounts } from "./monsterSetup";
 import type { AncientOneDefinition } from "../models/AncientOneDefinition";
 import { createMythosDeck } from "./createMythosDeck";
 import type { ClueToken } from "../models/ClueToken";
@@ -327,27 +328,9 @@ export function createBoard(
   * Monster Cup.
   */
 
-  const setAsideMonsterCounts: Record<
-    string,
-    number
-  > = {};
-
-  switch (options.ancientOne.id) {
-    case "cthulhu":
-      setAsideMonsterCounts["deep-one"] = 1;
-      setAsideMonsterCounts["star-spawn"] = 1;
-      break;
-
-    case "shub-niggurath":
-      setAsideMonsterCounts["ghoul"] = 2;
-      setAsideMonsterCounts["goat-spawn"] = 2;
-      setAsideMonsterCounts["dark-young"] = 1;
-      break;
-
-    case "azathoth":
-    case "yog-sothoth":
-      break;
-  }
+  const setAsideMonsterCounts =
+    getSetAsideMonsterCounts(options.ancientOne.id);
+  const monsterSetAside: BoardState["monsterSetAside"] = [];
 
   /*
   * ============================================================
@@ -376,12 +359,30 @@ export function createBoard(
           setAsideCount,
       );
 
+    const actualSetAsideCount = Math.min(
+      definition.quantity,
+      setAsideCount,
+    );
+
     for (
       let instanceNumber = 1;
       instanceNumber <= quantityInCup;
       instanceNumber++
     ) {
       monsterCup.push(
+        createMonster(
+          definition,
+          instanceNumber,
+        ),
+      );
+    }
+
+    for (
+      let instanceNumber = quantityInCup + 1;
+      instanceNumber <= quantityInCup + actualSetAsideCount;
+      instanceNumber++
+    ) {
+      monsterSetAside.push(
         createMonster(
           definition,
           instanceNumber,
@@ -488,6 +489,8 @@ export function createBoard(
     },
 
     monsterCup,
+
+    monsterSetAside,
 
     monsterDiscard: [],
 

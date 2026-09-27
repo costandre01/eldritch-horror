@@ -909,8 +909,13 @@ export default function SpaceInspectModal({
                           "
                         >
 
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-900/60 text-2xl">
-                            🌀
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-purple-900/40 p-1">
+                            <img
+                              src="/icons/game/Gate-Token.png"
+                              alt="Gate token"
+                              draggable={false}
+                              className="h-full w-full object-contain"
+                            />
                           </div>
 
                           <div>
@@ -935,15 +940,24 @@ export default function SpaceInspectModal({
             {/* EXPEDITION */}
             {/* ================================================== */}
 
-            {spaceState?.expedition && (
+            {game.board.activeExpeditionSpaceId === spaceId && (
               <section className="mb-6">
 
                 <h3 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-white/50">
                   Expedition
                 </h3>
 
-                <div className="rounded-xl bg-white/5 p-3 text-sm">
-                  Expedition available
+                <div className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
+                  <img
+                    src="/icons/game/Expedition-Token.png"
+                    alt="Active Expedition"
+                    draggable={false}
+                    className="h-10 w-10 shrink-0 object-contain"
+                  />
+                  <div>
+                    <p className="text-sm font-bold">Active Expedition</p>
+                    <p className="text-xs text-white/40">This is the current Expedition space</p>
+                  </div>
                 </div>
 
               </section>
@@ -1012,20 +1026,6 @@ export default function SpaceInspectModal({
                 </div>
               </section>
             )}
-
-            {/* ================================================== */}
-            {/* SPACE ID */}
-            {/* ================================================== */}
-
-            <div className="border-t border-white/10 pt-4">
-              <p className="text-[10px] uppercase tracking-wider text-white/30">
-                Space ID
-              </p>
-
-              <p className="mt-1 text-xs text-white/40">
-                {space.id}
-              </p>
-            </div>
 
           </div>
         </div>

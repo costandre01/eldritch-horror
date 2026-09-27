@@ -1,4 +1,6 @@
 import type { GameState } from "../models/GameState";
+import { retreatDoom } from "./retreatDoom";
+import { continueAcquireAssetEffects } from "./continueAcquireAssetEffects";
 
 export function confirmAcquireAssets(
   game: GameState,
@@ -135,15 +137,28 @@ export function confirmAcquireAssets(
    * ADD ASSETS TO INVESTIGATOR
    */
 
+  const immediateUseAssets = selectedAssets.filter((asset) => ["Private Care", "Silver Twilight Ritual", "Sanctuary", "Agency Quarantine", "Delivery Service", "Wireless Report", "Charter Flight"].includes(asset.name));
+  let updatedGame = game;
+  for (const _ritual of selectedAssets.filter((asset) => asset.name === "Silver Twilight Ritual")) {
+    updatedGame = retreatDoom(updatedGame, 1);
+  }
+
   const updatedInvestigator = {
     ...investigator,
 
     assetIds: [
       ...investigator.assetIds,
-      ...selectedAssets.map(
+      ...selectedAssets.filter((asset) => !immediateUseAssets.includes(asset)).map(
         (asset) => asset.id,
       ),
     ],
+
+    health: selectedAssets.some((asset) => asset.name === "Private Care")
+      ? investigator.maxHealth
+      : investigator.health,
+    sanity: selectedAssets.some((asset) => asset.name === "Private Care")
+      ? investigator.maxSanity
+      : investigator.sanity,
 
     conditionIds: debtId
       ? [
@@ -206,18 +221,18 @@ export function confirmAcquireAssets(
         )
       : game.board.conditionDeck;
 
-  return {
-    ...game,
+  const confirmedGame: GameState = {
+    ...updatedGame,
 
     investigators: {
-      ...game.investigators,
+      ...updatedGame.investigators,
 
       [investigatorId]:
         updatedInvestigator,
     },
 
     board: {
-      ...game.board,
+      ...updatedGame.board,
 
       assetDeck,
 
@@ -225,8 +240,24 @@ export function confirmAcquireAssets(
         remainingReserve,
 
       conditionDeck,
+      assetDiscard: [
+        ...updatedGame.board.assetDiscard,
+        ...immediateUseAssets,
+      ],
     },
 
     lastTest: null,
   };
+
+  return continueAcquireAssetEffects({
+    ...confirmedGame,
+    pendingAcquireAssetEffects: {
+      investigatorId,
+      assetIds: selectedAssets
+        .filter((asset) => ["Sanctuary", "Agency Quarantine", "Delivery Service", "Wireless Report", "Charter Flight"].includes(asset.name))
+        .map((asset) => asset.id),
+    },
+  });
+
+
 }

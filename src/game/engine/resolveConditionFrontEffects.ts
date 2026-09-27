@@ -11,6 +11,9 @@ import type {
 import { defeatInvestigator } from "./defeatInvestigator";
 import type { MapDefinition } from "../models/MapDefinition";
 import { getEffectiveSkill } from "./getEffectiveSkill";
+import { getPassiveTestModifiers } from "./getPassiveTestModifiers";
+import type { TestResult } from "../models/TestResult";
+import { performTest } from "./performTest";
 
 export interface ResolveConditionFrontEffectsResult {
   game: GameState;
@@ -24,6 +27,7 @@ export function resolveConditionFrontEffects(
   effect: ConditionFrontEffect,
   map: MapDefinition,
   treatDiceAsOne = false,
+  testResultOverride?: TestResult,
 ): ResolveConditionFrontEffectsResult {
   const investigator =
     game.investigators[investigatorId];
@@ -146,6 +150,9 @@ export function resolveConditionFrontEffects(
               investigatorId,
               effect.otherwise.testType,
             );
+          const passiveModifiers = getPassiveTestModifiers(currentGame, investigatorId, {
+            skill: effect.otherwise.testType,
+          });
 
           const test =
             rollTest(
@@ -164,8 +171,9 @@ export function resolveConditionFrontEffects(
                 },
               },
               effect.otherwise.testType,
-              0,
+              passiveModifiers.bonusDice,
               1,
+              { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
             );
 
           testResults.push(test);
@@ -422,6 +430,23 @@ export function resolveConditionFrontEffects(
      */
 
     case "on-local-action-test": {
+      const testResult = testResultOverride
+        ? { game: currentGame, test: testResultOverride }
+        : performTest(currentGame, investigatorId, effect.testType, 0, 1, map);
+      currentGame = testResult.game;
+      const test = testResult.test;
+      testResults.push(test);
+      if (test.passed) {
+        const result = applyTriggeredEffects(
+          currentGame,
+          investigatorId,
+          conditionId,
+          effect.effects,
+          map,
+        );
+        currentGame = result.game;
+        shouldDiscard = shouldDiscard || result.shouldDiscard;
+      }
       break;
     }
 
@@ -432,6 +457,23 @@ export function resolveConditionFrontEffects(
      */
 
     case "local-action-test": {
+      const testResult = testResultOverride
+        ? { game: currentGame, test: testResultOverride }
+        : performTest(currentGame, investigatorId, effect.testType, effect.modifier ?? 0, 1, map);
+      currentGame = testResult.game;
+      const test = testResult.test;
+      testResults.push(test);
+      if (test.passed) {
+        const result = applyTriggeredEffects(
+          currentGame,
+          investigatorId,
+          conditionId,
+          effect.onSuccess,
+          map,
+        );
+        currentGame = result.game;
+        shouldDiscard = shouldDiscard || result.shouldDiscard;
+      }
       break;
     }
 
@@ -455,6 +497,9 @@ export function resolveConditionFrontEffects(
             investigatorId,
             effect.testType,
           );
+        const passiveModifiers = getPassiveTestModifiers(currentGame, investigatorId, {
+          skill: effect.testType,
+        });
 
         const test =
           rollTest(
@@ -473,8 +518,9 @@ export function resolveConditionFrontEffects(
               },
             },
             effect.testType,
-            0,
+            passiveModifiers.bonusDice,
             1,
+            { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
           );
 
         testResults.push(test);
@@ -600,10 +646,13 @@ export function resolveConditionFrontEffects(
               investigatorId,
               effect.testType,
             );
+          const passiveModifiers = getPassiveTestModifiers(currentGame, investigatorId, {
+            skill: effect.testType,
+          });
 
           const diceRolled = Math.max(
             0,
-            effectiveSkill +
+            effectiveSkill + passiveModifiers.bonusDice +
               (effect.modifier ?? 0),
           );
 
@@ -646,6 +695,9 @@ export function resolveConditionFrontEffects(
             investigatorId,
             effect.testType,
           );
+        const passiveModifiers = getPassiveTestModifiers(currentGame, investigatorId, {
+          skill: effect.testType,
+        });
 
         const test =
           rollTest(
@@ -664,8 +716,9 @@ export function resolveConditionFrontEffects(
               },
             },
             effect.testType,
-            effect.modifier ?? 0,
+            (effect.modifier ?? 0) + passiveModifiers.bonusDice,
             1,
+            { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
           );
 
         testResults.push(test);

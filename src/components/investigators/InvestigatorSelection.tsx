@@ -3,6 +3,7 @@ import { coreInvestigators } from "../../content/core/investigators";
 import InvestigatorPreviewModal from "./InvestigatorPreviewModal";
 import { CORE_ANCIENT_ONES } from "../../content/core/coreAncientOnes";
 import AncientOnePreviewModal from "./AncientOnePreviewModal";
+import { getInvestigatorFrontImage } from "./investigatorImages";
 
 const MAX_INVESTIGATORS = 8;
 
@@ -11,74 +12,6 @@ interface InvestigatorSelectionProps {
     investigatorIds: string[],
     ancientOneId: string,
   ) => void;
-}
-
-/*
- * ============================================================
- * INVESTIGATOR IMAGES
- * ============================================================
- *
- * Estrutura:
- *
- * /public/cards/investigators/
- *   Akachi_Onyele/
- *     Akachi_Onyele-front.png
- *     Akachi_Onyele-back.png
- *
- *   Charlie_Kane/
- *     Charlie_Kane-front.png
- *     Charlie_Kane-back.png
- *
- * etc.
- */
-
-/*
- * Converte:
- *
- * Akachi Onyele
- *
- * para:
- *
- * Akachi_Onyele
- */
-
-function getInvestigatorFileName(
-  name: string,
-): string {
-  return name
-    .trim()
-    .replace(/\s+/g, "_");
-}
-
-/*
- * Frente da carta.
- *
- * Usada na seleção dos investigadores.
- */
-
-export function getInvestigatorFrontImage(
-  name: string,
-): string {
-  const fileName =
-    getInvestigatorFileName(name);
-
-  return `/cards/investigators/${fileName}/${fileName}-front.png`;
-}
-
-/*
- * Verso da carta.
- *
- * Usado no Preview e posteriormente
- * quando o investigador morrer.
- */
-
-export function getInvestigatorBackImage(
-  name: string,
-): string {
-  const fileName =
-    getInvestigatorFileName(name);
-
-  return `/cards/investigators/${fileName}/${fileName}-back.png`;
 }
 
 /*
@@ -212,12 +145,11 @@ export default function InvestigatorSelection({
           </p>
 
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-            Escolher Investigadores
+            Choose Investigators
           </h1>
 
           <p className="mx-auto mt-3 max-w-xl text-sm text-gray-400 sm:text-base">
-            Conhece os investigadores antes de os
-            escolher para a expedição.
+            Review the investigators before choosing them for the expedition.
           </p>
         </header>
 
@@ -365,11 +297,11 @@ export default function InvestigatorSelection({
             </p>
 
             <h2 className="mt-2 text-2xl font-bold">
-              Escolher Ancient One
+              Choose an Ancient One
             </h2>
 
             <p className="mx-auto mt-2 max-w-xl text-sm text-gray-400">
-              Escolhe quem irá despertar ou deixa a escolha ao acaso.
+              Choose which Ancient One will awaken, or leave it to chance.
             </p>
           </div>
 
@@ -404,7 +336,7 @@ export default function InvestigatorSelection({
                 </p>
 
                 <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
-                  Escolha aleatória
+                  Random choice
                 </p>
               </div>
 

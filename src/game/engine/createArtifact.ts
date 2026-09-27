@@ -50,6 +50,20 @@ export function createArtifact(
     description:
       definition.description,
 
+    testRerolls:
+      definition.testRerolls?.map((ability) => ({ ...ability })),
+
+    passiveTestModifiers:
+      definition.passiveTestModifiers?.map((modifier) => ({ ...modifier })),
+
+    monsterDamageReduction: definition.monsterDamageReduction,
+
+    skillModifiers: definition.skillModifiers ? { ...definition.skillModifiers } : undefined,
+
+    contextualSkillModifiers: definition.contextualSkillModifiers
+      ? { ...definition.contextualSkillModifiers }
+      : undefined,
+
     image:
       definition.image,
   };

@@ -1,7 +1,10 @@
 import type { GameState } from "../models/GameState";
 import type { SpellBackEffect } from "../models/SpellDefinition/backEffects";
+import type { PendingSpellBackResolution, SpellBackChoice } from "../models/PendingSpellBackResolution";
 
 import { gainCondition } from "./gainCondition";
+import { eldritchBaseMap } from "../../content/core/maps/eldritchBaseMap";
+import { defeatInvestigator } from "./defeatInvestigator";
 
 export interface ResolveSpellBackEffectsOptions {
   game: GameState;
@@ -11,6 +14,7 @@ export interface ResolveSpellBackEffectsOptions {
   spellId: string;
 
   effects: SpellBackEffect[];
+  resume?: PendingSpellBackResolution;
 }
 
 export function resolveSpellBackEffects(
@@ -87,21 +91,16 @@ export function resolveSpellBackEffects(
    * ============================================================
    */
 
-  let health =
-    caster.health;
+  let health = options.resume?.health ?? caster.health;
 
-  let sanity =
-    caster.sanity;
+  let sanity = options.resume?.sanity ?? caster.sanity;
 
-  let clues =
-    caster.clues;
+  let clues = options.resume?.clues ?? caster.clues;
 
-  let assetIds = [
-    ...caster.assetIds,
-  ];
+  let assetIds = [...(options.resume?.assetIds ?? caster.assetIds)];
 
-  let shouldDiscard =
-    false;
+  let shouldDiscard = options.resume?.shouldDiscard ?? false;
+  let paused = false;
 
   /*
    * ============================================================
@@ -131,6 +130,40 @@ export function resolveSpellBackEffects(
     return chosenInvestigatorId;
   };
 
+  const hasConditionAvailable = (definitionId: string) =>
+    currentGame.board.conditionDeck.some((conditionId) => currentGame.conditions[conditionId]?.definitionId === definitionId);
+
+  const pauseForChoice = (
+    choice: SpellBackChoice,
+    remainingEffects: SpellBackEffect[],
+    title: string,
+    options: { id: string; title: string; description?: string }[],
+  ) => {
+    paused = true;
+    const continuation: PendingSpellBackResolution = {
+      investigatorId,
+      spellId,
+      remainingEffects,
+      health,
+      sanity,
+      clues,
+      assetIds: [...assetIds],
+      shouldDiscard,
+      choice,
+    };
+    currentGame = {
+      ...currentGame,
+      pendingSpellBackResolution: continuation,
+      pendingDecision: {
+        type: "choice",
+        title,
+        message: "Choose how to resolve this Spell effect.",
+        options,
+        source: `spell-back:${spellId}`,
+      },
+    };
+  };
+
   /*
    * ============================================================
    * RESOLVE EFFECTS
@@ -139,10 +172,11 @@ export function resolveSpellBackEffects(
 
   const resolveEffects = (
     effects: SpellBackEffect[],
+    trailingEffects: SpellBackEffect[] = [],
   ): void => {
-    for (
-      const effect of effects
-    ) {
+    for (let effectIndex = 0; effectIndex < effects.length; effectIndex++) {
+      if (paused) return;
+      const effect = effects[effectIndex];
       switch (
         effect.type
       ) {
@@ -194,11 +228,9 @@ export function resolveSpellBackEffects(
             );
           }
 
-          resolveEffects(
-            branch.effects,
-          );
+          resolveEffects(branch.effects, [...effects.slice(effectIndex + 1), ...trailingEffects]);
 
-          break;
+          return;
         }
 
         /*
@@ -270,6 +302,10 @@ export function resolveSpellBackEffects(
             getTargetId(
               effect.target,
             );
+          const mayPreventSanity = caster.artifactIds.some(
+            (artifactId) => currentGame.artifacts[artifactId]?.name === "Glass of Mortlan",
+          );
+          const sanityLoss = Math.max(0, effect.amount - (mayPreventSanity ? 1 : 0));
 
           if (
             targetId ===
@@ -277,8 +313,7 @@ export function resolveSpellBackEffects(
           ) {
             sanity = Math.max(
               0,
-              sanity -
-                effect.amount,
+              sanity - sanityLoss,
             );
           } else {
             const target =
@@ -307,7 +342,7 @@ export function resolveSpellBackEffects(
                     Math.max(
                       0,
                       target.sanity -
-                        effect.amount,
+                        sanityLoss,
                     ),
                 },
               },
@@ -324,19 +359,19 @@ export function resolveSpellBackEffects(
          */
 
         case "lose-health-unless-gain-condition": {
-          /*
-           * This requires a player choice:
-           *
-           * Lose Health
-           * OR
-           * Gain Condition.
-           *
-           * We do not automatically choose.
-           */
-
-          throw new Error(
-            "Spell effect requires a choice between losing Health and gaining a Condition.",
+          getTargetId(effect.target);
+          pauseForChoice(
+            { type: "health-or-condition", effect },
+            [...effects.slice(effectIndex + 1), ...trailingEffects],
+            "Choose the Spell cost",
+            [
+              { id: "lose-health", title: `Lose ${effect.amount} Health` },
+              ...(hasConditionAvailable(effect.conditionDefinitionId)
+                ? [{ id: "gain-condition", title: "Gain a Condition", description: effect.conditionDefinitionId }]
+                : []),
+            ],
           );
+          return;
         }
 
         /*
@@ -346,17 +381,19 @@ export function resolveSpellBackEffects(
          */
 
         case "lose-sanity-unless-gain-condition": {
-          /*
-           * This requires a player choice:
-           *
-           * Lose Sanity
-           * OR
-           * Gain Condition.
-           */
-
-          throw new Error(
-            "Spell effect requires a choice between losing Sanity and gaining a Condition.",
+          getTargetId(effect.target);
+          pauseForChoice(
+            { type: "sanity-or-condition", effect },
+            [...effects.slice(effectIndex + 1), ...trailingEffects],
+            "Choose the Spell cost",
+            [
+              { id: "lose-sanity", title: `Lose ${effect.amount} Sanity` },
+              ...(hasConditionAvailable(effect.conditionDefinitionId)
+                ? [{ id: "gain-condition", title: "Gain a Condition", description: effect.conditionDefinitionId }]
+                : []),
+            ],
           );
+          return;
         }
 
         /*
@@ -459,14 +496,16 @@ export function resolveSpellBackEffects(
          */
 
         case "improve-skill": {
-          /*
-           * Skill selection belongs to the pending-choice
-           * system. We never randomly choose a Skill.
-           */
-
-          throw new Error(
-            "Spell effect requires a Skill choice.",
+          pauseForChoice(
+            { type: "improve-skill", effect },
+            [...effects.slice(effectIndex + 1), ...trailingEffects],
+            "Choose a skill to improve",
+            ["lore", "influence", "observation", "strength", "will"].map((skill) => ({
+              id: skill,
+              title: skill[0].toUpperCase() + skill.slice(1),
+            })),
           );
+          return;
         }
 
         /*
@@ -476,14 +515,15 @@ export function resolveSpellBackEffects(
          */
 
         case "gain-asset": {
-          /*
-           * The investigator must choose an Item/Trinket
-           * from the Reserve.
-           */
-
-          throw new Error(
-            "Spell effect requires an Asset choice.",
+          const eligible = currentGame.board.assetReserve.filter((asset) => effect.assetTypes.includes(asset.type as "item" | "trinket"));
+          if (!eligible.length) break;
+          pauseForChoice(
+            { type: "gain-asset", effect },
+            [...effects.slice(effectIndex + 1), ...trailingEffects],
+            "Choose an Asset from the Reserve",
+            eligible.map((asset) => ({ id: asset.id, title: asset.name, description: `Valor ${asset.value}` })),
           );
+          return;
         }
 
         /*
@@ -493,13 +533,18 @@ export function resolveSpellBackEffects(
          */
 
         case "gain-assets-by-test-result": {
-          /*
-           * The investigator must choose the Assets.
-           */
-
-          throw new Error(
-            "Spell effect requires Asset choices.",
+          const eligible = currentGame.board.assetReserve.filter((asset) => effect.assetTypes.includes(asset.type as "item" | "trinket") && asset.value <= testSuccesses);
+          if (!eligible.length) break;
+          pauseForChoice(
+            { type: "gain-assets-by-test-result", effect, remainingValue: testSuccesses },
+            [...effects.slice(effectIndex + 1), ...trailingEffects],
+            "Choose Assets up to the test result",
+            [
+              { id: "done", title: "Terminar escolha" },
+              ...eligible.map((asset) => ({ id: asset.id, title: asset.name, description: `Valor ${asset.value}` })),
+            ],
           );
+          return;
         }
 
         /*
@@ -628,9 +673,27 @@ export function resolveSpellBackEffects(
          */
 
         case "discard-chosen-clue": {
-          throw new Error(
-            "Spell effect requires a Clue choice.",
-          );
+          const clueId = spell.pendingChosenClueId;
+          const space = clueId
+            ? Object.values(currentGame.board.spaces).find((candidate) => candidate.clueTokenIds.includes(clueId))
+            : undefined;
+          if (!clueId || !space) throw new Error("This Spell has no selected Clue to discard.");
+          currentGame = {
+            ...currentGame,
+            board: {
+              ...currentGame.board,
+              spaces: {
+                ...currentGame.board.spaces,
+                [space.spaceId]: {
+                  ...space,
+                  clues: Math.max(0, space.clues - 1),
+                  clueTokenIds: space.clueTokenIds.filter((id) => id !== clueId),
+                },
+              },
+              clueDiscard: [...currentGame.board.clueDiscard, { id: clueId, spaceId: space.spaceId }],
+            },
+          };
+          break;
         }
 
         /*
@@ -640,15 +703,61 @@ export function resolveSpellBackEffects(
          */
 
         case "lose-monster-health": {
-          throw new Error(
-            "Monster selection/damage is not implemented yet.",
-          );
+          const chosenMonsterId = spell.pendingChosenMonsterId ??
+            Object.values(currentGame.monsters).find((monster) => monster.spaceId === caster.spaceId)?.id;
+          const monster = chosenMonsterId ? currentGame.monsters[chosenMonsterId] : undefined;
+          if (!monster || !chosenMonsterId || !monster.spaceId) throw new Error("There is no selected Monster on this space.");
+          const amount = effect.amount === "test-result" ? testSuccesses : effect.amount;
+          const healthAfter = Math.max(0, monster.health - amount);
+          currentGame = {
+            ...currentGame,
+            monsters: {
+              ...currentGame.monsters,
+              [chosenMonsterId]: { ...monster, health: healthAfter, spaceId: healthAfter > 0 ? monster.spaceId : null },
+            },
+            ...(healthAfter === 0 && currentGame.board.spaces[monster.spaceId]
+              ? {
+                  board: {
+                    ...currentGame.board,
+                    spaces: {
+                      ...currentGame.board.spaces,
+                      [monster.spaceId]: {
+                        ...currentGame.board.spaces[monster.spaceId],
+                        monsterIds: currentGame.board.spaces[monster.spaceId].monsterIds.filter((id) => id !== chosenMonsterId),
+                      },
+                    },
+                  },
+                }
+              : {}),
+          };
+          break;
         }
 
         case "lose-other-monsters-health": {
-          throw new Error(
-            "Monster damage resolver is not implemented yet.",
-          );
+          const ownerSpaceId = currentGame.investigators[investigatorId]?.spaceId;
+          const space = ownerSpaceId ? currentGame.board.spaces[ownerSpaceId] : undefined;
+          if (!space) break;
+          const monsters = { ...currentGame.monsters };
+          const defeatedIds: string[] = [];
+          for (const id of space.monsterIds) {
+            const monster = monsters[id];
+            if (!monster) continue;
+            const health = Math.max(0, monster.health - effect.amount);
+            monsters[id] = { ...monster, health, spaceId: health > 0 ? monster.spaceId : null };
+            if (health === 0) defeatedIds.push(id);
+          }
+          currentGame = {
+            ...currentGame,
+            monsters,
+            board: {
+              ...currentGame.board,
+              spaces: {
+                ...currentGame.board.spaces,
+                [space.spaceId]: { ...space, monsterIds: space.monsterIds.filter((id) => !defeatedIds.includes(id)) },
+              },
+            },
+          };
+          break;
         }
 
         /*
@@ -658,9 +767,20 @@ export function resolveSpellBackEffects(
          */
 
         case "gain-additional-action": {
-          throw new Error(
-            "Additional Action integration is not implemented yet.",
-          );
+          const owner = currentGame.investigators[investigatorId];
+          if (owner) {
+            currentGame = {
+              ...currentGame,
+              investigators: {
+                ...currentGame.investigators,
+                [investigatorId]: {
+                  ...owner,
+                  additionalActionsThisRound: (owner.additionalActionsThisRound ?? 0) + effect.amount,
+                },
+              },
+            };
+          }
+          break;
         }
 
         /*
@@ -670,9 +790,24 @@ export function resolveSpellBackEffects(
          */
 
         case "modify-strength": {
-          throw new Error(
-            "Combat strength modifier integration is not implemented yet.",
-          );
+          currentGame = {
+            ...currentGame,
+            activeCombatSkillModifiers: [
+              ...(effect.replacePreviousModifier
+                ? (currentGame.activeCombatSkillModifiers ?? []).filter(
+                    (modifier) => !modifier.id.startsWith(`spell:${spellId}:`),
+                  )
+                : currentGame.activeCombatSkillModifiers ?? []),
+              {
+                id: `spell:${spellId}:combat-strength`,
+                investigatorId,
+                skill: "strength",
+                amount: effect.amount,
+                duration: "this-combat-encounter",
+              },
+            ],
+          };
+          break;
         }
 
         /*
@@ -682,9 +817,20 @@ export function resolveSpellBackEffects(
          */
 
         case "allow-reroll": {
-          throw new Error(
-            "Reroll integration is not implemented yet.",
-          );
+          currentGame = {
+            ...currentGame,
+            activeTestRerolls: [
+              ...(currentGame.activeTestRerolls ?? []),
+              {
+                id: `spell:${spellId}:${effect.testType}:${effect.duration}`,
+                investigatorId,
+                skill: effect.testType,
+                amount: effect.amount,
+                duration: effect.duration,
+              },
+            ],
+          };
+          break;
         }
 
         /*
@@ -694,9 +840,14 @@ export function resolveSpellBackEffects(
          */
 
         case "modify-research-encounter-tests": {
-          throw new Error(
-            "Research Encounter modifier integration is not implemented yet.",
-          );
+          currentGame = {
+            ...currentGame,
+            researchEncounterBonusDice: {
+              ...currentGame.researchEncounterBonusDice,
+              [investigatorId]: (currentGame.researchEncounterBonusDice?.[investigatorId] ?? 0) + effect.additionalDice,
+            },
+          };
+          break;
         }
 
         /*
@@ -778,16 +929,41 @@ export function resolveSpellBackEffects(
          */
 
         case "discard-self-unless": {
-          /*
-           * The actual alternative choice will be handled
-           * by the choice system.
-           *
-           * We do not automatically decide for the player.
-           */
-
-          throw new Error(
-            "Conditional Spell discard requires a player choice.",
+          if (effect.requirement.type === "rolled-face") {
+            // This is a deterministic condition, not a player choice: retain
+            // the Spell only when one of its actual rolled dice shows the face.
+            if (!testResult?.results.includes(effect.requirement.value)) {
+              shouldDiscard = true;
+            }
+            break;
+          }
+          const requirement = effect.requirement;
+          const options = requirement.type === "lose-sanity"
+            ? [
+                ...(sanity >= requirement.amount ? [{ id: "pay-cost", title: `Lose ${requirement.amount} Sanity` }] : []),
+                { id: "discard-spell", title: "Descartar esta Spell" },
+              ]
+            : requirement.type === "gain-condition"
+              ? [
+                  ...(hasConditionAvailable(requirement.conditionDefinitionId)
+                    ? [{ id: "meet-requirement", title: `Gain ${requirement.conditionDefinitionId}` }]
+                    : []),
+                  { id: "discard-spell", title: "Descartar esta Spell" },
+                ]
+              : [
+                  ...assetIds
+                    .map((assetId) => currentGame.assets[assetId])
+                    .filter((asset) => asset?.type === "item")
+                    .map((asset) => ({ id: `discard-item:${asset.id}`, title: `Descartar ${asset.name}` })),
+                  { id: "discard-spell", title: "Descartar esta Spell" },
+                ];
+          pauseForChoice(
+            { type: "conditional-discard", requirement },
+            [...effects.slice(effectIndex + 1), ...trailingEffects],
+            "Choose how to keep the Spell",
+            options,
           );
+          return;
         }
 
         /*
@@ -851,6 +1027,15 @@ export function resolveSpellBackEffects(
       },
     },
   };
+
+  if (paused) return currentGame;
+
+  for (const targetId of new Set([investigatorId, chosenInvestigatorId].filter((id): id is string => !!id))) {
+    const target = currentGame.investigators[targetId];
+    if (target && !target.isDefeated && (target.health <= 0 || target.sanity <= 0)) {
+      currentGame = defeatInvestigator(currentGame, eldritchBaseMap, targetId);
+    }
+  }
 
   /*
    * ============================================================

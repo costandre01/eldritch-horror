@@ -1,11 +1,15 @@
 interface SpellPreviewModalProps {
   image: string;
   onClose: () => void;
+  canResolve?: boolean;
+  onResolve?: () => void;
 }
 
 export default function SpellPreviewModal({
   image,
   onClose,
+  canResolve = false,
+  onResolve,
 }: SpellPreviewModalProps) {
   return (
     <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
@@ -32,13 +36,16 @@ export default function SpellPreviewModal({
 
         {/* CLOSE */}
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-4 rounded-xl bg-purple-700 px-6 py-3 font-bold text-white transition hover:bg-purple-600"
-        >
-          Fechar
-        </button>
+        <div className="mt-4 flex gap-3">
+          {canResolve && onResolve && (
+            <button type="button" onClick={onResolve} className="rounded-xl bg-purple-700 px-6 py-3 font-bold text-white transition hover:bg-purple-600">
+              Resolve Spell back effect
+            </button>
+          )}
+          <button type="button" onClick={onClose} className="rounded-xl bg-gray-700 px-6 py-3 font-bold text-white transition hover:bg-gray-600">
+            Close
+          </button>
+        </div>
 
       </div>
     </div>

@@ -15,6 +15,8 @@ import {
 } from "./resolveMythosSpecial";
 import { gainCondition, gainConditionByCategory } from "./gainCondition";
 import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
+import { continueAcquireAssetEffects } from "./continueAcquireAssetEffects";
+import { findNearestCity } from "./findNearestCity";
 
 export type CardSelectionResult =
   | {
@@ -99,6 +101,86 @@ export function resolveCardSelection(
 
     let currentGame =
       game;
+
+    if (source.startsWith("condition:fail-choice:")) {
+      const [, , ownerId, conditionId] = source.split(":");
+      const owner = ownerId ? currentGame.investigators[ownerId] : undefined;
+      if (!owner || !conditionId) return { type: "ignore", game };
+      const selectedAllyIds = selectedCardIds.filter((id) =>
+        owner.assetIds.includes(id) && currentGame.assets[id]?.type === "ally",
+      ).slice(0, 1);
+      if (selectedAllyIds.length > 0) {
+        const discarded = selectedAllyIds.map((id) => currentGame.assets[id]).filter((asset) => !!asset);
+        currentGame = {
+          ...currentGame,
+          investigators: { ...currentGame.investigators, [ownerId]: { ...owner, assetIds: owner.assetIds.filter((id) => !selectedAllyIds.includes(id)) } },
+          board: { ...currentGame.board, assetDiscard: [...currentGame.board.assetDiscard, ...discarded] },
+          pendingDecision: null,
+        };
+      } else {
+        const nearestCityId = owner.spaceId ? findNearestCity(map, owner.spaceId) : null;
+        if (nearestCityId) currentGame = { ...currentGame, investigators: { ...currentGame.investigators, [ownerId]: { ...owner, spaceId: nearestCityId } }, pendingDecision: null };
+        else currentGame = { ...currentGame, pendingDecision: null };
+        currentGame = gainCondition(currentGame, ownerId, "condition-detained");
+      }
+      currentGame = discardCondition(currentGame, ownerId, conditionId);
+      return { type: "state", game: currentGame };
+    }
+
+    if (source.startsWith("asset:delivery-transfer:")) {
+      const targetId = source.slice("asset:delivery-transfer:".length);
+      const target = currentGame.investigators[targetId];
+      if (!target || targetId === investigatorId) return { type: "ignore", game };
+      const transferredAssetIds = selectedCardIds.filter((id) => investigator.assetIds.includes(id) && currentGame.assets[id]?.type === "item");
+      const transferredArtifactIds = selectedCardIds.filter((id) => investigator.artifactIds.includes(id) && currentGame.artifacts[id]?.type === "item");
+      return {
+        type: "state",
+        game: continueAcquireAssetEffects({
+          ...currentGame,
+          pendingDecision: null,
+          investigators: {
+            ...currentGame.investigators,
+            [investigatorId]: {
+              ...investigator,
+              assetIds: investigator.assetIds.filter((id) => !transferredAssetIds.includes(id)),
+              artifactIds: investigator.artifactIds.filter((id) => !transferredArtifactIds.includes(id)),
+            },
+            [targetId]: {
+              ...target,
+              assetIds: [...target.assetIds, ...transferredAssetIds],
+              artifactIds: [...target.artifactIds, ...transferredArtifactIds],
+            },
+          },
+        }),
+      };
+    }
+
+    if (source.startsWith("asset:cat-burglar-gain:")) {
+      const selectedId = selectedCardIds[0];
+      const asset = currentGame.board.assetReserve.find((candidate) => candidate.id === selectedId);
+      if (!asset || (asset.type !== "item" && asset.type !== "trinket")) {
+        return { type: "ignore", game };
+      }
+      const assetReserve = currentGame.board.assetReserve.filter((candidate) => candidate.id !== selectedId);
+      const assetDeck = [...currentGame.board.assetDeck];
+      while (assetReserve.length < 4 && assetDeck.length > 0) {
+        const index = Math.floor(Math.random() * assetDeck.length);
+        const next = assetDeck.splice(index, 1)[0];
+        if (next) assetReserve.push(next);
+      }
+      return {
+        type: "state",
+        game: {
+          ...currentGame,
+          pendingDecision: null,
+          investigators: {
+            ...currentGame.investigators,
+            [investigatorId]: { ...investigator, assetIds: [...investigator.assetIds, asset.id] },
+          },
+          board: { ...currentGame.board, assetReserve, assetDeck },
+        },
+      };
+    }
 
     /*
      * ==========================================================

@@ -351,14 +351,21 @@ export default function GameTableHeader({
    */
 
   const [
-    ancientOneFlipped,
-    setAncientOneFlipped,
-  ] = useState(false);
-
-  const [
     ancientOneZoomed,
     setAncientOneZoomed,
   ] = useState(false);
+
+  const [
+    ancientOnePreviewFlipped,
+    setAncientOnePreviewFlipped,
+  ] = useState(game.ancientOne.awakened);
+
+  function openAncientOnePreview() {
+    setAncientOnePreviewFlipped(
+      game.ancientOne.awakened,
+    );
+    setAncientOneZoomed(true);
+  }
 
   const ancientOneDefinition =
     CORE_ANCIENT_ONES.find(
@@ -801,39 +808,11 @@ export default function GameTableHeader({
       {/* GAME ACTIONS */}
       {/* ====================================================== */}
 
-      <div className="mb-3 flex justify-end gap-2">
-
-        {/* SAVE */}
-
-        <button
-          type="button"
-          onClick={onSave}
-          title="Save Game"
-          aria-label="Save Game"
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-lg transition hover:border-slate-500 hover:bg-slate-800"
-        >
-          💾
-        </button>
-
-        {/* EXIT */}
-
-        <button
-          type="button"
-          onClick={onExit}
-          title="Exit Game"
-          aria-label="Exit Game"
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-lg transition hover:border-red-500/60 hover:bg-red-950/40"
-        >
-          ⎋
-        </button>
-
-      </div>
-
       {/* ====================================================== */}
       {/* TOP GAME HEADER */}
       {/* ====================================================== */}
 
-      <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+      <div className="mb-3 grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
 
         {/* ================================================== */}
         {/* ANCIENT ONE */}
@@ -856,13 +835,11 @@ export default function GameTableHeader({
               <button
                 type="button"
                 className="group mx-auto block"
-                onClick={() =>
-                  setAncientOneZoomed(true)
-                }
+                onClick={openAncientOnePreview}
               >
                 <img
                   src={
-                    ancientOneFlipped
+                    game.ancientOne.awakened
                       ? ancientOneDefinition.backImage
                       : ancientOneDefinition.frontImage
                   }
@@ -876,9 +853,7 @@ export default function GameTableHeader({
               <div className="mt-3 flex justify-center">
                 <button
                   type="button"
-                  onClick={() =>
-                    setAncientOneZoomed(true)
-                  }
+                  onClick={openAncientOnePreview}
                   className="rounded-md border border-slate-600 bg-slate-800 px-4 py-2 text-xs font-bold uppercase tracking-wide hover:bg-slate-700"
                 >
                   VIEW CARD
@@ -893,7 +868,7 @@ export default function GameTableHeader({
         {/* MYSTERIES + MYTHOS */}
         {/* ================================================== */}
 
-        <section className="grid min-w-0 grid-cols-2 gap-6">
+        <section className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-2">
 
           {/* ================================================= */}
           {/* MYSTERIES */}
@@ -1034,17 +1009,41 @@ export default function GameTableHeader({
 
           <div className="min-w-0 p-2">
 
-            <div className="mb-3 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-400">
-                Mythos
-              </p>
+            <div className="relative mb-3 flex min-h-10 items-center justify-center">
+              <div className="text-center">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-400">
+                  Mythos
+                </p>
 
-              <h2 className="text-lg font-bold">
-                Mythos
-              </h2>
+                <h2 className="text-lg font-bold">
+                  Mythos
+                </h2>
+              </div>
+
+              <div className="absolute right-0 flex gap-2">
+                <button
+                  type="button"
+                  onClick={onSave}
+                  title="Save Game"
+                  aria-label="Save Game"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-lg transition hover:border-slate-500 hover:bg-slate-800"
+                >
+                  💾
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onExit}
+                  title="Exit Game"
+                  aria-label="Exit Game"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-lg transition hover:border-red-500/60 hover:bg-red-950/40"
+                >
+                  ⎋
+                </button>
+              </div>
             </div>
 
-            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-0">
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3">
 
               {/* MYTHOS DECK */}
 
@@ -1303,7 +1302,7 @@ export default function GameTableHeader({
             >
               <img
                 src={
-                  ancientOneFlipped
+                  ancientOnePreviewFlipped
                     ? ancientOneDefinition.backImage
                     : ancientOneDefinition.frontImage
                 }
@@ -1318,14 +1317,13 @@ export default function GameTableHeader({
                 <button
                   type="button"
                   onClick={() =>
-                    setAncientOneFlipped(
-                      (current) =>
-                        !current,
+                    setAncientOnePreviewFlipped(
+                      (current) => !current,
                     )
                   }
                   className="rounded-lg bg-slate-800 px-5 py-2 text-sm font-bold hover:bg-slate-700"
                 >
-                  {ancientOneFlipped
+                  {ancientOnePreviewFlipped
                     ? "FLIP FRONT"
                     : "FLIP BACK"}
                 </button>

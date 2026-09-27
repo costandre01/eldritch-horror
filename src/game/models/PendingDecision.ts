@@ -389,6 +389,17 @@ export type PendingDecision =
     }
 
   | {
+      type: "mythos-clues";
+      title: string;
+      message?: string;
+      spaceIds: string[];
+      clueTokenIds?: string[];
+      spaceNames?: string[];
+      nextIconIndex: number;
+      source: "mythos:spawn-clues";
+    }
+
+  | {
       type: "mythos-ancient-one-awakening";
 
       title: string;

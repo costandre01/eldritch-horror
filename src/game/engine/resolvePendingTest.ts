@@ -3,6 +3,7 @@ import type { MapDefinition } from "../models/MapDefinition";
 
 import { rollTest } from "./rollTest";
 import { getEffectiveSkill } from "./getEffectiveSkill";
+import { getPassiveTestModifiers } from "./getPassiveTestModifiers";
 
 export function resolvePendingTest(
   game: GameState,
@@ -63,7 +64,23 @@ export function resolvePendingTest(
       game,
       decision.investigatorId,
       decision.skill,
+      decision.source?.startsWith("combat:") && decision.source.includes("spell:")
+        ? "combat-spell"
+        : decision.source?.startsWith("combat:")
+          ? "combat"
+          : decision.source?.includes("spell:")
+            ? "spell"
+            : null,
     );
+
+  const passiveModifiers = getPassiveTestModifiers(game, decision.investigatorId, {
+    skill: decision.skill,
+    combat: decision.source?.startsWith("combat:") ?? false,
+    // Spell tests can also be wrapped by a combat source (for example a
+    // Spell tested during a Combat Encounter), so inspect the whole source.
+    spell: decision.source?.includes("spell:") ?? false,
+    acquireAssets: decision.source?.startsWith("acquire-assets") ?? false,
+  });
 
   /*
    * ============================================================
@@ -86,8 +103,9 @@ export function resolvePendingTest(
         },
       },
       decision.skill,
-      decision.modifier,
+      decision.modifier + passiveModifiers.bonusDice,
       1,
+      { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
     );
 
   /*

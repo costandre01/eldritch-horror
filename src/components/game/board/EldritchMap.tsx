@@ -25,7 +25,8 @@ interface EldritchMapProps {
 
 const DEBUG_MAP_HITBOXES = false;
 
-const ZOOM_SIZE = 384;
+// Smaller magnifier footprint while preserving the 5x image scale below.
+const ZOOM_SIZE = 256;
 const ZOOM_GAP = 8;
 
 const DOOM_MIN = 0;
@@ -1245,8 +1246,8 @@ export default function EldritchMap({
               pointer-events-none
               fixed
               z-9999
-              h-96
-              w-96
+              h-64
+              w-64
               overflow-hidden
               rounded-full
               border-4
@@ -1279,12 +1280,12 @@ export default function EldritchMap({
                   }px`,
 
                   left: `${
-                    192 -
+                    ZOOM_SIZE / 2 -
                     mousePosition.mapX * 5
                   }px`,
 
                   top: `${
-                    192 -
+                    ZOOM_SIZE / 2 -
                     mousePosition.mapY * 5
                   }px`,
                 }}

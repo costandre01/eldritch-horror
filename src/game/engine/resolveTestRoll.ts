@@ -4,6 +4,7 @@ import type { TestResult } from "../models/TestResult";
 
 import { rollTest } from "./rollTest";
 import { getEffectiveSkill } from "./getEffectiveSkill";
+import { getPassiveTestModifiers } from "./getPassiveTestModifiers";
 
 export interface ResolveTestRollResult {
   game: GameState;
@@ -57,7 +58,21 @@ export function resolveTestRoll(
       game,
       decision.investigatorId,
       decision.skill,
+      decision.source?.startsWith("combat:") && decision.source.includes("spell:")
+        ? "combat-spell"
+        : decision.source?.startsWith("combat:")
+          ? "combat"
+          : decision.source?.includes("spell:")
+            ? "spell"
+            : null,
     );
+
+  const passiveModifiers = getPassiveTestModifiers(game, decision.investigatorId, {
+    skill: decision.skill,
+    combat: decision.source?.startsWith("combat:") ?? false,
+    spell: decision.source?.includes("spell:") ?? false,
+    acquireAssets: decision.source?.startsWith("acquire-assets") ?? false,
+  });
 
   /*
    * ============================================================
@@ -80,8 +95,9 @@ export function resolveTestRoll(
         },
       },
       decision.skill,
-      decision.modifier,
+      decision.modifier + passiveModifiers.bonusDice,
       decision.minSuccesses ?? 1,
+      { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
     );
 
   /*

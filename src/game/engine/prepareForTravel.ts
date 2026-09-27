@@ -2,6 +2,7 @@ import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 
 import { canPerformAction } from "./canPerformAction";
+import { assertNormalActionAllowed } from "./conditionRestrictions";
 
 export function prepareForTravel(
   game: GameState,
@@ -25,6 +26,8 @@ export function prepareForTravel(
       `Investigator "${investigatorId}" does not exist.`,
     );
   }
+
+  assertNormalActionAllowed(game, investigatorId);
 
   if (
     !canPerformAction(

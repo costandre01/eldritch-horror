@@ -3,6 +3,25 @@ import type { MapDefinition } from "../models/MapDefinition";
 import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
 
+function getSilverKeyDiscount(game: GameState, investigatorId: string, choice: import("../models/Encounter").EncounterChoice) {
+  const investigator = game.investigators[investigatorId];
+  if (!investigator || choice.requirement?.type !== "clues" || choice.requirement.amount < 1) return null;
+  const artifactId = investigator.artifactIds.find((id) => game.artifacts[id]?.name === "The Silver Key");
+  if (!artifactId || game.cardRerollUsedRound?.[`${artifactId}:clue-discount`] === game.round) return null;
+  if (!choice.effects.some((effect) => effect.type === "lose-clues" && (effect.amount ?? 0) > 0)) return null;
+  return {
+    artifactId,
+    choice: {
+      ...choice,
+      requirement: { ...choice.requirement, amount: choice.requirement.amount - 1 },
+      text: choice.text.replace(/spend\s+(\d+)\s+clue/i, (_match, value: string) => `spend ${Math.max(0, Number(value) - 1)} Clue`),
+      effects: choice.effects.map((effect) => effect.type === "lose-clues" && (effect.amount ?? 0) > 0
+        ? { ...effect, amount: (effect.amount ?? 0) - 1 }
+        : effect),
+    },
+  };
+}
+
 export function resolveEncounterChoice(
   game: GameState,
   choiceIndex: number,
@@ -48,14 +67,17 @@ export function resolveEncounterChoice(
       );
     }
 
-    const choice =
+    const originalChoice =
       pending.choices[choiceIndex];
 
-    if (!choice) {
+    if (!originalChoice) {
       throw new Error(
         `Encounter choice "${choiceIndex}" does not exist.`,
       );
     }
+
+    const discount = getSilverKeyDiscount(game, investigatorId, originalChoice);
+    const choice = discount?.choice ?? originalChoice;
 
     /*
      * ==========================================================
@@ -155,6 +177,9 @@ export function resolveEncounterChoice(
 
       pendingDecision:
         null,
+      cardRerollUsedRound: discount
+        ? { ...game.cardRerollUsedRound, [`${discount.artifactId}:clue-discount`]: game.round }
+        : game.cardRerollUsedRound,
     };
 
     /*
@@ -356,14 +381,17 @@ export function resolveEncounterChoice(
    * ============================================================
    */
 
-  const choice =
+  const originalChoice =
     encounter.choices[choiceIndex];
 
-  if (!choice) {
+  if (!originalChoice) {
     throw new Error(
       `Encounter choice "${choiceIndex}" does not exist.`,
     );
   }
+
+  const discount = getSilverKeyDiscount(game, investigatorId, originalChoice);
+  const choice = discount?.choice ?? originalChoice;
 
   /*
    * ============================================================
@@ -418,7 +446,9 @@ export function resolveEncounterChoice(
 
   let currentGame =
     resolveEncounterEffects(
-      game,
+      discount
+        ? { ...game, cardRerollUsedRound: { ...game.cardRerollUsedRound, [`${discount.artifactId}:clue-discount`]: game.round } }
+        : game,
       investigatorId,
       choice.effects,
       map,

@@ -102,18 +102,38 @@ export function gainArtifact(
    * ==========================================================
    */
 
+  const updatedInvestigator = {
+    ...result.game.investigators[investigatorId],
+    artifactIds,
+    // Grotesque Statue grants its clues only when it is drawn from the
+    // Artifact deck. `gainArtifact` is the deck-draw path; trading an
+    // existing Artifact does not pass through here.
+    clues:
+      (result.game.investigators[investigatorId]?.clues ?? investigator.clues) +
+      (result.artifact.name === "Grotesque Statue" ? 5 : 0),
+  };
+
   return {
     ...result.game,
+
+    ...(!artifactId ? {
+      cardRevealQueue: [
+        ...(result.game.cardRevealQueue ?? []),
+        {
+          id: result.artifact.id,
+          kind: "Artifact" as const,
+          name: result.artifact.name,
+          image: result.artifact.image,
+          description: result.artifact.description,
+        },
+      ],
+    } : {}),
 
     investigators: {
       ...result.game.investigators,
 
       [investigatorId]: {
-        ...result.game.investigators[
-          investigatorId
-        ],
-
-        artifactIds,
+        ...updatedInvestigator,
       },
     },
   };

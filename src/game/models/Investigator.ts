@@ -83,5 +83,7 @@ export interface Investigator {
 
   actionsPerformed: InvestigatorAction[];
 
+  additionalActionsThisRound?: number;
+
   personalStoryProgress: number;
 }

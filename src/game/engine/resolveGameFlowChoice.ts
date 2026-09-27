@@ -28,11 +28,15 @@ import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
 import { CORE_MONSTERS } from "../../content/core/coreMonsters";
 import { returnRandomSolvedMysteryToDeck } from "./mysteryEngine";
 import { advanceDoom } from "./doomEngine";
+import { defeatInvestigator } from "./defeatInvestigator";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { startMythosCardReckoning } from "./startMythosCardReckoning";
 import { drawClueToken } from "./clueEngine";
 import { replaceDefeatedInvestigator } from "./replaceDefeatedInvestigator";
 import { discardCondition } from "./discardCondition";
+import { coreSpells } from "../../content/core/coreSpell";
+import { continueAcquireAssetEffects } from "./continueAcquireAssetEffects";
+import { resolveCombatTest } from "./combat/resolveCombatTest";
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -47,6 +51,363 @@ export function resolveGameFlowChoice(
     decision.type !== "choice"
   ) {
     return game;
+  }
+
+  if (decision.source?.startsWith("condition:deal:")) {
+    const [, , investigatorId, conditionId, conditionDefinitionId] = decision.source.split(":");
+    const investigator = investigatorId ? game.investigators[investigatorId] : undefined;
+    if (!investigator || !conditionId || !conditionDefinitionId) return { ...game, pendingDecision: null };
+    let next: GameState = { ...game, pendingDecision: null };
+    if (choiceId === `condition:deal:gain:${investigatorId}:${conditionId}`) {
+      next = gainCondition(next, investigatorId, conditionDefinitionId);
+    } else if (choiceId === `condition:deal:refuse:${investigatorId}:${conditionId}`) {
+      next = advanceDoom(next, 1);
+    } else {
+      return game;
+    }
+    return { ...discardCondition(next, investigatorId, conditionId), pendingDecision: null };
+  }
+
+  if (decision.source?.startsWith("condition:leg-injury:")) {
+    const [, , investigatorId, conditionId] = decision.source.split(":");
+    const investigator = investigatorId ? game.investigators[investigatorId] : undefined;
+    const condition = conditionId ? game.conditions[conditionId] : undefined;
+    if (!investigator || !condition) return { ...game, pendingDecision: null };
+    if (choiceId === `condition:leg-injury:delayed:${investigatorId}:${conditionId}`) {
+      const delayedGame = { ...game, pendingDecision: null, investigators: { ...game.investigators, [investigatorId]: { ...investigator, isDelayed: true } } };
+      return { ...discardCondition(delayedGame, investigatorId, conditionId), pendingDecision: null };
+    }
+    if (choiceId === `condition:leg-injury:flip:${investigatorId}:${conditionId}`) {
+      return { ...game, pendingDecision: null, conditions: { ...game.conditions, [conditionId]: { ...condition, flipped: false } } };
+    }
+  }
+
+  if (decision.source?.startsWith("condition:devour-other:")) {
+    const [, , investigatorId, conditionId] = decision.source.split(":");
+    const targetId = choiceId.startsWith(`condition:devour-other:${investigatorId}:${conditionId}:`)
+      ? choiceId.split(":").at(-1)
+      : undefined;
+    if (!investigatorId || !conditionId || !targetId || targetId === investigatorId || !game.investigators[targetId]) return game;
+    const target = game.investigators[targetId];
+    const defeated = defeatInvestigator({
+      ...game,
+      pendingDecision: null,
+      investigators: { ...game.investigators, [targetId]: { ...target, health: 0, sanity: 0 } },
+    }, map, targetId);
+    return { ...discardCondition(defeated, investigatorId, conditionId), pendingDecision: null };
+  }
+
+
+  if (decision.source === "combat-health-loss") {
+    const pending = game.pendingCombatLoss;
+    if (!pending) return { ...game, pendingDecision: null };
+    const resumeCombat = (next: GameState, preventHealth = 0, preventSanity = 0) =>
+      resolveCombatTest(next, pending.testDecision, pending.diceTest, { skip: true, preventHealth, preventSanity });
+    if (choiceId === "combat-loss:skip") {
+      return resumeCombat({ ...game, pendingDecision: null, pendingCombatLoss: null });
+    }
+    const targetId = pending.testDecision.investigatorId;
+    const target = game.investigators[targetId];
+    if (choiceId === "combat-loss:grotesque-statue") {
+      const statueId = target?.artifactIds.find((id) => game.artifacts[id]?.name === "Grotesque Statue");
+      if (!target || !statueId || target.clues < 1 || pending.stat !== "sanity") {
+        return resumeCombat({ ...game, pendingDecision: null, pendingCombatLoss: null });
+      }
+      return resumeCombat({
+        ...game,
+        pendingDecision: null,
+        pendingCombatLoss: null,
+        investigators: { ...game.investigators, [targetId]: { ...target, clues: target.clues - 1 } },
+        cardRerollUsedRound: { ...game.cardRerollUsedRound, [`${targetId}:grotesque-statue`]: game.round },
+      }, 0, Number.MAX_SAFE_INTEGER);
+    }
+    if (choiceId.startsWith("combat-loss:spell:")) {
+      const [, , spellId, ownerId, rawIndex] = choiceId.split(":");
+      const owner = game.investigators[ownerId];
+      const spell = game.spells[spellId];
+      const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+      const effectIndex = Number(rawIndex);
+      const effect = Number.isInteger(effectIndex) ? definition?.frontEffects[effectIndex] : undefined;
+      const expectedType = pending.stat === "health" ? "on-health-loss" : "on-sanity-loss";
+      if (!owner || !spell || !definition || spell.flipped || !owner.spellIds.includes(spellId) || !effect || effect.type !== expectedType) {
+        return resumeCombat({ ...game, pendingDecision: null, pendingCombatLoss: null });
+      }
+      const key = `${spellId}:${pending.stat}-loss:${effectIndex}`;
+      return {
+        ...game,
+        cardRerollUsedRound: effect.oncePerRound
+          ? { ...game.cardRerollUsedRound, [key]: game.round }
+          : game.cardRerollUsedRound,
+        pendingDecision: {
+          type: "test",
+          title: definition.name,
+          message: `Test ${effect.testType}. If you pass, prevent the amount of ${pending.stat === "health" ? "Health" : "Sanity"} loss shown on this Spell.`,
+          skill: effect.testType,
+          modifier: effect.modifier ?? 0,
+          investigatorId: ownerId,
+          source: `combat:spell:loss:${spellId}:${ownerId}:${pending.stat}:${effectIndex}`,
+        },
+      };
+    }
+    const [, , ownerId, assetId] = choiceId.split(":");
+    const owner = game.investigators[ownerId];
+    const asset = game.assets[assetId];
+    const expectedName = pending.stat === "health" ? "Bandages" : "Whiskey";
+    if (!owner || !target || !asset || asset.name !== expectedName || !owner.assetIds.includes(assetId) || owner.spaceId !== target.spaceId) {
+      return resumeCombat({ ...game, pendingDecision: null, pendingCombatLoss: null });
+    }
+    const resolved = {
+      ...game,
+      pendingDecision: null,
+      pendingCombatLoss: null,
+      investigators: {
+        ...game.investigators,
+        [ownerId]: { ...owner, assetIds: owner.assetIds.filter((id) => id !== assetId) },
+      },
+      board: { ...game.board, assetDiscard: [...game.board.assetDiscard, asset] },
+    };
+    return resumeCombat(resolved, pending.stat === "health" ? 2 : 0, pending.stat === "sanity" ? 2 : 0);
+  }
+
+  if (decision.source?.startsWith("asset:rest:") || decision.source?.startsWith("asset:witch-doctor-rest:")) {
+    const prefix = decision.source.startsWith("asset:rest:") ? "asset:rest:" : "asset:witch-doctor-rest:";
+    const investigatorId = decision.source.slice(prefix.length);
+    const investigator = game.investigators[investigatorId];
+    if (!investigator) throw new Error("Witch Doctor choice references a missing investigator.");
+    if (choiceId.startsWith("use-arcane-tome:")) {
+      const assetId = choiceId.slice("use-arcane-tome:".length);
+      if (!investigator.assetIds.includes(assetId) || game.assets[assetId]?.name !== "Arcane Tome") throw new Error("Arcane Tome is not owned by this investigator.");
+      return {
+        ...game,
+        pendingDecision: {
+          type: "test",
+          title: "Arcane Tome",
+          message: "Test Lore. If you pass, gain 1 Spell.",
+          skill: "lore",
+          modifier: 0,
+          investigatorId,
+          onSuccess: [{ type: "gain-spell", amount: 1 }],
+          source: `asset:rest:arcane-tome:${assetId}`,
+        },
+      };
+    }
+    if (choiceId.startsWith("use-puzzle-box:")) {
+      const assetId = choiceId.slice("use-puzzle-box:".length);
+      if (!investigator.assetIds.includes(assetId) || game.assets[assetId]?.name !== "Puzzle Box") throw new Error("Puzzle Box is not owned by this investigator.");
+      return {
+        ...game,
+        pendingDecision: {
+          type: "test",
+          title: "Puzzle Box",
+          message: "Test Observation -2. If you pass, you may discard this card to gain 1 Artifact.",
+          skill: "observation",
+          modifier: -2,
+          investigatorId,
+          onSuccess: [{
+            type: "choice",
+            choices: [
+              { text: "Discard Puzzle Box and gain 1 Artifact", effects: [{ type: "discard-item", amount: 1, assetId }, { type: "gain-artifact", amount: 1 }] },
+              { text: "Keep Puzzle Box", effects: [] },
+            ],
+          }],
+          source: `asset:rest:puzzle-box:${assetId}`,
+        },
+      };
+    }
+    if (choiceId === "recover-health") {
+      return {
+        ...game,
+        pendingDecision: null,
+        investigators: {
+          ...game.investigators,
+          [investigatorId]: { ...investigator, health: Math.min(investigator.maxHealth, investigator.health + 1) },
+        },
+      };
+    }
+    if (choiceId.startsWith("discard-condition:")) {
+      const conditionId = choiceId.slice("discard-condition:".length);
+      return { ...discardCondition(game, investigatorId, conditionId), pendingDecision: null };
+    }
+    if (choiceId === "skip") return { ...game, pendingDecision: null };
+    throw new Error("Invalid Witch Doctor option.");
+  }
+
+  if (decision.source?.startsWith("asset:holy-water:")) {
+    const ownerId = decision.source.slice("asset:holy-water:".length);
+    const owner = game.investigators[ownerId];
+    const targetId = choiceId.startsWith("holy-water:") ? choiceId.slice("holy-water:".length) : "";
+    const target = game.investigators[targetId];
+    if (!owner || !target || !owner.spaceId || target.spaceId !== owner.spaceId) throw new Error("Holy Water target must be an investigator on the same space.");
+    const blessed = gainCondition(game, targetId, "condition-blessed");
+    return { ...blessed, pendingDecision: null };
+  }
+
+  if (decision.source?.startsWith("asset:sanctuary:")) {
+    const investigatorId = game.activeInvestigatorId;
+    if (!investigatorId) return { ...game, pendingDecision: null };
+    if (choiceId === "sanctuary:skip") return continueAcquireAssetEffects({ ...game, pendingDecision: null });
+    const conditionId = choiceId.startsWith("sanctuary:discard:") ? choiceId.slice("sanctuary:discard:".length) : "";
+    if (!conditionId) throw new Error("Choose a Condition or keep all Conditions.");
+    return continueAcquireAssetEffects({ ...discardCondition(game, investigatorId, conditionId), pendingDecision: null });
+  }
+
+  if (decision.source?.startsWith("asset:delivery-service:")) {
+    const giverId = game.activeInvestigatorId;
+    const targetId = choiceId.startsWith("delivery-service:") ? choiceId.slice("delivery-service:".length) : "";
+    const giver = giverId ? game.investigators[giverId] : undefined;
+    const target = game.investigators[targetId];
+    if (!giver || !target || giverId === targetId) throw new Error("Choose another investigator to receive Items.");
+    const itemIds = [
+      ...giver.assetIds.filter((id) => game.assets[id]?.type === "item"),
+      ...giver.artifactIds.filter((id) => game.artifacts[id]?.type === "item"),
+    ];
+    return {
+      ...game,
+      pendingDecision: {
+        type: "select-card",
+        title: "Delivery Service",
+        message: "Choose any number of Item possessions to give, then finish.",
+        cardIds: itemIds,
+        selectableCardIds: itemIds,
+        minSelections: 0,
+        maxSelections: itemIds.length,
+        selectedCardIds: [],
+        investigatorId: giver.id,
+        source: `asset:delivery-transfer:${targetId}`,
+      },
+    };
+  }
+
+  if (decision.source?.startsWith("asset:wireless-report:")) {
+    const [, targetId, rawAmount] = choiceId.split(":");
+    const giverId = game.activeInvestigatorId;
+    const giver = giverId ? game.investigators[giverId] : undefined;
+    const target = targetId ? game.investigators[targetId] : undefined;
+    const amount = Number(rawAmount);
+    if (!giver || !target || target.id === giver.id || !Number.isInteger(amount) || amount < 0 || amount > giver.clues) {
+      throw new Error("Invalid Wireless Report choice.");
+    }
+    return continueAcquireAssetEffects({
+      ...game,
+      pendingDecision: null,
+      investigators: {
+        ...game.investigators,
+        [giver.id]: { ...giver, clues: giver.clues - amount },
+        [target.id]: { ...target, clues: target.clues + amount },
+      },
+    });
+  }
+
+  if (decision.source?.startsWith("asset:pocket-watch:")) {
+    const investigatorId = decision.source.slice("asset:pocket-watch:".length);
+    if (choiceId === "pocket-watch:delay") {
+      return resolveEncounterEffects({ ...game, pendingDecision: null }, investigatorId, [
+        { type: "become-delayed", ignorePocketWatch: true },
+        ...(decision.onComplete ?? []),
+      ], map);
+    }
+    if (choiceId === "pocket-watch:prevent") {
+      return decision.onComplete?.length
+        ? resolveEncounterEffects({ ...game, pendingDecision: null }, investigatorId, decision.onComplete, map)
+        : { ...game, pendingDecision: null };
+    }
+  }
+
+  if (decision.source === "artifact:mi-go-brain-case") {
+    if (choiceId === "brain-case:stay") return { ...game, pendingDecision: null };
+    const [, action, ownerId, targetId, previousSpaceId] = choiceId.split(":");
+    const owner = game.investigators[ownerId];
+    const target = game.investigators[targetId];
+    if (action !== "move" || !owner?.spaceId || !target || !previousSpaceId || !game.board.spaces[previousSpaceId]) {
+      return { ...game, pendingDecision: null };
+    }
+    return {
+      ...game,
+      pendingDecision: null,
+      investigators: {
+        ...game.investigators,
+        [ownerId]: { ...owner, spaceId: previousSpaceId },
+        [targetId]: { ...target, spaceId: owner.spaceId },
+      },
+    };
+  }
+
+  if (decision.source?.startsWith("spell-loss:")) {
+    const [, stat, targetId, rawAmount] = decision.source.split(":");
+    if ((stat !== "health" && stat !== "sanity") || !targetId) return { ...game, pendingDecision: null };
+    const spellLossStat: "health" | "sanity" = stat;
+    const amount = Number(rawAmount) || 0;
+    const lossEffect = { type: spellLossStat === "health" ? "lose-health" as const : "lose-sanity" as const, amount, ignoreSpellLossReactions: true };
+    if (choiceId === "loss-reaction:skip") {
+      return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [lossEffect, ...(decision.onComplete ?? [])], map);
+    }
+    if (choiceId.startsWith("loss-reaction:asset:")) {
+      const assetId = choiceId.slice("loss-reaction:asset:".length);
+      const asset = game.assets[assetId];
+      const target = game.investigators[targetId];
+      const expectedName = stat === "health" ? "Bandages" : "Whiskey";
+      const owner = Object.values(game.investigators).find((candidate) => candidate.assetIds.includes(assetId));
+      if (!asset || asset.name !== expectedName || !owner || owner.spaceId !== target?.spaceId) {
+        return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [lossEffect, ...(decision.onComplete ?? [])], map);
+      }
+      return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [
+        { type: "resolve-spell-loss", target: targetId, spellLossStat, lossAmount: amount, preventedAmount: 2, assetId },
+        ...(decision.onComplete ?? []),
+      ], map);
+    }
+    if (choiceId === "loss-reaction:artifact:grotesque-statue") {
+      const target = game.investigators[targetId];
+      const artifactId = target?.artifactIds.find((id) => game.artifacts[id]?.name === "Grotesque Statue");
+      if (!target || !artifactId || target.clues < 1) {
+        return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [lossEffect, ...(decision.onComplete ?? [])], map);
+      }
+      return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [
+        { type: "resolve-spell-loss", target: targetId, spellLossStat, lossAmount: amount, preventedAmount: amount, artifactId },
+        ...(decision.onComplete ?? []),
+      ], map);
+    }
+    const selectedSpell = choiceId.startsWith("loss-reaction:spell:") ? choiceId.slice("loss-reaction:spell:".length).split(":") : [];
+    const spellId = selectedSpell[0] ?? "";
+    const ownerId = selectedSpell[1] ?? "";
+    const spell = game.spells[spellId];
+    const owner = game.investigators[ownerId];
+    const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+    const type = stat === "health" ? "on-health-loss" : "on-sanity-loss";
+    const frontEffectIndex = definition?.frontEffects.findIndex((effect) => effect.type === type) ?? -1;
+    const frontEffect = frontEffectIndex >= 0 ? definition?.frontEffects[frontEffectIndex] : undefined;
+    if (!spell || spell.flipped || !owner?.spellIds.includes(spellId) || !frontEffect || frontEffect.type !== type) {
+      return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [lossEffect, ...(decision.onComplete ?? [])], map);
+    }
+    const preventEffectType = stat === "health" ? "prevent-health-loss" : "prevent-sanity-loss";
+    const preventEffect = frontEffect.onSuccess.find((effect) => effect.type === preventEffectType);
+    const preventedAmount = preventEffect && preventEffect.type === preventEffectType ? preventEffect.amount : 0;
+    const reaction = {
+      type: "resolve-spell-loss" as const,
+      spellId,
+      target: targetId,
+      spellLossStat,
+      lossAmount: amount,
+      preventedAmount,
+    };
+    const key = `${spellId}:${stat}-loss:${frontEffectIndex}`;
+    return {
+      ...game,
+      cardRerollUsedRound: frontEffect.oncePerRound
+        ? { ...game.cardRerollUsedRound, [key]: game.round }
+        : game.cardRerollUsedRound,
+      pendingDecision: {
+        type: "test",
+        title: definition?.name ?? spellId,
+        message: `Test ${frontEffect.testType}. If you pass, prevent up to ${preventedAmount} ${stat === "health" ? "Health" : "Sanity"} loss.`,
+        skill: frontEffect.testType,
+        modifier: frontEffect.modifier ?? 0,
+        investigatorId: ownerId,
+        source: `spell:loss:${stat}`,
+        onSuccess: [reaction],
+        onFail: [{ ...reaction, preventedAmount: 0 }],
+        onComplete: decision.onComplete,
+      },
+    };
   }
 
   /*

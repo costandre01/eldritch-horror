@@ -2,6 +2,8 @@ import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 
 import { moveInvestigator } from "./moveInvestigator";
+import { getTravelReachableSpaces } from "./getTravelReachableSpaces";
+import { assertNormalActionAllowed } from "./conditionRestrictions";
 
 export interface TravelResult {
   game: GameState;
@@ -31,6 +33,8 @@ export function travelInvestigator(
     );
   }
 
+  assertNormalActionAllowed(game, investigatorId);
+
   if (!investigator.travelActive) {
     throw new Error(
       "Travel has not been started.",
@@ -43,106 +47,97 @@ export function travelInvestigator(
     );
   }
 
-  const currentSpace = map.spaces.find(
-    (space) => space.id === investigator.spaceId,
+  const destination = getTravelReachableSpaces(game, map).find(
+    (space) => space.spaceId === destinationSpaceId,
   );
 
-  if (!currentSpace) {
+  if (!destination) {
     throw new Error(
-      `Current space "${investigator.spaceId}" does not exist.`,
+      `Investigator cannot reach "${destinationSpaceId}" with the available tickets.`,
     );
   }
 
-  const path = currentSpace.paths.find(
-    (item) => item.toSpaceId === destinationSpaceId,
-  );
-
-  if (!path) {
-    throw new Error(
-      `Investigator cannot travel from "${currentSpace.id}" to "${destinationSpaceId}".`,
-    );
-  }
-
-  const isFirstMove =
-    investigator.travelMoves === 0;
-
+  let movedGame = game;
   let ticketUsed: "train" | "ship" | null = null;
 
-  if (!isFirstMove) {
-    if (path.type === "train") {
-      if (investigator.trainTickets <= 0) {
-        throw new Error(
-          "No Train Ticket available.",
-        );
-      }
+  for (const nextSpaceId of destination.route) {
+    const movingInvestigator =
+      movedGame.investigators[investigatorId];
+    const currentSpace = movingInvestigator?.spaceId
+      ? map.spaces.find(
+          (space) => space.id === movingInvestigator.spaceId,
+        )
+      : undefined;
 
-      ticketUsed = "train";
+    if (!movingInvestigator || !currentSpace) {
+      throw new Error("The Travel route is no longer valid.");
     }
 
-    if (path.type === "ship") {
-      if (investigator.shipTickets <= 0) {
-        throw new Error(
-          "No Ship Ticket available.",
-        );
-      }
-
-      ticketUsed = "ship";
-    }
-
-    if (path.type === "uncharted") {
+    const path = currentSpace.paths.find(
+      (item) => item.toSpaceId === nextSpaceId,
+    );
+    if (!path) {
       throw new Error(
-        "An additional Travel movement cannot use an Uncharted path.",
+        `Investigator cannot travel from "${currentSpace.id}" to "${nextSpaceId}".`,
       );
     }
-  }
 
-  const movedGame = moveInvestigator(
-    game,
-    map,
-    investigatorId,
-    destinationSpaceId,
-  );
+    const isFirstTravelMove =
+      movingInvestigator.travelMoves === 0;
 
-  const movedInvestigator =
-    movedGame.investigators[investigatorId];
+    ticketUsed = null;
+    if (!isFirstTravelMove) {
+      if (path.type === "train") {
+        if (movingInvestigator.trainTickets <= 0) {
+          throw new Error("No Train Ticket available.");
+        }
+        ticketUsed = "train";
+      } else if (path.type === "ship") {
+        if (movingInvestigator.shipTickets <= 0) {
+          throw new Error("No Ship Ticket available.");
+        }
+        ticketUsed = "ship";
+      } else {
+        throw new Error(
+          "An additional Travel movement cannot use an Uncharted path.",
+        );
+      }
+    }
 
-  return {
-    game: {
+    movedGame = moveInvestigator(
+      movedGame,
+      map,
+      investigatorId,
+      nextSpaceId,
+    );
+
+    const updatedInvestigator =
+      movedGame.investigators[investigatorId];
+    movedGame = {
       ...movedGame,
-
       investigators: {
         ...movedGame.investigators,
-
         [investigatorId]: {
-          ...movedInvestigator,
-
-          travelMoves:
-            investigator.travelMoves + 1,
-
+          ...updatedInvestigator,
+          travelMoves: movingInvestigator.travelMoves + 1,
           travelHistory: [
-            ...investigator.travelHistory,
+            ...movingInvestigator.travelHistory,
             {
               fromSpaceId: currentSpace.id,
-              toSpaceId: destinationSpaceId,
+              toSpaceId: nextSpaceId,
               ticketUsed,
             },
           ],
-
           trainTickets:
-            ticketUsed === "train"
-              ? investigator.trainTickets - 1
-              : investigator.trainTickets,
-
+            movingInvestigator.trainTickets -
+            (ticketUsed === "train" ? 1 : 0),
           shipTickets:
-            ticketUsed === "ship"
-              ? investigator.shipTickets - 1
-              : investigator.shipTickets,
+            movingInvestigator.shipTickets -
+            (ticketUsed === "ship" ? 1 : 0),
         },
       },
-    },
+    };
+  }
 
-    moved: true,
-
-    ticketUsed,
-  };
+  return { game: movedGame, moved: true, ticketUsed };
 }

@@ -23,6 +23,8 @@ import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { solveMythosRumor } from "./solveMythosRumor";
 import type { EyesEverywhereResume } from "../models/PendingDecision";
 import { defeatInvestigator } from "./defeatInvestigator";
+import { coreSpells } from "../../content/core/coreSpell";
+import { returnRandomSolvedMysteryToDeck } from "./mysteryEngine";
 
 export function resolveEncounterEffects(
   game: GameState,
@@ -152,6 +154,42 @@ export function resolveEncounterEffects(
         const amount =
           effect.amount ?? 0;
 
+        if (amount > 0 && !effect.ignoreSpellLossReactions) {
+          const reactions = Object.values(currentGame.investigators).flatMap((owner) => owner.spellIds.flatMap((spellId) => {
+            const spell = currentGame.spells[spellId];
+            const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+            if (!spell || spell.flipped || !definition) return [];
+            return definition.frontEffects.flatMap((frontEffect, effectIndex) => {
+              if (frontEffect.type !== "on-health-loss") return [];
+              const key = `${spellId}:health-loss:${effectIndex}`;
+              if (frontEffect.oncePerRound && currentGame.cardRerollUsedRound?.[key] === currentGame.round) return [];
+              return [{ spellId, ownerId: owner.id, effectIndex, key, frontEffect }];
+            });
+          }));
+          const protectorAssets = Object.values(currentGame.investigators)
+            .filter((owner) => owner.spaceId === investigator.spaceId)
+            .flatMap((owner) => owner.assetIds
+              .map((assetId) => ({ ownerId: owner.id, assetId, asset: currentGame.assets[assetId] }))
+              .filter((entry) => entry.asset?.name === "Bandages"));
+          if (reactions.length > 0 || protectorAssets.length > 0) {
+            return {
+              ...currentGame,
+              pendingDecision: {
+                type: "choice",
+                title: "Prevent Health Loss?",
+                message: `You are about to lose ${amount} Health. You may use a Spell reaction.`,
+                options: [
+                  ...reactions.map(({ spellId, ownerId, frontEffect }) => ({ id: `loss-reaction:spell:${spellId}:${ownerId}`, title: coreSpells.find((candidate) => candidate.id === currentGame.spells[spellId]?.definitionId)?.name ?? spellId, description: `${ownerId}: test ${frontEffect.testType}.` })),
+                  ...protectorAssets.map(({ assetId }) => ({ id: `loss-reaction:asset:${assetId}`, title: currentGame.assets[assetId]?.name ?? assetId, description: "Discard to prevent up to 2 Health loss." })),
+                  { id: "loss-reaction:skip", title: "Do not prevent this loss" },
+                ],
+                source: `spell-loss:health:${investigatorId}:${amount}`,
+                onComplete: effects.slice(effectIndex + 1),
+              },
+            };
+          }
+        }
+
         const newHealth = Math.max(
           0,
           investigator.health - amount,
@@ -210,6 +248,47 @@ export function resolveEncounterEffects(
         const amount =
           effect.amount ?? 0;
 
+        if (amount > 0 && !effect.ignoreSpellLossReactions) {
+          const reactions = Object.values(currentGame.investigators).flatMap((owner) => owner.spellIds.flatMap((spellId) => {
+            const spell = currentGame.spells[spellId];
+            const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+            if (!spell || spell.flipped || !definition) return [];
+            return definition.frontEffects.flatMap((frontEffect, effectIndex) => {
+              if (frontEffect.type !== "on-sanity-loss") return [];
+              const key = `${spellId}:sanity-loss:${effectIndex}`;
+              if (frontEffect.oncePerRound && currentGame.cardRerollUsedRound?.[key] === currentGame.round) return [];
+              return [{ spellId, ownerId: owner.id, effectIndex, key, frontEffect }];
+            });
+          }));
+          const protectorAssets = Object.values(currentGame.investigators)
+            .filter((owner) => owner.spaceId === investigator.spaceId)
+            .flatMap((owner) => owner.assetIds
+              .map((assetId) => ({ ownerId: owner.id, assetId, asset: currentGame.assets[assetId] }))
+              .filter((entry) => entry.asset?.name === "Whiskey"));
+          const statueKey = `${investigator.id}:grotesque-statue`;
+          const canUseStatue = investigator.artifactIds.some((artifactId) => currentGame.artifacts[artifactId]?.name === "Grotesque Statue")
+            && investigator.clues > 0
+            && currentGame.cardRerollUsedRound?.[statueKey] !== currentGame.round;
+          if (reactions.length > 0 || protectorAssets.length > 0 || canUseStatue) {
+            return {
+              ...currentGame,
+              pendingDecision: {
+                type: "choice",
+                title: "Prevent Sanity Loss?",
+                message: `You are about to lose ${amount} Sanity. You may use a Spell reaction.`,
+                options: [
+                  ...reactions.map(({ spellId, ownerId, frontEffect }) => ({ id: `loss-reaction:spell:${spellId}:${ownerId}`, title: coreSpells.find((candidate) => candidate.id === currentGame.spells[spellId]?.definitionId)?.name ?? spellId, description: `${ownerId}: test ${frontEffect.testType}.` })),
+                  ...protectorAssets.map(({ assetId }) => ({ id: `loss-reaction:asset:${assetId}`, title: currentGame.assets[assetId]?.name ?? assetId, description: "Discard to prevent up to 2 Sanity loss." })),
+                  ...(canUseStatue ? [{ id: "loss-reaction:artifact:grotesque-statue", title: "Grotesque Statue", description: "Spend 1 Clue to prevent all Sanity loss." }] : []),
+                  { id: "loss-reaction:skip", title: "Do not prevent this loss" },
+                ],
+                source: `spell-loss:sanity:${investigatorId}:${amount}`,
+                onComplete: effects.slice(effectIndex + 1),
+              },
+            };
+          }
+        }
+
         const newSanity = Math.max(
           0,
           investigator.sanity - amount,
@@ -246,6 +325,48 @@ export function resolveEncounterEffects(
           return currentGame;
         }
 
+        break;
+      }
+
+      case "resolve-spell-loss": {
+        const targetId = effect.target ?? investigatorId;
+        const target = currentGame.investigators[targetId];
+        if (!target) throw new Error(`Investigator "${targetId}" does not exist.`);
+        const amountLost = Math.max(0, (effect.lossAmount ?? 0) - (effect.preventedAmount ?? 0));
+        const stat = effect.spellLossStat === "sanity" ? "sanity" : "health";
+        const nextValue = Math.max(0, target[stat] - amountLost);
+        let nextGame = currentGame;
+        if (effect.assetId) {
+          const owner = Object.values(currentGame.investigators).find((candidate) => candidate.assetIds.includes(effect.assetId!));
+          const asset = currentGame.assets[effect.assetId];
+          if (owner && asset) nextGame = {
+            ...nextGame,
+            investigators: { ...nextGame.investigators, [owner.id]: { ...owner, assetIds: owner.assetIds.filter((id) => id !== effect.assetId) } },
+            board: { ...nextGame.board, assetDiscard: [...nextGame.board.assetDiscard, asset] },
+          };
+        }
+        if (effect.preventedAmount && effect.spellLossStat === "sanity" && effect.artifactId) {
+          const clueOwner = nextGame.investigators[targetId];
+          if (clueOwner) nextGame = {
+            ...nextGame,
+            investigators: { ...nextGame.investigators, [targetId]: { ...clueOwner, clues: Math.max(0, clueOwner.clues - 1) } },
+            cardRerollUsedRound: { ...nextGame.cardRerollUsedRound, [`${targetId}:grotesque-statue`]: nextGame.round },
+          };
+        }
+        currentGame = {
+          ...nextGame,
+          spells: effect.spellId && nextGame.spells[effect.spellId]
+            ? { ...nextGame.spells, [effect.spellId]: { ...nextGame.spells[effect.spellId], flipped: (effect.preventedAmount ?? 0) > 0 } }
+            : nextGame.spells,
+          investigators: {
+            ...currentGame.investigators,
+            [targetId]: { ...target, [stat]: nextValue },
+          },
+        };
+        if (nextValue <= 0 || (stat === "sanity" ? target.health : target.sanity) <= 0) {
+          currentGame = defeatInvestigator(currentGame, map, targetId);
+          return currentGame;
+        }
         break;
       }
 
@@ -1307,6 +1428,10 @@ export function resolveEncounterEffects(
 
             assetDeck,
           },
+          cardRevealQueue: [
+            ...(currentGame.cardRevealQueue ?? []),
+            { id: selected.asset.id, kind: "Asset", name: selected.asset.name, image: selected.asset.image, description: selected.asset.description },
+          ],
         };
 
         break;
@@ -1418,6 +1543,13 @@ export function resolveEncounterEffects(
 
               assetDeck,
             },
+            cardRevealQueue: [
+              ...(currentGame.cardRevealQueue ?? []),
+              ...gainedAssetIds.map((id) => {
+                const asset = currentGame.board.assetDeck.find((card) => card.id === id);
+                return { id, kind: "Asset" as const, name: asset?.name ?? "Asset", image: asset?.image, description: asset?.description };
+              }),
+            ],
           };
         }
 
@@ -1525,6 +1657,10 @@ export function resolveEncounterEffects(
 
                 assetDeck,
               },
+              cardRevealQueue: [
+                ...(currentGame.cardRevealQueue ?? []),
+                { id: selected.asset.id, kind: "Asset", name: selected.asset.name, image: selected.asset.image, description: selected.asset.description },
+              ],
             };
           }
         }
@@ -1638,6 +1774,7 @@ export function resolveEncounterEffects(
         const itemIds =
           investigator.assetIds.filter(
             (assetId) => {
+              if (effect.assetId && assetId !== effect.assetId) return false;
               const asset =
                 currentGame.assets[
                   assetId
@@ -1718,10 +1855,9 @@ export function resolveEncounterEffects(
        */
 
       case "discard-monster": {
-        const monsterIds =
-          Object.values(
-            currentGame.monsters,
-          )
+        const monsterIds = (effect.monsterIds
+          ? effect.monsterIds.map((id) => currentGame.monsters[id]).filter((monster) => !!monster?.spaceId).map((monster) => monster.id)
+          : Object.values(currentGame.monsters)
             .filter(
               (monster) =>
                 !!monster.spaceId,
@@ -1729,7 +1865,7 @@ export function resolveEncounterEffects(
             .map(
               (monster) =>
                 monster.id,
-            );
+            ));
 
         if (
           monsterIds.length === 0
@@ -1792,18 +1928,9 @@ export function resolveEncounterEffects(
         const amount =
           effect.amount ?? 1;
 
-        const monsterIds =
-          Object.values(
-            currentGame.monsters,
-          )
-            .filter(
-              (monster) =>
-                !!monster.spaceId,
-            )
-            .map(
-              (monster) =>
-                monster.id,
-            );
+        const monsterIds = effect.monsterIds
+          ? effect.monsterIds.filter((id) => !!currentGame.monsters[id]?.spaceId)
+          : Object.values(currentGame.monsters).filter((monster) => !!monster.spaceId).map((monster) => monster.id);
 
         if (
           monsterIds.length === 0
@@ -2576,6 +2703,27 @@ export function resolveEncounterEffects(
           },
         };
 
+        if (
+          currentGame.currentEncounterDeckType === "other-world" &&
+          investigator.artifactIds.some(
+            (artifactId) => currentGame.artifacts[artifactId]?.name === "Gate Box",
+          )
+        ) {
+          const currentInvestigator = currentGame.investigators[investigatorId];
+          if (currentInvestigator) {
+            currentGame = {
+              ...currentGame,
+              investigators: {
+                ...currentGame.investigators,
+                [investigatorId]: {
+                  ...currentInvestigator,
+                  clues: currentInvestigator.clues + 1,
+                },
+              },
+            };
+          }
+        }
+
         break;
       }
 
@@ -2621,6 +2769,15 @@ export function resolveEncounterEffects(
           );
         }
 
+        break;
+      }
+
+      case "return-random-solved-mystery-to-deck": {
+        if (currentGame.mysteries.solvedMysteryIds.length === 0) break;
+        currentGame = {
+          ...currentGame,
+          mysteries: returnRandomSolvedMysteryToDeck(currentGame.mysteries),
+        };
         break;
       }
 
@@ -2816,6 +2973,23 @@ export function resolveEncounterEffects(
           throw new Error(
             `Investigator "${investigatorId}" does not exist.`,
           );
+        }
+
+        if (!effect.ignorePocketWatch && investigator.assetIds.some((assetId) => currentGame.assets[assetId]?.name === "Pocket Watch")) {
+          return {
+            ...currentGame,
+            pendingDecision: {
+              type: "choice",
+              title: "Pocket Watch",
+              message: "You cannot become Delayed unless you choose to.",
+              options: [
+                { id: "pocket-watch:delay", title: "Choose to become Delayed" },
+                { id: "pocket-watch:prevent", title: "Prevent becoming Delayed" },
+              ],
+              source: `asset:pocket-watch:${investigatorId}`,
+              onComplete: effects.slice(effectIndex + 1),
+            },
+          };
         }
 
         currentGame = {

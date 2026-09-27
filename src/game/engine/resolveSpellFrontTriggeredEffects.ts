@@ -204,6 +204,17 @@ export function resolveSpellFrontTriggeredEffects(
         continue;
       }
 
+      const previouslyChosenInvestigator =
+        currentGame.spells[spellId]?.pendingChosenInvestigatorId;
+      if (previouslyChosenInvestigator) {
+        currentGame = gainCondition(
+          currentGame,
+          previouslyChosenInvestigator,
+          effect.conditionDefinitionId,
+        );
+        continue;
+      }
+
       /*
        * CHOSEN INVESTIGATOR
        */
@@ -273,9 +284,32 @@ export function resolveSpellFrontTriggeredEffects(
       effect.type ===
       "lose-monster-health"
     ) {
-      throw new Error(
-        "lose-monster-health requires a selected Monster.",
-      );
+      const chosenMonsterId = currentGame.spells[spellId]?.pendingChosenMonsterId;
+      const monster = chosenMonsterId ? currentGame.monsters[chosenMonsterId] : undefined;
+      if (!monster || !chosenMonsterId) {
+        throw new Error("Spell damage requires a selected Monster.");
+      }
+      const health = Math.max(0, monster.health - effect.amount);
+      const updatedMonster = { ...monster, health, spaceId: health > 0 ? monster.spaceId : null };
+      currentGame = {
+        ...currentGame,
+        monsters: { ...currentGame.monsters, [chosenMonsterId]: updatedMonster },
+        ...(health <= 0 && monster.spaceId && currentGame.board.spaces[monster.spaceId]
+          ? {
+              board: {
+                ...currentGame.board,
+                spaces: {
+                  ...currentGame.board.spaces,
+                  [monster.spaceId]: {
+                    ...currentGame.board.spaces[monster.spaceId],
+                    monsterIds: currentGame.board.spaces[monster.spaceId].monsterIds.filter((id) => id !== chosenMonsterId),
+                  },
+                },
+              },
+            }
+          : {}),
+      };
+      continue;
     }
 
     /*
@@ -435,18 +469,34 @@ export function resolveSpellFrontTriggeredEffects(
       effect.type ===
       "modify-strength"
     ) {
-      throw new Error(
-        "modify-strength must be resolved by the Combat system.",
-      );
+      currentGame = {
+        ...currentGame,
+        activeCombatSkillModifiers: [
+          ...(currentGame.activeCombatSkillModifiers ?? []).filter((modifier) => modifier.id !== `spell:${spellId}:front-combat-strength`),
+          { id: `spell:${spellId}:front-combat-strength`, investigatorId, skill: "strength", amount: effect.amount, duration: "this-combat-encounter" },
+        ],
+      };
+      continue;
     }
 
     if (
       effect.type ===
       "gain-additional-action"
     ) {
-      throw new Error(
-        "gain-additional-action must be resolved by the Action system.",
-      );
+      const target = currentGame.investigators[investigatorId];
+      if (target) {
+        currentGame = {
+          ...currentGame,
+          investigators: {
+            ...currentGame.investigators,
+            [investigatorId]: {
+              ...target,
+              additionalActionsThisRound: (target.additionalActionsThisRound ?? 0) + effect.amount,
+            },
+          },
+        };
+      }
+      continue;
     }
 
     /*
@@ -459,9 +509,20 @@ export function resolveSpellFrontTriggeredEffects(
       effect.type ===
       "allow-reroll"
     ) {
-      throw new Error(
-        "allow-reroll must be resolved by the Test system.",
-      );
+      currentGame = {
+        ...currentGame,
+        activeTestRerolls: [
+          ...(currentGame.activeTestRerolls ?? []),
+          {
+            id: `spell:${spellId}:${effect.testType}:${effect.duration}`,
+            investigatorId,
+            skill: effect.testType,
+            amount: effect.amount,
+            duration: effect.duration,
+          },
+        ],
+      };
+      continue;
     }
   }
 

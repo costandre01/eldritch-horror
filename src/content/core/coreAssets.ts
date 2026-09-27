@@ -20,6 +20,8 @@ export const coreAssets: Asset[] = [
 
     value: 1,
 
+    testRerolls: [{ amount: 1, skill: "strength", combatOnly: true, resultModifier: 1 }],
+
     description:
       "You may add 1 to the result of 1 die when resolving a [strength] test during a Combat Encounter.",
 
@@ -40,6 +42,8 @@ export const coreAssets: Asset[] = [
 
     value: 1,
 
+    contextualSkillModifiers: { combat: { strength: 2 } },
+
     description:
       "Gain +2 [strength] during Combat Encounters.",
 
@@ -57,6 +61,8 @@ export const coreAssets: Asset[] = [
     traits: ["weapon"],
 
     value: 2,
+
+    contextualSkillModifiers: { combat: { strength: 3 } },
 
     description:
       "Gain +3 [strength] during Combat Encounters.",
@@ -94,6 +100,8 @@ export const coreAssets: Asset[] = [
 
     value: 1,
 
+    contextualSkillModifiers: { spell: { lore: 1 } },
+
     description:
       "Gain +1 [lore] when resolving Spell effects.",
 
@@ -111,6 +119,10 @@ export const coreAssets: Asset[] = [
     traits: [],
 
     value: 2,
+
+    skillModifiers: { lore: 1 },
+
+    testRerolls: [{ amount: 1, skill: "lore" }],
 
     description:
       "Gain +1 [lore].\n\nYou may reroll 1 die when resolving a [lore] test.",
@@ -130,6 +142,8 @@ export const coreAssets: Asset[] = [
 
     value: 3,
 
+    contextualSkillModifiers: { spell: { lore: 2 } },
+
     description:
       "Gain +2 [lore] when resolving Spell effects.\n\nWhen you perform a Rest action, you may test [lore]. If you pass, gain 1 Spell.",
 
@@ -147,6 +161,10 @@ export const coreAssets: Asset[] = [
     traits: ["weapon"],
 
     value: 2,
+
+    testRerolls: [{ amount: 99, skill: "strength", combatOnly: true, sanityCost: 2, rerollEachDieOnce: true }],
+
+    contextualSkillModifiers: { combat: { strength: 2 } },
 
     description:
       "Gain +2 [strength] during Combat Encounters.\n\nYou may spend 2 [sanity] to reroll any number of dice when resolving a [strength] test during a Combat Encounter.",
@@ -183,6 +201,10 @@ export const coreAssets: Asset[] = [
     traits: ["weapon"],
 
     value: 1,
+
+    contextualSkillModifiers: { combat: { strength: 1 } },
+
+    testRerolls: [{ amount: 1, skill: "strength", combatOnly: true }],
 
     description:
       "Gain +1 [strength] during Combat Encounters.\n\nYou may reroll 1 die when resolving a [strength] test during a Combat Encounter.",
@@ -274,6 +296,10 @@ export const coreAssets: Asset[] = [
 
     value: 4,
 
+    contextualSkillModifiers: { combat: { strength: 4 } },
+
+    passiveTestModifiers: [{ skill: "strength", combatOnly: true, sixCountsAsTwo: true }],
+
     description:
       "Gain +4 [strength] during Combat Encounters.\n\nEach 6 you roll when resolving a [strength] test during a Combat Encounter counts as 2 successes.",
 
@@ -310,6 +336,8 @@ export const coreAssets: Asset[] = [
 
     value: 2,
 
+    passiveTestModifiers: [{ acquireAssetsOnly: true, sixCountsAsTwo: true }],
+
     description:
       "Each 6 you roll when performing an Acquire Assets action counts as 2 successes.",
 
@@ -327,6 +355,10 @@ export const coreAssets: Asset[] = [
     traits: [],
 
     value: 2,
+
+    monsterDamageReduction: 1,
+
+    testRerolls: [{ amount: 1, skill: "strength", combatOnly: true }],
 
     description:
       "You may reroll 1 die when resolving a [strength] test during a Combat Encounter.\n\nReduce the damage of Monsters you encounter by 1 to a minimum of 1.",
@@ -346,6 +378,10 @@ export const coreAssets: Asset[] = [
 
     value: 2,
 
+    skillModifiers: { strength: 1 },
+
+    testRerolls: [{ amount: 1, skill: "strength" }],
+
     description:
       "Gain +1 [strength].\n\nYou may reroll 1 die when resolving a [strength] test.",
 
@@ -363,6 +399,8 @@ export const coreAssets: Asset[] = [
     traits: [],
 
     value: 2,
+
+    contextualSkillModifiers: { combat: { will: 2 } },
 
     description:
       "Gain +2 [will] during Combat Encounters.",
@@ -418,6 +456,10 @@ export const coreAssets: Asset[] = [
 
     value: 2,
 
+    restSanityBonus: 1,
+
+    testRerolls: [{ amount: 1, skill: "will", combatOnly: true }],
+
     description:
       "You may reroll 1 die when resolving a [will] test during a Combat Encounter.\n\nWhen you perform a Rest action, recover 1 additional [sanity] Sanity.",
 
@@ -454,6 +496,8 @@ export const coreAssets: Asset[] = [
 
     value: 2,
 
+    testRerolls: [{ amount: 1, oncePerRound: true, resultModifier: 1 }],
+
     description:
       "Once per round, you may add 1 to the result of 1 die when resolving a test.",
 
@@ -471,6 +515,8 @@ export const coreAssets: Asset[] = [
     traits: [],
 
     value: 1,
+
+    testRerolls: [{ amount: 1, oncePerRound: true }],
 
     description:
       "Once per round, you may reroll 1 die when resolving a test.",
@@ -493,6 +539,8 @@ export const coreAssets: Asset[] = [
     skillModifiers: {
       influence: 1,
     },
+
+    testRerolls: [{ amount: 1, skill: "influence" }],
 
     description:
       "Gain +1 [influence].\n\nYou may reroll 1 die when resolving a [influence] test.",
@@ -548,6 +596,10 @@ export const coreAssets: Asset[] = [
 
     value: 2,
 
+    skillModifiers: { observation: 1 },
+
+    testRerolls: [{ amount: 1, skill: "observation" }],
+
     description:
       "Gain +1 [observation].\n\nYou may reroll 1 die when resolving a [observation] test.",
 
@@ -565,6 +617,8 @@ export const coreAssets: Asset[] = [
     traits: [],
 
     value: 1,
+
+    contextualSkillModifiers: { combat: { will: 1 } },
 
     description:
       "Gain +1 [will] during Combat Encounters.",
@@ -638,6 +692,8 @@ export const coreAssets: Asset[] = [
 
     value: 2,
 
+    contextualSkillModifiers: { combat: { will: 1, strength: 2 } },
+
     description:
       "Gain +1 [will] and +2 [strength] during Combat Encounters.",
 
@@ -656,6 +712,8 @@ export const coreAssets: Asset[] = [
 
     value: 4,
 
+    passiveTestModifiers: [{ bonusDice: 1, excludeOtherWorld: true, cityOnly: true, investigatorsOnOwnerSpace: true }],
+
     description:
       "If you are on a [city] City space, investigators on your space roll 1 additional die when resolving tests except when resolving Other World Encounters.",
 
@@ -673,6 +731,10 @@ export const coreAssets: Asset[] = [
     traits: [],
 
     value: 2,
+
+    skillModifiers: { will: 1 },
+
+    testRerolls: [{ amount: 1, skill: "will" }],
 
     description:
       "Gain +1 [will].\n\nYou may reroll 1 die when resolving a [will] test.",

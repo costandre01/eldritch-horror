@@ -7,5 +7,5 @@ export function hasAvailableAction(
     return false;
   }
 
-  return investigator.actionsPerformed.length < 2;
+  return investigator.actionsPerformed.length < 2 + (investigator.additionalActionsThisRound ?? 0);
 }
