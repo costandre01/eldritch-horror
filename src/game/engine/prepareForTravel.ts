@@ -67,20 +67,35 @@ export function prepareForTravel(
     );
   }
 
+  const hasRequiredPath =
+    currentSpace.paths.some(
+      (path) => path.type === ticketType,
+    );
+
+  if (!hasRequiredPath) {
+    throw new Error(
+      `Cannot gain a ${ticketType} Travel Ticket because this City has no ${ticketType} path.`,
+    );
+  }
+
+  const totalTickets =
+    investigator.trainTickets +
+    investigator.shipTickets;
+
+  if (totalTickets >= 2) {
+    throw new Error(
+      "Investigator cannot have more than 2 Travel Tickets.",
+    );
+  }
+
   const trainTickets =
     ticketType === "train"
-      ? Math.min(
-          2,
-          investigator.trainTickets + 1,
-        )
+      ? investigator.trainTickets + 1
       : investigator.trainTickets;
 
   const shipTickets =
     ticketType === "ship"
-      ? Math.min(
-          2,
-          investigator.shipTickets + 1,
-        )
+      ? investigator.shipTickets + 1
       : investigator.shipTickets;
 
   return {

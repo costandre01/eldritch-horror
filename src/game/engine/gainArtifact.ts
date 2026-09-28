@@ -30,47 +30,48 @@ export function gainArtifact(
   let result;
 
   if (artifactId) {
-    const artifactIndex =
+    let artifactIndex =
       game.board.artifactDeck.findIndex(
         (artifact) =>
           artifact.id === artifactId,
       );
 
     if (artifactIndex === -1) {
-      return game;
-    }
+      artifactIndex = (game.board.artifactDiscard ?? []).findIndex(
+        (artifact) => artifact.id === artifactId,
+      );
+      if (artifactIndex === -1) return game;
 
-    const artifact =
-      game.board.artifactDeck[
-        artifactIndex
-      ];
-
-    if (!artifact) {
-      return game;
-    }
-
-    const artifactDeck = [
-      ...game.board.artifactDeck,
-    ];
-
-    artifactDeck.splice(
-      artifactIndex,
-      1,
-    );
-
-    result = {
-      game: {
-        ...game,
-
-        board: {
-          ...game.board,
-
-          artifactDeck,
+      const artifact = game.board.artifactDiscard?.[artifactIndex];
+      if (!artifact) return game;
+      result = {
+        game: {
+          ...game,
+          board: {
+            ...game.board,
+            artifactDiscard: (game.board.artifactDiscard ?? []).filter(
+              (_, index) => index !== artifactIndex,
+            ),
+          },
         },
-      },
+        artifact,
+      };
+    } else {
+      const artifact = game.board.artifactDeck[artifactIndex];
 
-      artifact,
-    };
+      if (!artifact) return game;
+
+      const artifactDeck = [...game.board.artifactDeck];
+      artifactDeck.splice(artifactIndex, 1);
+
+      result = {
+        game: {
+          ...game,
+          board: { ...game.board, artifactDeck },
+        },
+        artifact,
+      };
+    }
   } else {
     result = drawArtifact(game);
   }

@@ -145,6 +145,9 @@ export interface GameState {
     boolean;
 
   ignoreMonstersForNextEncounter?: boolean;
+  encounterStartedRound?: Record<string, number>;
+  encounterSpellUsedRound?: Record<string, number>;
+  combatSpellUsedRound?: Record<string, number>;
 
   spellEncounterReturnSpaceId?: string | null;
 

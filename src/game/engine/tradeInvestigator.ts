@@ -100,6 +100,10 @@ export function tradeInvestigator(
     );
   }
 
+  if (targetInvestigator.isDefeated) {
+    throw new Error("A defeated Investigator cannot participate in a Trade action.");
+  }
+
   /*
    * ==========================================================
    * SELF TRADE
@@ -430,6 +434,29 @@ export function tradeInvestigator(
     ).concat(
       spellIds,
     );
+
+  if (
+    investigator.trainTickets - trainTickets + targetTrainTickets +
+      investigator.shipTickets - shipTickets + targetShipTickets > 2 ||
+    targetInvestigator.trainTickets - targetTrainTickets + trainTickets +
+      targetInvestigator.shipTickets - targetShipTickets + shipTickets > 2
+  ) {
+    throw new Error("An investigator cannot have more than 2 Travel Tickets.");
+  }
+
+  const hasDuplicateSpellDefinition = (ids: string[]) => {
+    const definitions = ids
+      .map((id) => game.spells[id]?.definitionId)
+      .filter((id): id is string => id !== undefined);
+    return new Set(definitions).size !== definitions.length;
+  };
+
+  if (
+    hasDuplicateSpellDefinition(investigatorSpellIds) ||
+    hasDuplicateSpellDefinition(targetSpellIdsUpdated)
+  ) {
+    throw new Error("An investigator cannot gain a copy of a Spell they already have.");
+  }
 
   /*
    * ==========================================================

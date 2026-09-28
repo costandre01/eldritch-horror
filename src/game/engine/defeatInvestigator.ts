@@ -4,12 +4,17 @@ import type { MapDefinition } from "../models/MapDefinition";
 import { advanceDoom } from "./doomEngine";
 import { discardCondition } from "./discardCondition";
 import { findNearestCity } from "./findNearestCity";
+import type { InvestigatorDefeatResume } from "../models/PendingDecision";
 
 export function defeatInvestigator(
   game: GameState,
   map: MapDefinition,
   investigatorId: string,
   resumeMonsterId?: string,
+  chosenDefeatType?:
+    | "crippled"
+    | "insane",
+  defeatResume?: InvestigatorDefeatResume,
 ): GameState {
   const investigator =
     game.investigators[investigatorId];
@@ -49,6 +54,70 @@ export function defeatInvestigator(
   if (investigator.isDefeated) {
     return game;
   }
+
+  const healthDefeated =
+    investigator.health <= 0;
+
+  const sanityDefeated =
+    investigator.sanity <= 0;
+
+  /*
+  * ==========================================================
+  * DEFEAT TYPE
+  * ==========================================================
+  *
+  * Health 0  -> Crippled
+  * Sanity 0  -> Insane
+  *
+  * If both reached 0 at the same time, the player chooses
+  * which Defeated Investigator marker is placed.
+  */
+
+  if (
+    healthDefeated &&
+    sanityDefeated &&
+    !chosenDefeatType
+  ) {
+    return {
+      ...game,
+
+      pendingDecision: {
+        type: "choice",
+
+        title: "Investigator Defeated",
+
+        message:
+          "Your Health and Sanity were reduced to 0. Choose how the investigator was defeated.",
+
+        options: [
+          {
+            id: `defeat-type:crippled:${investigatorId}`,
+            title: "Crippled",
+          },
+          {
+            id: `defeat-type:insane:${investigatorId}`,
+            title: "Insane",
+          },
+        ],
+
+        source:
+          resumeMonsterId
+            ? `defeat-type:${investigatorId}:${resumeMonsterId}`
+            : `defeat-type:${investigatorId}`,
+
+        resume:
+          defeatResume,
+      },
+    };
+  }
+
+  const defeatType:
+    | "crippled"
+    | "insane" =
+      chosenDefeatType ??
+      (healthDefeated
+        ? "crippled"
+        : "insane");
 
   let currentGame = game;
 
@@ -133,19 +202,30 @@ export function defeatInvestigator(
         ],
 
         isDefeated: true,
+
+        defeatType,
       },
     },
 
-    pendingInvestigatorReplacements:
-      currentGame.pendingInvestigatorReplacements.includes(
-        investigatorId,
-      )
+    investigatorOrder: currentGame.ancientOne.awakened
+      ? currentGame.investigatorOrder.filter((id) => id !== investigatorId)
+      : currentGame.investigatorOrder,
+
+    pendingInvestigatorReplacements: currentGame.ancientOne.awakened
+      ? currentGame.pendingInvestigatorReplacements.filter((id) => id !== investigatorId)
+      : currentGame.pendingInvestigatorReplacements.includes(investigatorId)
         ? currentGame.pendingInvestigatorReplacements
-        : [
-            ...currentGame.pendingInvestigatorReplacements,
-            investigatorId,
-          ],
+        : [...currentGame.pendingInvestigatorReplacements, investigatorId],
   };
+
+  if (currentGame.ancientOne.awakened && currentGame.investigatorOrder.length === 0) {
+    return {
+      ...currentGame,
+      status: "defeat",
+      activeInvestigatorId: null,
+      pendingDecision: null,
+    };
+  }
 
   /*
    * ==========================================================
@@ -177,12 +257,21 @@ export function defeatInvestigator(
       );
 
     /*
-     * No investigator remains.
-     * The game is lost.
+     * Before the Ancient One awakens, even simultaneous defeat of
+     * every investigator does not end the game. Those players choose
+     * replacements at the end of the Mythos phase.
      */
     if (
       selectableInvestigatorIds.length === 0
     ) {
+      if (!currentGame.ancientOne.awakened) {
+        return {
+          ...currentGame,
+          activeInvestigatorId: null,
+          pendingDecision: resumePendingDecision ?? null,
+        };
+      }
+
       currentGame = {
         ...currentGame,
 
@@ -237,6 +326,8 @@ export function defeatInvestigator(
 
           pendingDecision:
             resumePendingDecision,
+
+          defeatResume,
         },
       },
     };

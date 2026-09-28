@@ -109,7 +109,10 @@ export function resolveGameFlowContinue(
     };
   }
 
-  if (game.pendingDecision?.type === "mythos-clues") {
+  if (game.pendingDecision?.type === "mythos-clues" ||
+      game.pendingDecision?.type === "mythos-rumor" ||
+      game.pendingDecision?.type === "mythos-monsters" ||
+      game.pendingDecision?.type === "mythos-gates") {
     const decision = game.pendingDecision;
     return {
       game: showMythosContinue(

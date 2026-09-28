@@ -1,3 +1,4 @@
+import { getActionSpellOptions, getCombatSpellOptions, getEncounterSpellOptions } from "../../../game/engine/encounterSpellWindow";
 import { useState } from "react";
 
 import type { Investigator } from "../../../game/models/Investigator";
@@ -82,6 +83,7 @@ export default function ActiveInvestigatorPanel({
    */
 
   function getAssetImage(asset: Asset): string {
+    if (asset.image) return asset.image;
     const fileName = asset.name
       .trim()
       .replace(/\s+/g, "_")
@@ -99,6 +101,7 @@ export default function ActiveInvestigatorPanel({
   function getArtifactImage(
     artifact: Artifact,
   ): string {
+    if (artifact.image) return artifact.image;
     const fileName = artifact.name
       .trim()
       .replace(/\s+/g, "_")
@@ -133,14 +136,11 @@ export default function ActiveInvestigatorPanel({
     return false;
   }
 
-  function canUseSpellEffect(effect: (typeof coreSpells)[number]["frontEffects"][number]): boolean {
+  function canUseSpellEffect(spellId: string, effectIndex: number, effect: (typeof coreSpells)[number]["frontEffects"][number]): boolean {
     if (effect.type === "on-health-loss" || effect.type === "on-sanity-loss") return false;
-    if (effect.type === "action-test") return game.phase === "action" && !isRestrictedByDetained(game, investigator.id) && canPerformAction(investigator, "component");
-    if (effect.type === "on-encounter-phase") return game.phase === "encounter";
-    if (effect.type === "on-combat-encounter") {
-      const space = investigator.spaceId ? game.board.spaces[investigator.spaceId] : undefined;
-      return game.phase === "encounter" && (space?.monsterIds.length ?? 0) > 0;
-    }
+    if (effect.type === "action-test") return getActionSpellOptions(game).some((option) => option.spellId === spellId && option.effectIndex === effectIndex);
+    if (effect.type === "on-encounter-phase") return getEncounterSpellOptions(game).some((option) => option.spellId === spellId && option.effectIndex === effectIndex);
+    if (effect.type === "on-combat-encounter") return getCombatSpellOptions(game).some((option) => option.spellId === spellId && option.effectIndex === effectIndex);
     return true;
   }
 
@@ -460,7 +460,7 @@ export default function ActiveInvestigatorPanel({
                 {!selectedCard.card.flipped && (() => {
                   const definition = coreSpells.find((item) => item.id === selectedCard.card.definitionId);
                   return definition?.frontEffects.flatMap((effect, index) => {
-                    if (!canUseSpellEffect(effect)) return [];
+                    if (!canUseSpellEffect(selectedCard.card.id, index, effect)) return [];
                     return (
                     <button
                       key={`${selectedCard.card.id}:${index}`}

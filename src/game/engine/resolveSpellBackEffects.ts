@@ -5,6 +5,7 @@ import type { PendingSpellBackResolution, SpellBackChoice } from "../models/Pend
 import { gainCondition } from "./gainCondition";
 import { eldritchBaseMap } from "../../content/core/maps/eldritchBaseMap";
 import { defeatInvestigator } from "./defeatInvestigator";
+import { discardSpell } from "./discardSpell";
 
 export interface ResolveSpellBackEffectsOptions {
   game: GameState;
@@ -228,7 +229,57 @@ export function resolveSpellBackEffects(
             );
           }
 
-          resolveEffects(branch.effects, [...effects.slice(effectIndex + 1), ...trailingEffects]);
+          /*
+          * Effects that must run after the selected
+          * test-result branch.
+          *
+          * Example:
+          *
+          * resolve-by-test-result
+          *   -> branch effects
+          * flip-self
+          *
+          * If the branch pauses for a choice, these
+          * effects are stored in the continuation.
+          * Otherwise they must be resolved immediately
+          * after the branch.
+          */
+
+          const remainingEffects = [
+            ...effects.slice(
+              effectIndex + 1,
+            ),
+
+            ...trailingEffects,
+          ];
+
+          resolveEffects(
+            branch.effects,
+            remainingEffects,
+          );
+
+          /*
+          * A choice inside the branch paused the
+          * Spell resolution.
+          *
+          * pauseForChoice() already received the
+          * trailing effects through resolveEffects(),
+          * so they will be resumed later.
+          */
+
+          if (paused) {
+            return;
+          }
+
+          /*
+          * The branch finished without pausing.
+          * Continue with the effects that follow
+          * resolve-by-test-result.
+          */
+
+          resolveEffects(
+            remainingEffects,
+          );
 
           return;
         }
@@ -857,9 +908,10 @@ export function resolveSpellBackEffects(
          */
 
         case "prevent-health-loss": {
-          throw new Error(
-            "Health-loss prevention must be handled by the Health-loss event system.",
-          );
+          // The pending loss is reduced before this back is presented. This
+          // entry remains on the back so the rest of its effects resolve in
+          // the normal card flow.
+          break;
         }
 
         /*
@@ -869,9 +921,7 @@ export function resolveSpellBackEffects(
          */
 
         case "prevent-sanity-loss": {
-          throw new Error(
-            "Sanity-loss prevention must be handled by the Sanity-loss event system.",
-          );
+          break;
         }
 
         /*
@@ -1050,56 +1100,28 @@ export function resolveSpellBackEffects(
       ];
 
     if (currentSpell) {
-      const owner =
-        currentGame.investigators[
-          investigatorId
-        ];
-
-      currentGame = {
-        ...currentGame,
-
-        board: {
-            ...currentGame.board,
-
-            spellDiscard: [
-                ...currentGame.board.spellDiscard,
-
-                currentSpell,
-            ],
-        },
-
-        spells: {
-          ...currentGame.spells,
-
-          [spellId]: {
-            ...currentSpell,
-
-            flipped: false,
-
-            pendingTestResult:
-              null,
-
-            pendingChosenInvestigatorId:
-              null,
-          },
-        },
-
-        investigators: {
-          ...currentGame.investigators,
-
-          [investigatorId]: {
-            ...owner,
-
-            spellIds:
-              owner.spellIds.filter(
-                (id) =>
-                  id !== spellId,
-              ),
-          },
-        },
-      };
+      currentGame = discardSpell(currentGame, investigatorId, spellId);
     }
   }
+
+  /*
+  * ============================================================
+  * CLEAR SPELL BACK RESOLUTION
+  * ============================================================
+  *
+  * Reaching this point means that every back effect has
+  * finished resolving and no further player choice is pending.
+  *
+  * Any continuation created while resolving this Spell is now
+  * complete.
+  */
+
+  currentGame = {
+    ...currentGame,
+
+    pendingSpellBackResolution:
+      null,
+  };
 
   return currentGame;
 }

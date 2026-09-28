@@ -17,6 +17,7 @@ import { gainCondition, gainConditionByCategory } from "./gainCondition";
 import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 import { continueAcquireAssetEffects } from "./continueAcquireAssetEffects";
 import { findNearestCity } from "./findNearestCity";
+import { discardSpell } from "./discardSpell";
 
 export type CardSelectionResult =
   | {
@@ -415,17 +416,15 @@ export function resolveCardSelection(
         "mythos:silver-twilight-aid:spell:",
       )
     ) {
-      const selectedSpells =
-        selectedCardIds.filter(
-          (id) =>
-            currentGame.board.spellDeck.some(
-              (spell) =>
-                spell.id === id,
-            ) &&
-            currentGame.spells[
-              id
-            ] !== undefined,
-        );
+      const ownedDefinitions = new Set(
+        investigator.spellIds
+          .map((id) => currentGame.spells[id]?.definitionId)
+          .filter((id): id is string => id !== undefined),
+      );
+      const selectedSpells = selectedCardIds.filter((id) => {
+        const spell = currentGame.board.spellDeck.find((item) => item.id === id);
+        return spell !== undefined && !ownedDefinitions.has(spell.definitionId);
+      });
 
       if (
         selectedSpells.length !== 1
@@ -500,17 +499,25 @@ export function resolveCardSelection(
         "gain-spell",
       )
     ) {
-      const selectedSpells =
-        selectedCardIds.filter(
-          (id) =>
-            currentGame.board.spellDeck.some(
-              (spell) =>
-                spell.id === id,
-            ) &&
-            currentGame.spells[
-              id
-            ] !== undefined,
-        );
+      const ownedDefinitions = new Set(
+        investigator.spellIds
+          .map((id) => currentGame.spells[id]?.definitionId)
+          .filter((id): id is string => id !== undefined),
+      );
+      const selectedDefinitions = new Set<string>();
+      const selectedSpells = selectedCardIds.filter((id) => {
+        const spell = currentGame.board.spellDeck.find((item) => item.id === id);
+        if (
+          !spell ||
+          currentGame.spells[id] === undefined ||
+          ownedDefinitions.has(spell.definitionId) ||
+          selectedDefinitions.has(spell.definitionId)
+        ) {
+          return false;
+        }
+        selectedDefinitions.add(spell.definitionId);
+        return true;
+      });
 
       if (
         selectedSpells.length ===
@@ -1420,36 +1427,8 @@ export function resolveCardSelection(
       }
 
       currentGame = {
-        ...currentGame,
-
-        investigators: {
-          ...currentGame.investigators,
-
-          [investigatorId]: {
-            ...investigator,
-
-            spellIds:
-              investigator.spellIds.filter(
-                (id) =>
-                  id !==
-                  selectedSpellId,
-              ),
-          },
-        },
-
-        board: {
-          ...currentGame.board,
-
-          spellDiscard: [
-            ...currentGame.board
-              .spellDiscard,
-
-            selectedSpell,
-          ],
-        },
-
-        pendingDecision:
-          null,
+        ...discardSpell(currentGame, investigatorId, selectedSpellId),
+        pendingDecision: null,
       };
     }
 
@@ -1790,38 +1769,7 @@ export function resolveCardSelection(
           continue;
         }
 
-        currentGame = {
-          ...currentGame,
-
-          investigators: {
-            ...currentGame.investigators,
-
-            [investigatorId]: {
-              ...currentGame.investigators[
-                investigatorId
-              ],
-
-              spellIds:
-                currentGame.investigators[
-                  investigatorId
-                ].spellIds.filter(
-                  (id) =>
-                    id !== spellId,
-                ),
-            },
-          },
-
-          board: {
-            ...currentGame.board,
-
-            spellDiscard: [
-              ...currentGame.board
-                .spellDiscard,
-
-              spell,
-            ],
-          },
-        };
+        currentGame = discardSpell(currentGame, investigatorId, spellId);
       }
 
       /*

@@ -78,6 +78,13 @@ export function confirmAcquireAssets(
   let debtId: string | null = null;
 
   if (useBankLoan) {
+    const alreadyHasDebt = investigator.conditionIds.some(
+      (conditionId) => game.conditions[conditionId]?.definitionId === "condition-debt",
+    );
+    if (alreadyHasDebt) {
+      throw new Error("An investigator who already has Debt cannot acquire a Bank Loan.");
+    }
+
     debtId =
       game.board.conditionDeck.find(
         (conditionId) =>

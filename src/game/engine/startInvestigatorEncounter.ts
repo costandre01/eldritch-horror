@@ -52,6 +52,13 @@ export function startInvestigatorEncounter(
         investigator.spaceId,
     );
 
+  if (game.pendingSpellChoice || game.pendingSpellBackResolution ||
+      Object.values(game.spells).some((spell) => spell.pendingTestResult)) {
+    throw new Error("Finish resolving the Spell before starting the Encounter.");
+  }
+
+  game = { ...game, encounterStartedRound: { ...game.encounterStartedRound, [investigatorId]: game.round } };
+
   if (game.ignoreMonstersForNextEncounter) {
     return startEncounter(
       { ...game, ignoreMonstersForNextEncounter: false },

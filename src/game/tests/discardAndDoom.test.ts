@@ -322,10 +322,8 @@ describe("discardCondition", () => {
     ).toEqual([]);
 
     expect(
-      result.board.conditionDiscard,
-    ).toEqual([
-      "condition-test",
-    ]);
+      result.board.conditionDeck,
+    ).toContain("condition-test");
   });
 
   it("preserves existing discarded Conditions", () => {
@@ -365,10 +363,9 @@ describe("discardCondition", () => {
 
     expect(
       result.board.conditionDiscard,
-    ).toEqual([
-      "condition-existing",
-      "condition-test",
-    ]);
+    ).toEqual(["condition-existing"]);
+
+    expect(result.board.conditionDeck).toContain("condition-test");
   });
 
   it("throws when the Investigator does not exist", () => {

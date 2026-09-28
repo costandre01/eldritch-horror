@@ -19,7 +19,7 @@ import {
 
 function getLossReactionSpells(game: GameState, stat: "health" | "sanity") {
   const triggerType = stat === "health" ? "on-health-loss" : "on-sanity-loss";
-  return Object.values(game.investigators).flatMap((owner) => owner.spellIds.flatMap((spellId) => {
+  return Object.values(game.investigators).filter((owner) => !owner.isDefeated).flatMap((owner) => owner.spellIds.flatMap((spellId) => {
     const spell = game.spells[spellId];
     const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
     if (!spell || spell.flipped || !definition) return [];
@@ -305,7 +305,7 @@ export function resolveCombatTest(
 
     if (unpreventedSanityLoss > 0 && !lossReaction.skip) {
       const nearbyWhiskey = Object.values(game.investigators)
-        .filter((owner) => owner.spaceId === investigator.spaceId)
+        .filter((owner) => !owner.isDefeated && owner.spaceId === investigator.spaceId)
         .flatMap((owner) => owner.assetIds
           .filter((assetId) => game.assets[assetId]?.name === "Whiskey")
           .map((assetId) => ({ ownerId: owner.id, assetId })));
@@ -313,7 +313,7 @@ export function resolveCombatTest(
       const hasStatue = investigator.clues > 0
         && game.cardRerollUsedRound?.[statueKey] !== game.round
         && investigator.artifactIds.some((id) => game.artifacts[id]?.name === "Grotesque Statue");
-      if (nearbyWhiskey.length > 0 || hasStatue) {
+      if (nearbyWhiskey.length > 0 || hasStatue || lossReactionSpells.length > 0) {
         return {
           ...game,
           lastTest: diceTest,
@@ -1161,7 +1161,7 @@ export function resolveCombatTest(
     if (unpreventedHealthLoss > 0 && !lossReaction.skip) {
       const lossReactionSpells = getLossReactionSpells(game, "health");
     const nearbyBandages = Object.values(game.investigators)
-      .filter((owner) => owner.spaceId === investigator.spaceId)
+      .filter((owner) => !owner.isDefeated && owner.spaceId === investigator.spaceId)
       .flatMap((owner) => owner.assetIds
         .filter((assetId) => game.assets[assetId]?.name === "Bandages")
         .map((assetId) => ({ ownerId: owner.id, assetId })));

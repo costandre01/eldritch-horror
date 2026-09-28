@@ -4,6 +4,7 @@ import { advanceDoom } from "./doomEngine";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 
 import { resolveMythos } from "./resolveMythos";
+import { discardSpell } from "./discardSpell";
 
 export function resolveYogSothothSpellChoice(
   game: GameState,
@@ -113,35 +114,8 @@ export function resolveYogSothothSpellChoice(
     );
   }
 
-  const updatedInvestigator = {
-    ...investigator,
-
-    spellIds:
-      investigator.spellIds.filter(
-        (spellId) =>
-          spellId !== choice,
-      ),
-  };
-
   const updatedGame: GameState = {
-    ...game,
-
-    investigators: {
-      ...game.investigators,
-
-      [investigator.id]:
-        updatedInvestigator,
-    },
-
-    board: {
-      ...game.board,
-
-      spellDiscard: [
-        ...game.board.spellDiscard,
-        spell,
-      ],
-    },
-
+    ...discardSpell(game, investigator.id, choice),
     pendingDecision: null,
   };
 

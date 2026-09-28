@@ -34,9 +34,7 @@ export function resolveMonsterToughness(
     "investigators-plus"
   ) {
     return (
-      Object.keys(
-        game.investigators,
-      ).length +
+      game.investigatorOrder.length +
       toughness.value
     );
   }

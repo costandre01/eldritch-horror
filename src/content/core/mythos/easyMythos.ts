@@ -175,7 +175,7 @@ export const easyMythos: MythosDefinition[] = [
 
         difficulty: "easy",
 
-        type: "ongoing",
+        type: "rumor",
 
         image:
             "/cards/Mythos/Mythos/Easy - Growing Madness.jpg",
@@ -198,7 +198,7 @@ export const easyMythos: MythosDefinition[] = [
         ],
 
         text:
-            "As an encounter, an investigator on space 8 may attempt to find the uncharted isle. If he passes, he may spend Clues equal to half no investigators to solve this Rumor.\n\nWhen there are no Eldritch tokens on this card, each investigator loses 3 Sanity, then solve this Rumor.",
+            "As an encounter, an investigator on space 8 may attempt to find the uncharted isle. If he passes, he may spend Clues equal to half the number of investigators to solve this Rumor.\n\nWhen there are no Eldritch tokens on this card, each investigator loses 3 Sanity, then solve this Rumor.",
 
         effects: [
             {
@@ -272,7 +272,7 @@ export const easyMythos: MythosDefinition[] = [
 
         difficulty: "easy",
 
-        type: "ongoing",
+        type: "rumor",
 
         image:
             "/cards/Mythos/Mythos/Easy - Lost Knowledge.jpg",
@@ -388,7 +388,7 @@ export const easyMythos: MythosDefinition[] = [
 
         difficulty: "easy",
 
-        type: "ongoing",
+        type: "rumor",
 
         image:
             "/cards/Mythos/Mythos/Easy - Secrets of the Past.jpg",
@@ -403,7 +403,7 @@ export const easyMythos: MythosDefinition[] = [
         ],
 
         text:
-            "Investigators cannot resolve Expedition Encounters.\n\nAs an encounter, an investigator on the Active Expedition space may attempt to uncover secrets lost to time and history. If he passes, he may spend Clues equal to half no investigators to solve this Rumor.",
+            "Investigators cannot resolve Expedition Encounters.\n\nAs an encounter, an investigator on the Active Expedition space may attempt to uncover secrets lost to time and history. If he passes, he may spend Clues equal to half the number of investigators to solve this Rumor.",
 
         effects: [],
 

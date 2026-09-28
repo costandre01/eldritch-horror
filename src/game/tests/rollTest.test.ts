@@ -165,7 +165,7 @@ describe(
     );
 
     it(
-      "never rolls fewer than zero dice",
+      "always rolls at least one die",
       () => {
         const investigator =
           createTestInvestigator(
@@ -174,6 +174,8 @@ describe(
 
         investigator.skills.lore =
           1;
+
+        vi.spyOn(Math, "random").mockReturnValue(0);
 
         const result =
           rollTest(
@@ -184,11 +186,11 @@ describe(
 
         expect(
           result.diceRolled,
-        ).toBe(0);
+        ).toBe(1);
 
         expect(
           result.results,
-        ).toEqual([]);
+        ).toEqual([1]);
 
         expect(
           result.successes,
@@ -197,6 +199,8 @@ describe(
         expect(
           result.passed,
         ).toBe(false);
+
+        vi.restoreAllMocks();
       },
     );
 

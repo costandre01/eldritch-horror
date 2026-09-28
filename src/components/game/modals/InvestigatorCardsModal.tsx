@@ -181,6 +181,7 @@ export default function InvestigatorCardsModal({
    */
 
   const getAssetImage = (asset: Asset) => {
+    if (asset.image) return asset.image;
     const filename = asset.name
       .trim()
       .replace(/\s+/g, "_")
@@ -192,7 +193,7 @@ export default function InvestigatorCardsModal({
   const getArtifactImage = (
     artifact: Artifact,
   ) => {
-    return `/cards/artifacts/${artifact.id}.png`;
+    return artifact.image;
   };
 
   const getSpellImage = (

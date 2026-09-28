@@ -16,8 +16,7 @@ export function getEffectiveSkill(
     );
   }
 
-  let skillValue =
-    investigator.skills[skill];
+  const bonuses: number[] = [];
 
   for (const assetId of investigator.assetIds) {
     const asset =
@@ -27,34 +26,35 @@ export function getEffectiveSkill(
       continue;
     }
 
-    skillValue +=
-      asset.skillModifiers?.[skill] ?? 0;
+    bonuses.push(asset.skillModifiers?.[skill] ?? 0);
 
     if (context === "combat" || context === "combat-spell") {
-      skillValue += asset.contextualSkillModifiers?.combat?.[skill] ?? 0;
+      bonuses.push(asset.contextualSkillModifiers?.combat?.[skill] ?? 0);
     }
     if (context === "spell" || context === "combat-spell") {
-      skillValue += asset.contextualSkillModifiers?.spell?.[skill] ?? 0;
+      bonuses.push(asset.contextualSkillModifiers?.spell?.[skill] ?? 0);
     }
   }
 
   for (const artifactId of investigator.artifactIds) {
     const artifact = game.artifacts[artifactId];
     if (!artifact) continue;
-    skillValue += artifact.skillModifiers?.[skill] ?? 0;
+    bonuses.push(artifact.skillModifiers?.[skill] ?? 0);
     if (context === "combat" || context === "combat-spell") {
-      skillValue += artifact.contextualSkillModifiers?.combat?.[skill] ?? 0;
+      bonuses.push(artifact.contextualSkillModifiers?.combat?.[skill] ?? 0);
     }
     if (context === "spell" || context === "combat-spell") {
-      skillValue += artifact.contextualSkillModifiers?.spell?.[skill] ?? 0;
+      bonuses.push(artifact.contextualSkillModifiers?.spell?.[skill] ?? 0);
     }
   }
 
   if (context === "combat" || context === "combat-spell") {
-    skillValue += (game.activeCombatSkillModifiers ?? [])
+    bonuses.push(...(game.activeCombatSkillModifiers ?? [])
       .filter((modifier) => modifier.investigatorId === investigatorId && modifier.skill === skill)
-      .reduce((total, modifier) => total + modifier.amount, 0);
+      .map((modifier) => modifier.amount));
   }
 
-  return skillValue;
+  // Tests use the single highest applicable "gain +N" bonus. Additional
+  // dice are handled separately by getPassiveTestModifiers.
+  return investigator.skills[skill] + Math.max(0, ...bonuses);
 }

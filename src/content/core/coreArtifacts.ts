@@ -211,7 +211,7 @@ export const CORE_ARTIFACTS: ArtifactDefinition[] = [
         description:
             "Gain [will] +2 Will and [strength] +5 Strength when resolving Combat Encounters.\n\nIf you defeat a Monster during a Combat Encounter, recover [sanity] 1 Sanity.",
 
-        image: "/cards/artifacts/Sword_of_Saint_Jerome.png",
+        image: "/cards/artifacts/Sword_of_Saint_Jerome.webp",
     },
 
     {

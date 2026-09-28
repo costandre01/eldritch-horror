@@ -13,10 +13,13 @@ function createTestInvestigator(
   return {
     id,
     definitionId: "akachi-onyele",
+
     health: 5,
     maxHealth: 5,
+
     sanity: 5,
     maxSanity: 5,
+
     skills: {
       lore: 0,
       influence: 0,
@@ -24,23 +27,34 @@ function createTestInvestigator(
       strength: 0,
       will: 0,
     },
+
     resources: 0,
     clues: 0,
+
     spaceId: "arkham",
+
     trainTickets: 0,
     shipTickets: 0,
+
     travelMoves: 0,
     travelActive: false,
     travelHistory: [],
     travelStartSpaceId: null,
+
     engagedMonsterIds: [],
+
     isDelayed: false,
     isDefeated: false,
+    defeatType: null,
+
     assetIds: [],
     spellIds: [],
     artifactIds: [],
+
     conditionIds: [],
+
     actionsPerformed: [],
+
     personalStoryProgress: 0,
   };
 }

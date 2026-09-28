@@ -46,7 +46,7 @@ export function continueAcquireAssetEffects(game: GameState): GameState {
     }
 
     if (asset.name === "Delivery Service") {
-      const targets = Object.values(game.investigators).filter((candidate) => candidate.id !== investigator.id);
+      const targets = Object.values(game.investigators).filter((candidate) => !candidate.isDefeated && candidate.id !== investigator.id);
       if (targets.length === 0) continue;
       return {
         ...base,
@@ -61,7 +61,7 @@ export function continueAcquireAssetEffects(game: GameState): GameState {
     }
 
     if (asset.name === "Wireless Report") {
-      const targets = Object.values(game.investigators).filter((candidate) => candidate.id !== investigator.id);
+      const targets = Object.values(game.investigators).filter((candidate) => !candidate.isDefeated && candidate.id !== investigator.id);
       if (investigator.clues === 0 || targets.length === 0) continue;
       const options = targets.flatMap((target) => Array.from({ length: investigator.clues + 1 }, (_, amount) => ({
         id: `wireless-report:${target.id}:${amount}`,

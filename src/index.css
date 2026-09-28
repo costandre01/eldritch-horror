@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* All fullscreen popups use fixed + inset-0. Keep the main board clear
+ * until the last popup closes, including nested card previews. Maps inside
+ * game-flow dialogs remain visible because they are not the main board.
+ * Map selection without a popup keeps its tokens and destination buttons.
+ */
+body:has(.fixed.inset-0, [aria-modal="true"], dialog[open])
+  [data-main-map] [data-map-overlay] {
+  display: none;
+}
+
 :root {
   font-family:
     Inter,

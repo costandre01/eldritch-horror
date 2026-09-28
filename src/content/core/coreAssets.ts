@@ -639,7 +639,7 @@ export const coreAssets: Asset[] = [
     value: 3,
 
     description:
-      "When you perform a Rest action, you may attempt to open the puzzle box ([observation] -2). If you pass, you may discard this card to gain 1 Artifact.",
+      "When you perform a Rest action, you may attempt to open the puzzle box ([lore] -2). If you pass, you may discard this card to gain 1 Artifact.",
 
     image:
       "/cards/assets/Puzzle_Box.png",

@@ -28,19 +28,35 @@ export interface DrawArtifactResult {
 export function drawArtifact(
   game: GameState,
 ): DrawArtifactResult {
+  let currentGame = game;
+
   /*
    * ==========================================================
    * EMPTY DECK
    * ==========================================================
    */
 
-  if (
-    game.board.artifactDeck.length === 0
-  ) {
-    return {
-      game,
-      artifact: null,
-    };
+  if (currentGame.board.artifactDeck.length === 0) {
+    const artifactDeck = [...(currentGame.board.artifactDiscard ?? [])];
+    if (artifactDeck.length > 0) {
+      for (let index = artifactDeck.length - 1; index > 0; index--) {
+        const randomIndex = Math.floor(Math.random() * (index + 1));
+        [artifactDeck[index], artifactDeck[randomIndex]] =
+          [artifactDeck[randomIndex], artifactDeck[index]];
+      }
+      currentGame = {
+        ...currentGame,
+        board: {
+          ...currentGame.board,
+          artifactDeck,
+          artifactDiscard: [],
+        },
+      };
+    }
+  }
+
+  if (currentGame.board.artifactDeck.length === 0) {
+    return { game: currentGame, artifact: null };
   }
 
   /*
@@ -52,15 +68,15 @@ export function drawArtifact(
   const index =
     Math.floor(
       Math.random() *
-        game.board.artifactDeck.length,
+        currentGame.board.artifactDeck.length,
     );
 
   const artifact =
-    game.board.artifactDeck[index];
+    currentGame.board.artifactDeck[index];
 
   if (!artifact) {
     return {
-      game,
+      game: currentGame,
       artifact: null,
     };
   }
@@ -72,7 +88,7 @@ export function drawArtifact(
    */
 
   const artifactDeck =
-    game.board.artifactDeck.filter(
+    currentGame.board.artifactDeck.filter(
       (_, artifactIndex) =>
         artifactIndex !== index,
     );
@@ -85,10 +101,10 @@ export function drawArtifact(
 
   return {
     game: {
-      ...game,
+      ...currentGame,
 
       board: {
-        ...game.board,
+        ...currentGame.board,
 
         artifactDeck,
       },

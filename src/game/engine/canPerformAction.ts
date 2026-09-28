@@ -5,7 +5,7 @@ export function canPerformAction(
   investigator: Investigator,
   action: InvestigatorAction,
 ): boolean {
-  if (investigator.isDelayed) {
+  if (investigator.isDelayed || investigator.isDefeated) {
     return false;
   }
 

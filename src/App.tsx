@@ -1,3 +1,4 @@
+import { getActionSpellOptions, getCombatSpellOptions, getEncounterSpellOptions } from "./game/engine/encounterSpellWindow";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -48,6 +49,7 @@ import { resolveSpellChoice } from "./game/engine/resolveSpellChoice";
 import { resolveSpellFrontEffects } from "./game/engine/resolveSpellFrontEffects";
 import { resolveSpellBackChoice } from "./game/engine/resolveSpellBackChoice";
 import { resolveSpell } from "./game/engine/resolveSpell";
+import { getSpellLossPrevention } from "./game/engine/getSpellLossPrevention";
 import { activatePossessionAbility } from "./game/engine/activatePossessionAbility";
 import { canPerformAction } from "./game/engine/canPerformAction";
 
@@ -197,6 +199,8 @@ function App() {
 
   const [spellTest, setSpellTest] =
     useState<TestResult | null>(null);
+  const [encounterSpellPrompt, setEncounterSpellPrompt] = useState(false);
+  const [combatSpellPrompt, setCombatSpellPrompt] = useState(false);
   const [spellTestEffectIndex, setSpellTestEffectIndex] = useState<number | null>(null);
 
   const [
@@ -481,21 +485,27 @@ function App() {
       const maxValue = choice.maxValueFromTestResult
         ? currentGame.spells[choice.spellId]?.pendingTestResult?.successes ?? 0
         : Number.POSITIVE_INFINITY;
-      return currentGame.board.assetReserve
+      const options = currentGame.board.assetReserve
         .filter((asset) => choice.assetTypes?.includes(asset.type as "item" | "trinket"))
         .filter((asset) => asset.value <= maxValue)
         .map((asset) => ({ id: asset.id, label: asset.name, description: `Value ${asset.value}` }));
+      return choice.optional
+        ? [...options, { id: "skip-spell-choice", label: "Do not gain an Asset", description: "Continue without choosing an Asset." }]
+        : options;
     }
     if (choice.type === "choose-space") {
       return eldritchBaseMap.spaces.map((space) => ({ id: space.id, label: space.name }));
     }
     if (choice.type === "choose-clue") {
-      return Object.values(currentGame.board.spaces).flatMap((space) =>
+      const options = Object.values(currentGame.board.spaces).flatMap((space) =>
         space.clueTokenIds.map((id) => ({ id, label: `Clue at ${labelSpaces.get(space.spaceId) ?? space.spaceId}` })),
       );
+      return choice.optional
+        ? [...options, { id: "skip-spell-choice", label: "Do not encounter a Clue", description: "Continue with the normal Encounter flow." }]
+        : options;
     }
     if (choice.type === "choose-encounter") {
-      return [{ id: "resolve-encounter", label: "Resolve an Encounter", description: "Ignore Monsters for this Encounter." }];
+      return [{ id: "resolve-encounter", label: "Resolve an Encounter", description: "Ignore Monsters for this Encounter." }, { id: "encounter-monsters", label: "Encounter Monsters normally", description: "Do not ignore the Monsters on your space." }];
     }
     return [];
   }
@@ -526,7 +536,7 @@ function App() {
       const result = resolveSpellFrontEffects(game, investigatorId, spellId, effect, eldritchBaseMap, {
         deferTriggeredEffects: true,
       });
-      const resolvedGame = effect.type === "action-test"
+      let resolvedGame = effect.type === "action-test"
         ? {
             ...result.game,
             investigators: {
@@ -537,7 +547,16 @@ function App() {
               },
             },
           }
-        : result.game;
+          : result.game;
+      if (effect.type === "on-combat-encounter" && game.pendingDecision?.type === "combat") {
+        resolvedGame = {
+          ...resolvedGame,
+          combatSpellUsedRound: {
+            ...resolvedGame.combatSpellUsedRound,
+            [`${spellId}:${game.pendingDecision.monsterId}`]: game.round,
+          },
+        };
+      }
       setGame(resolvedGame);
       if (result.testResult) {
         setAxePaidThisTest(false);
@@ -666,10 +685,16 @@ function App() {
    * ============================================================
    */
 
-  function handleStartEncounter() {
+  function handleStartEncounter(skipSpellPrompt = false) {
     if (!game) {
       return;
     }
+
+    if (!skipSpellPrompt && getEncounterSpellOptions(game).length > 0) {
+      setEncounterSpellPrompt(true);
+      return;
+    }
+    setEncounterSpellPrompt(false);
 
     try {
       const updatedGame =
@@ -1468,13 +1493,12 @@ function App() {
         decision.source ===
         "defeat:lead"
       ) {
-        /*
-        * Preserve the Mythos resolution that was
-        * interrupted by the Lead Investigator's defeat.
-        */
         const resumePendingDecision =
           decision.resume?.pendingDecision ??
           null;
+
+        const defeatResume =
+          decision.resume?.defeatResume;
 
         const updatedGame =
           setLeadInvestigator(
@@ -1482,18 +1506,60 @@ function App() {
             investigatorId,
           );
 
+        /*
+        * ========================================================
+        * RESUME INTERRUPTED MYTHOS SPECIAL
+        * ========================================================
+        */
+        if (
+          defeatResume?.type ===
+          "mythos-special"
+        ) {
+          const mythos =
+            [
+              ...easyMythos,
+              ...normalMythos,
+              ...hardMythos,
+            ].find(
+              (definition) =>
+                definition.id ===
+                defeatResume.mythosId,
+            );
+
+          if (!mythos) {
+            throw new Error(
+              `Mythos "${defeatResume.mythosId}" does not exist.`,
+            );
+          }
+
+          const resumedGame =
+            resolveMythosSpecial(
+              {
+                ...updatedGame,
+                activeInvestigatorId:
+                  null,
+                pendingDecision:
+                  null,
+              },
+              mythos,
+              defeatResume.step,
+              eldritchBaseMap,
+            );
+
+          setGame(resumedGame);
+
+          return;
+        }
+
+        /*
+        * ========================================================
+        * RESUME NORMAL INTERRUPTED FLOW
+        * ========================================================
+        */
         setGame({
           ...updatedGame,
-
-          /*
-          * The new Lead does NOT start a new turn.
-          *
-          * We simply restore the Mythos decision
-          * that was interrupted by the defeat.
-          */
           activeInvestigatorId:
             null,
-
           pendingDecision:
             resumePendingDecision,
         });
@@ -2009,18 +2075,20 @@ function App() {
       const effectIndex = Number(rawIndex);
       const effect = Number.isInteger(effectIndex) ? definition?.frontEffects[effectIndex] : undefined;
       if (pending && spell && spellOwner?.spellIds.includes(spellId) && definition && effect && (effect.type === "on-health-loss" || effect.type === "on-sanity-loss")) {
-        const preventType = rawStat === "health" ? "prevent-health-loss" : "prevent-sanity-loss";
-        const prevention = effect.onSuccess.find((candidate) => candidate.type === preventType);
-        const prevented = diceTest.passed && prevention && (prevention.type === preventType)
-          ? prevention.amount
-          : 0;
+        const stat = rawStat === "sanity" ? "sanity" : "health";
+        const prevented = getSpellLossPrevention(definition, spell.backId, effectIndex, stat, diceTest);
         const resolved = resolveCombatTest({
           ...currentGame,
           pendingDecision: null,
           pendingCombatLoss: null,
           spells: {
             ...currentGame.spells,
-            [spellId]: { ...spell, flipped: diceTest.passed },
+            [spellId]: {
+              ...spell,
+              flipped: true,
+              pendingTestResult: diceTest,
+              pendingChosenInvestigatorId: pending.testDecision.investigatorId,
+            },
           },
         }, pending.testDecision, pending.diceTest, {
           skip: true,
@@ -2028,6 +2096,46 @@ function App() {
           preventSanity: rawStat === "sanity" ? prevented : 0,
         });
         setGame(resolved);
+        setSpellPreviewId(spellId);
+        setDiceTest(null);
+        setPendingTestDecision(null);
+        pendingTestDecisionRef.current = null;
+        return;
+      }
+    }
+
+    if ((testDecision.source ?? "").startsWith("spell:loss:")) {
+      const effects = diceTest.passed ? (testDecision.onSuccess ?? []) : (testDecision.onFail ?? []);
+      const reaction = effects.find((effect) => effect.type === "resolve-spell-loss");
+      const spell = reaction?.spellId ? currentGame.spells[reaction.spellId] : undefined;
+      const owner = spell
+        ? Object.values(currentGame.investigators).find((candidate) => candidate.spellIds.includes(spell.id))
+        : undefined;
+      const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+      const stat = reaction?.spellLossStat === "sanity" ? "sanity" : "health";
+      const triggerType = stat === "health" ? "on-health-loss" : "on-sanity-loss";
+      const effectIndex = definition?.frontEffects.findIndex((effect) => effect.type === triggerType) ?? -1;
+      if (reaction && spell && owner && definition && effectIndex >= 0) {
+        const preventedAmount = getSpellLossPrevention(definition, spell.backId, effectIndex, stat, diceTest);
+        const preparedGame: GameState = {
+          ...currentGame,
+          pendingDecision: null,
+          spells: {
+            ...currentGame.spells,
+            [spell.id]: {
+              ...spell,
+              flipped: true,
+              pendingTestResult: diceTest,
+              pendingChosenInvestigatorId: reaction.target ?? testDecision.investigatorId,
+            },
+          },
+        };
+        const resolved = resolveEncounterEffects(preparedGame, testDecision.investigatorId, [
+          { ...reaction, preventedAmount },
+          ...(testDecision.onComplete ?? []),
+        ], eldritchBaseMap);
+        setGame(resolved);
+        setSpellPreviewId(spell.id);
         setDiceTest(null);
         setPendingTestDecision(null);
         pendingTestDecisionRef.current = null;
@@ -2900,7 +3008,7 @@ function App() {
     }
   }
 
-  function handleFlowCombat() {
+  function handleFlowCombat(skipSpellPrompt = false) {
     if (!game) {
       return;
     }
@@ -2914,6 +3022,12 @@ function App() {
     ) {
       return;
     }
+
+    if (!skipSpellPrompt && getCombatSpellOptions(game).length > 0) {
+      setCombatSpellPrompt(true);
+      return;
+    }
+    setCombatSpellPrompt(false);
 
     try {
       const updatedGame =
@@ -3727,6 +3841,7 @@ function App() {
                   }
 
                   conditionActions={getConditionLocalActions(game, activeInvestigator.id)}
+                  spellActions={getActionSpellOptions(game)}
 
                   onStartTravel={
                     handleStartTravel
@@ -3749,6 +3864,7 @@ function App() {
                   }
 
                   onConditionAction={handleConditionLocalAction}
+                  onSpellAction={handleActivateSpell}
 
                   onEndTravel={
                     handleEndTravel
@@ -3904,6 +4020,8 @@ function App() {
             !game.pendingSpellChoice &&
             !diceTest &&
             !spellTest &&
+            !spellPreviewId &&
+            !Object.values(game.spells).some((spell) => spell.pendingTestResult) &&
             !encounterStartedForTurn
           }
 
@@ -3919,7 +4037,7 @@ function App() {
           }
 
           onStartEncounter={
-            handleStartEncounter
+            () => handleStartEncounter()
           }
 
           onEndEncounter={
@@ -4198,7 +4316,7 @@ function App() {
                 handleSingleDieRoll
               }
               onCombat={
-                handleFlowCombat
+                () => handleFlowCombat()
               }
               onMonsterAbility={
                 handleMonsterAbility
@@ -4466,6 +4584,44 @@ function App() {
         {/* SPELL CHOICE */}
         {/* ================================================== */}
 
+        {encounterSpellPrompt && getEncounterSpellOptions(game).length > 0 && (
+          <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
+            <section role="dialog" aria-modal="true" aria-label="Spells before the Encounter" className="max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-600 bg-slate-900 p-6 text-white">
+              <h2 className="text-2xl font-black">Before the Encounter</h2>
+              <p className="mt-2 text-slate-300">You may use these Spells before choosing an encounter or fighting Monsters.</p>
+              <div className="my-5 grid gap-4 sm:grid-cols-2">
+                {getEncounterSpellOptions(game).map((option) => (
+                  <button key={option.spellId} type="button" className="rounded-xl border border-purple-500 bg-slate-800 p-4 hover:bg-slate-700" onClick={() => { setEncounterSpellPrompt(false); handleActivateSpell(option.spellId, option.effectIndex); }}>
+                    <img src={option.image} alt={option.name} className="mx-auto h-60 object-contain" />
+                    <p className="mt-3 font-bold">Use {option.name}</p>
+                    <p className="mt-2 text-sm text-slate-300">{option.description}</p>
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="rounded-lg bg-blue-700 px-5 py-3 font-bold" onClick={() => handleStartEncounter(true)}>Continue without a Spell</button>
+            </section>
+          </div>
+        )}
+
+        {combatSpellPrompt && getCombatSpellOptions(game).length > 0 && (
+          <div className="fixed inset-0 z-10000 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm">
+            <section role="dialog" aria-modal="true" aria-label="Spells during Combat" className="max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-red-700 bg-slate-950 p-6 text-white shadow-2xl">
+              <h2 className="text-2xl font-black">Before Combat</h2>
+              <p className="mt-2 text-slate-300">You may use one of these Spells for this Combat Encounter.</p>
+              <div className="my-5 grid gap-4 sm:grid-cols-2">
+                {getCombatSpellOptions(game).map((option) => (
+                  <button key={option.spellId} type="button" className="rounded-xl border border-purple-500 bg-slate-800 p-4 hover:bg-slate-700" onClick={() => { setCombatSpellPrompt(false); handleActivateSpell(option.spellId, option.effectIndex); }}>
+                    <img src={option.image} alt={option.name} className="mx-auto h-60 object-contain" />
+                    <p className="mt-3 font-bold">Use {option.name}</p>
+                    <p className="mt-2 text-sm text-slate-300">{option.description}</p>
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="rounded-lg bg-red-700 px-5 py-3 font-bold hover:bg-red-600" onClick={() => handleFlowCombat(true)}>Continue without a Spell</button>
+            </section>
+          </div>
+        )}
+
         {game.pendingSpellChoice && (
           <SpellChoiceModal
             investigators={Object.values(
@@ -4590,7 +4746,7 @@ function App() {
         {game.cardRevealQueue?.[0] && (() => {
           const reveal = game.cardRevealQueue[0];
           return (
-            <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <div className="fixed inset-0 z-10001 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
               <section role="dialog" aria-modal="true" aria-labelledby="gained-card-title" className="w-full max-w-lg rounded-2xl border border-slate-600 bg-slate-900 p-6 text-center text-white shadow-2xl">
                 <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-sky-300">New {reveal.kind} gained</p>
                 <h2 id="gained-card-title" className="mb-5 text-2xl font-bold">{reveal.name}</h2>

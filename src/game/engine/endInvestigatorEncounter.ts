@@ -266,6 +266,7 @@ export function endInvestigatorEncounter(
 
       activeCombatSkillModifiers: (game.activeCombatSkillModifiers ?? []).filter((modifier) => modifier.investigatorId !== investigatorId),
 
+      ignoreMonstersForNextEncounter: false,
       activeInvestigatorId:
         nextInvestigatorId,
 
@@ -318,6 +319,7 @@ export function endInvestigatorEncounter(
 
     activeCombatSkillModifiers: [],
 
+    ignoreMonstersForNextEncounter: false,
     phase: "mythos",
 
     activeInvestigatorId: null,

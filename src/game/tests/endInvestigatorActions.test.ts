@@ -58,6 +58,16 @@ function makeInvestigator(
     personalStoryProgress: 0,
 
     ...overrides,
+
+    /*
+     * defeatType is required by Investigator.
+     *
+     * Keep it after ...overrides so a Partial<Investigator>
+     * with defeatType: undefined cannot produce an invalid
+     * Investigator.
+     */
+    defeatType:
+      overrides.defeatType ?? null,
   };
 }
 

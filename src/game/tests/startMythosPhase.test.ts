@@ -44,6 +44,7 @@ function makeInvestigator(
 
     isDelayed: false,
     isDefeated: false,
+    defeatType: null,
 
     assetIds: [],
     spellIds: [],

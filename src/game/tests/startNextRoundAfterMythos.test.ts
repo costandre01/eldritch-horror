@@ -56,6 +56,9 @@ function makeInvestigator(
     personalStoryProgress: 0,
 
     ...overrides,
+
+    defeatType:
+      overrides.defeatType ?? null,
   };
 }
 

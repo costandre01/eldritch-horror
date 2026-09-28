@@ -30,7 +30,7 @@ import { resolveMonsterToughness } from "./resolveMonsterToughness";
 import { spawnMonsterAtSpace } from "./spawnMonster";
 import { startNextRoundAfterMythos } from "./startNextRoundAfterMythos";
 import { checkActiveMystery } from "./checkActiveMystery";
-import { coreInvestigators } from "../../content/core/investigators";
+import { getNextReplacementDecision } from "./resolveDefeatedInvestigatorReplacement";
 
 /*
  * ============================================================
@@ -123,30 +123,6 @@ export function resolveMythos(
   const isPersistentMythos =
     mythos.type === "ongoing" ||
     mythos.type === "rumor";
-
-    if (
-      isPersistentMythos &&
-      startIconIndex === 0
-    ) {
-      currentGame = {
-        ...currentGame,
-
-        board: {
-          ...currentGame.board,
-
-          mythosInPlay: [
-            ...currentGame.board.mythosInPlay,
-
-            {
-              definitionId:
-                mythos.id,
-
-              eldritchTokens: 0,
-            },
-          ],
-        },
-      };
-    }
 
   /*
    * ============================================================
@@ -305,10 +281,18 @@ export function resolveMythos(
               icon.spaceId,
             );
 
-          return showMythosContinue(
-            currentGame,
-            iconIndex + 1,
-          );
+          return {
+            ...currentGame,
+            pendingDecision: {
+              type: "mythos-rumor",
+              title: "Spawn Rumor",
+              message: "A Rumor token is placed on the map.",
+              spaceIds: [icon.spaceId],
+              spaceNames: [map.spaces.find((space) => space.id === icon.spaceId)?.name ?? icon.spaceId],
+              nextIconIndex: iconIndex + 1,
+              source: "mythos:spawn-rumor",
+            },
+          };
         }
 
         /*
@@ -318,6 +302,22 @@ export function resolveMythos(
         */
 
         case "place-eldritch-tokens": {
+          if (
+            isPersistentMythos &&
+            !currentGame.board.mythosInPlay.some((entry) => entry.definitionId === mythos.id)
+          ) {
+            currentGame = {
+              ...currentGame,
+              board: {
+                ...currentGame.board,
+                mythosInPlay: [
+                  ...currentGame.board.mythosInPlay,
+                  { definitionId: mythos.id, eldritchTokens: 0 },
+                ],
+              },
+            };
+          }
+
           currentGame =
             addMythosEldritchTokens(
               currentGame,
@@ -337,6 +337,25 @@ export function resolveMythos(
           );
       }
     }
+
+  // Ongoing and Rumor cards enter play while resolving their text, after
+  // all icons. In particular, a newly drawn card must not resolve its own
+  // Reckoning effect from the Reckoning icon printed above that text.
+  if (
+    isPersistentMythos &&
+    !currentGame.board.mythosInPlay.some((entry) => entry.definitionId === mythos.id)
+  ) {
+    currentGame = {
+      ...currentGame,
+      board: {
+        ...currentGame.board,
+        mythosInPlay: [
+          ...currentGame.board.mythosInPlay,
+          { definitionId: mythos.id, eldritchTokens: 0 },
+        ],
+      },
+    };
+  }
 
   /*
    * ============================================================
@@ -1294,86 +1313,21 @@ export function resolveMythos(
 
   /*
   * ============================================================
-  * CHOOSE NEW INVESTIGATOR AFTER DEFEAT
+  * REPLACE DEFEATED INVESTIGATORS
   * ============================================================
   *
-  * A defeated Investigator is replaced only at the
-  * end of the Mythos Phase.
-  *
-  * Replacement happens before choosing the new Lead.
+  * Investigators defeated during this round choose their
+  * replacements at the end of the Mythos Phase, before the
+  * Lead Investigator is selected for the next round.
   */
 
   if (
-    currentGame.pendingInvestigatorReplacements.length > 0
+    currentGame.pendingInvestigatorReplacements.length >
+    0
   ) {
-    const defeatedInvestigatorId =
-      currentGame.pendingInvestigatorReplacements[0];
-
-    if (!defeatedInvestigatorId) {
-      throw new Error(
-        "Pending Investigator replacement is missing investigatorId.",
-      );
-    }
-
-    /*
-    * An Investigator cannot be chosen again if that
-    * Investigator is already present in the game,
-    * including defeated Investigators.
-    */
-    const availableInvestigatorDefinitions =
-      coreInvestigators.filter(
-        (definition) =>
-          !Object.values(
-            currentGame.investigators,
-          ).some(
-            (investigator) =>
-              investigator.definitionId ===
-              definition.id,
-          ),
-      );
-
-    /*
-    * No Investigator is available.
-    *
-    * The player is eliminated. If there are no
-    * remaining active Investigators, the game is lost.
-    */
-    if (
-      availableInvestigatorDefinitions.length === 0
-    ) {
-      return {
-        ...currentGame,
-        status: "defeat",
-        activeInvestigatorId: null,
-        pendingDecision: null,
-      };
-    }
-
-    return {
-      ...currentGame,
-
-      activeInvestigatorId:
-        null,
-
-      pendingDecision: {
-        type: "select-investigator",
-
-        title:
-          "Choose a New Investigator",
-
-        message:
-          "Your Investigator was defeated. Choose a new Investigator.",
-
-        investigatorIds:
-          availableInvestigatorDefinitions.map(
-            (definition) =>
-              definition.id,
-          ),
-
-        source:
-          `mythos:defeated-replacement:${defeatedInvestigatorId}`,
-      },
-    };
+    return getNextReplacementDecision(
+      currentGame,
+    );
   }
 
   /*

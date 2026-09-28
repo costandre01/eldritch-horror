@@ -131,10 +131,17 @@ export function advanceOmen(
         0,
       );
 
+    const azathothTokenCount =
+      currentGame.ancientOne.id === "azathoth"
+        ? currentGame.ancientOne.eldritchTokenPositions.filter(
+            (position) => normalizeOmenPosition(position) === newPosition,
+          ).length
+        : 0;
+
     const gameAfterDoom =
       advanceDoom(
         currentGame,
-        matchingGateCount,
+        matchingGateCount + azathothTokenCount,
       );
 
     currentGame = {

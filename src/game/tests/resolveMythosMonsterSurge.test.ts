@@ -1,3 +1,4 @@
+import { resolveGameFlowContinue } from "../engine/resolveGameFlowContinue";
 import {
   describe,
   expect,
@@ -303,11 +304,14 @@ describe(
         expect(
           result.pendingDecision,
         ).toMatchObject({
-          type: "continue",
-
-          source:
-            "mythos-card:3",
+          type: "mythos-monsters",
+          source: "mythos:spawn-monsters",
+          nextIconIndex: 3,
         });
+        const continued = resolveGameFlowContinue(result, createTestMap()).game;
+        expect(continued.pendingDecision).toMatchObject({ type: "continue", source: "mythos-card:3" });
+        expect(continued.board).toEqual(result.board);
+        expect(continued.monsters).toEqual(result.monsters);
       },
     );
 
@@ -354,11 +358,14 @@ describe(
         expect(
           result.pendingDecision,
         ).toMatchObject({
-          type: "continue",
-
-          source:
-            "mythos-card:4",
+          type: "mythos-monsters",
+          source: "mythos:spawn-monsters",
+          nextIconIndex: 4,
         });
+        const continued = resolveGameFlowContinue(result, createTestMap()).game;
+        expect(continued.pendingDecision).toMatchObject({ type: "continue", source: "mythos-card:4" });
+        expect(continued.board).toEqual(result.board);
+        expect(continued.monsters).toEqual(result.monsters);
       },
     );
 
@@ -420,11 +427,14 @@ describe(
         expect(
           result.pendingDecision,
         ).toMatchObject({
-          type: "continue",
-
-          source:
-            "mythos-card:5",
+          type: "mythos-monsters",
+          source: "mythos:spawn-monsters",
+          nextIconIndex: 5,
         });
+        const continued = resolveGameFlowContinue(result, createTestMap()).game;
+        expect(continued.pendingDecision).toMatchObject({ type: "continue", source: "mythos-card:5" });
+        expect(continued.board).toEqual(result.board);
+        expect(continued.monsters).toEqual(result.monsters);
       },
     );
 
@@ -598,11 +608,14 @@ describe(
         expect(
           result.pendingDecision,
         ).toMatchObject({
-          type: "continue",
-
-          source:
-            "mythos-card:7",
+          type: "mythos-monsters",
+          source: "mythos:spawn-monsters",
+          nextIconIndex: 7,
         });
+        const continued = resolveGameFlowContinue(result, createTestMap()).game;
+        expect(continued.pendingDecision).toMatchObject({ type: "continue", source: "mythos-card:7" });
+        expect(continued.board).toEqual(result.board);
+        expect(continued.monsters).toEqual(result.monsters);
       },
     );
 
@@ -718,11 +731,14 @@ describe(
         expect(
           result.pendingDecision,
         ).toMatchObject({
-          type: "continue",
-
-          source:
-            "mythos-card:9",
+          type: "mythos-gates",
+          source: "mythos:spawn-gates",
+          nextIconIndex: 9,
         });
+        const continued = resolveGameFlowContinue(result, createTestMap()).game;
+        expect(continued.pendingDecision).toMatchObject({ type: "continue", source: "mythos-card:9" });
+        expect(continued.board).toEqual(result.board);
+        expect(continued.monsters).toEqual(result.monsters);
       },
     );
 
@@ -825,11 +841,14 @@ describe(
         expect(
           result.pendingDecision,
         ).toMatchObject({
-          type: "continue",
-
-          source:
-            "mythos-card:11",
+          type: "mythos-gates",
+          source: "mythos:spawn-gates",
+          nextIconIndex: 11,
         });
+        const continued = resolveGameFlowContinue(result, createTestMap()).game;
+        expect(continued.pendingDecision).toMatchObject({ type: "continue", source: "mythos-card:11" });
+        expect(continued.board).toEqual(result.board);
+        expect(continued.monsters).toEqual(result.monsters);
       },
     );
   },

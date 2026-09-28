@@ -1805,20 +1805,22 @@ describe(
             eldritchTokens: 0,
           },
         ];
+        game.board.mythosDiscard = [];
 
         addGeneralEncounter(
           game,
         );
 
-        expect(() =>
-            resolveCombatEncounterEnd(
-                game,
-                createTestMap(),
-                "tick-tock-men-1",
-            ),
-        ).toThrow(
-            'Mythos "lost-knowledge" is not a Rumor.',
+        const result = resolveCombatEncounterEnd(
+          game,
+          createTestMap(),
+          "tick-tock-men-1",
         );
+
+        expect(result.board.mythosInPlay).toEqual([]);
+        expect(result.board.mythosDiscard.some(
+          (mythos) => mythos.id === "lost-knowledge",
+        )).toBe(true);
       },
     );
 

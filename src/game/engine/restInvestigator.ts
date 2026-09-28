@@ -42,6 +42,18 @@ export function restInvestigator(
     );
   }
 
+  const hasMonsterOnSpace =
+    Object.values(game.monsters).some(
+      (monster) =>
+        monster.spaceId === investigator.spaceId,
+    );
+
+  if (hasMonsterOnSpace) {
+    throw new Error(
+      "Investigator cannot perform Rest while a Monster is on their space.",
+    );
+  }
+
   /*
    * ============================================================
    * REST
@@ -109,7 +121,7 @@ export function restInvestigator(
   const restedInvestigator = currentGame.investigators[investigatorId];
   const witchDoctorOwner = restedInvestigator?.spaceId
     ? Object.values(currentGame.investigators).find((owner) =>
-        owner.spaceId === restedInvestigator.spaceId &&
+        !owner.isDefeated && owner.spaceId === restedInvestigator.spaceId &&
         owner.assetIds.some((assetId) => currentGame.assets[assetId]?.name === "Witch Doctor"),
       )
     : undefined;

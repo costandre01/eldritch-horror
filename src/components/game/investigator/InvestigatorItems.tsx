@@ -11,6 +11,7 @@ export default function InvestigatorItems({
   onSelect,
 }: InvestigatorItemsProps) {
   const getAssetImage = (asset: Asset) => {
+    if (asset.image) return asset.image;
     const filename = asset.name
       .trim()
       .replace(/\s+/g, "_")

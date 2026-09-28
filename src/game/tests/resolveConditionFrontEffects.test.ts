@@ -345,7 +345,7 @@ describe(
         ).toEqual([]);
 
         expect(
-          result.game.board.conditionDiscard,
+          result.game.board.conditionDeck,
         ).toContain(
           "condition-1",
         );

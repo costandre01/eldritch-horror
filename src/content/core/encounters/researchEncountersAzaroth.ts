@@ -17,10 +17,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-1/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-1/Azathoth_Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-1/Azathoth_Research-Encounter-back-1.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-1/Azathoth-Research-Encounter-back-1.png",
 
         text:
             "Inside a warehouse, you hear a clanging sound and discover a creature that resembles a metallic crate walking around on several legs. You try to follow the thing back to the cult's lair ([observation]-1). If you pass, gain this [clue] Clue and 1 additional Clue.",
@@ -65,10 +65,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-1/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-1/Azathoth_Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-1/Azathoth_Research-Encounter-back-1.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-1/Azathoth-Research-Encounter-back-1.png",
 
         text:
             "A meteor exploded in the air, scattering a glowing green powder. You try to find a sufficient amount of the compound ([observation]-1). If you pass, gain this [clue] Clue and move the Omen token to any space on the track without advancing Doom. If you fail, you are exposed to the terrible energy emanating from the substance; lose [health] 1 Health.",
@@ -122,10 +122,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-1/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-1/Azathoth_Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounter-1/Azathoth-Research-Encounter-back-1.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-1/Azathoth-Research-Encounter-back-1.png",
 
         text:
             "You overhear the navigator say that the stars are not as they should be. The ship is utterly lost. You believe you understand the significance of the new alignment of stars.",
@@ -174,10 +174,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-2/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-2/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-2/Azathoth_Research-Encounter-back-2.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-2/Azathoth_Research-Encounter-back-2.png",
 
         text:
             "A few hours before the performance of the opera Massa di Requiem per Shuggay you have a chance to examine the libretto.",
@@ -226,10 +226,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-2/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-2/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-2/Azathoth_Research-Encounter-back-2.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-2/Azathoth_Research-Encounter-back-2.png",
 
         text:
             "Mi-go have dug up the meteor that you were seeking. Curious, you attempt to spy on them.",
@@ -279,10 +279,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-2/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-2/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-2/Azathoth_Research-Encounter-back-2.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-2/Azathoth_Research-Encounter-back-2.png",
 
         text:
             "Your ship is destroyed by a glowing rock that fell from the sky! Gain this Clue. You struggle to reach wreckage that can keep you afloat.",
@@ -331,10 +331,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-3/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-3/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-3/Azathoth_Research-Encounter-back-3.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-3/Azathoth-Research-Encounter-back-3.png",
 
         text:
             "Scientists report that their sample of radium was stolen! Your investigation indicates a connection to worshippers of Azathoth.",
@@ -383,10 +383,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-3/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-3/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-3/Azathoth_Research-Encounter-back-3.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-3/Azathoth-Research-Encounter-back-3.png",
 
         text:
             "An eerie mist surrounds you, and you find yourself in the court of Azathoth! Gain this Clue. Your mind can barely endure what you are seeing.",
@@ -439,10 +439,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-3/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-3/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-3/Azathoth_Research-Encounter-back-3.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-3/Azathoth-Research-Encounter-back-3.png",
 
         text:
             "You dream of floating through space, watching stars disappear. You try to recognize constellations so you'll remember which stars disappeared.",
@@ -490,10 +490,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-4/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-4/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-4/Azathoth_Research-Encounter-back-4.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-4/Azathoth-Research-Encounter-back-4.png",
 
         text:
             "A team of geologists have disappeared after studying a chunk of rock that was retrieved from a nearby crater. You visit their lab and feel waves of strange energy emanating from the stone, eroding your body from the inside.",
@@ -543,10 +543,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-4/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-4/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-4/Azathoth_Research-Encounter-back-4.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-4/Azathoth-Research-Encounter-back-4.png",
 
         text:
             "This far away from city lights, you get an unparalleled view of the night sky. You comb the sky, hoping to catch sight of a meteor shower.",
@@ -595,10 +595,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-4/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-4/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-4/Azathoth_Research-Encounter-back-4.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-4/Azathoth-Research-Encounter-back-4.png",
 
         text:
             "The Nemesis Moon, Ghroth, looms in the sky. You don't know why it's here, but you know that it is the harbinger of doom. Gain this Clue and place 1 Eldritch token on the green space of the Omen track.",
@@ -638,10 +638,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-5/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-5/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-5/Azathoth_Research-Encounter-back-5.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-5/Azathoth-Research-Encounter-back-5.png",
 
         text:
             "Doctors ask you to observe a trephination. They pull away a piece of his skull, and you examine the brain.",
@@ -689,10 +689,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-5/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-5/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-5/Azathoth_Research-Encounter-back-5.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-5/Azathoth-Research-Encounter-back-5.png",
 
         text:
             "You discover a twenty-foot tall, gray metallic cone! Gain this Clue. You try to make sense of the alien technology inside.",
@@ -741,10 +741,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-5/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-5/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-5/Azathoth_Research-Encounter-back-5.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-5/Azathoth-Research-Encounter-back-5.png",
 
         text:
             "You wake up to find a large, winged creature in your cabin. It offers you an object to use in your fight against Azathoth. You may gain a Dark Pact Condition to gain this Clue and the T'tka Halot Artifact.",
@@ -809,10 +809,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-6/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-6/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-6/Azathoth_Research-Encounter-back-6.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-6/Azathoth-Research-Encounter-back-6.png",
 
         text:
             "You attend a reading by Edward Pickman Derby from his book Azathoth and Other Horrors and ask him about the occult.",
@@ -860,10 +860,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-6/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-6/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-6/Azathoth_Research-Encounter-back-6.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-6/Azathoth-Research-Encounter-back-6.png",
 
         text:
             "You examine an odd cave painting by torchlight. It depicts Azathoth sitting on a throne in the center of a starry spiral. You search for any signs of the painting's source.",
@@ -911,10 +911,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-6/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-6/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-6/Azathoth_Research-Encounter-back-6.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-6/Azathoth-Research-Encounter-back-6.png",
 
         text:
             "You watch a meteor shower streak across the night sky.",
@@ -962,10 +962,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-7/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-7/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-7/Azathoth_Research-Encounter-back-7.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-7/Azathoth-Research-Encounter-back-7.png",
 
         text:
             "Something in your brain is manipulating your memories, trying to control you.",
@@ -1015,10 +1015,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-7/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-7/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-7/Azathoth_Research-Encounter-back-7.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-7/Azathoth-Research-Encounter-back-7.png",
 
         text:
             "You ask the villagers about their peculiar folklore.",
@@ -1067,10 +1067,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-7/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-7/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-7/Azathoth_Research-Encounter-back-7.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-7/Azathoth-Research-Encounter-back-7.png",
 
         text:
             "A volcano throws smoke and burning ash into the air. Despite the toxic fumes, you force yourself to continue watching.",
@@ -1120,10 +1120,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-8/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-8/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-8/Azathoth_Research-Encounter-back-8.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-8/Azathoth-Research-Encounter-back-8.png",
 
         text:
             "The university allows you to use its telescope to search for signs of a green comet.",
@@ -1172,10 +1172,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-8/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-8/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-8/Azathoth_Research-Encounter-back-8.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-8/Azathoth-Research-Encounter-back-8.png",
 
         text:
             "Something attacks you in the dark. Lose 1 Health. To your eyes, there's nothing around you but trees.",
@@ -1225,10 +1225,10 @@ export const researchEncountersAzaroth: EncounterDefinition[] = [
         region: "research",
 
         frontImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-8/Azathoth_Research-Encounter.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-8/Azathoth-Research-Encounter.png",
 
         backImage:
-            "/cards/encounters/Research-encounters/Azathoth-Research-encounters-8/Azathoth_Research-Encounter-back-8.png",
+            "/cards/encounters/Research-encounters/Azaroth-Research-encounters-8/Azathoth-Research-Encounter-back-8.png",
 
         text:
             "A pale, blubbery-looking sailor tells you of a dream he's been having about a green stone at the bottom of the ocean. Gain this Clue. You try to use his description to determine the actual location.",

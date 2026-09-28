@@ -9,6 +9,7 @@ import {
 import type { GameState } from "../models/GameState";
 
 import { endInvestigatorEncounter } from "../engine/endInvestigatorEncounter";
+import type { Investigator } from "../models/Investigator";
 
 function makeInvestigator(
   overrides: Record<string, unknown> = {},
@@ -60,6 +61,11 @@ function makeInvestigator(
     personalStoryProgress: 0,
 
     ...overrides,
+
+    defeatType:
+      (overrides.defeatType as
+        | Investigator["defeatType"]
+        | undefined) ?? null,
   };
 }
 

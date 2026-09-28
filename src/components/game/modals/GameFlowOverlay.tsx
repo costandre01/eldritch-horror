@@ -13,8 +13,8 @@ import AncientOneReckoningModal from "./AncientOneReckoningModal";
 import YogSothothReckoningModal from "./YogSothothReckoningModal";
 import InvestigatorPreviewModal from "../../investigators/InvestigatorPreviewModal";
 import EldritchMap from "../board/EldritchMap";
+import MythosPlacementModal from "./MythosPlacementModal";
 import { getEffectiveSkill } from "../../../game/engine/getEffectiveSkill";
-import { eldritchMapPositions } from "../../../content/core/maps/eldritchMapPositions";
 
 interface GameFlowOverlayProps {
   game: GameState;
@@ -275,8 +275,8 @@ export default function GameFlowOverlay({
   const isMythosOmen =
     decision.type === "mythos-omen";
 
-  const isMythosClues =
-    decision.type === "mythos-clues";
+  const isMythosPlacement =
+    decision.type === "mythos-clues" || decision.type === "mythos-rumor" || decision.type === "mythos-monsters" || decision.type === "mythos-gates";
 
   const omenCurrentPosition =
     isMythosOmen
@@ -294,7 +294,6 @@ export default function GameFlowOverlay({
   const [omenProgress, setOmenProgress] =
     useState(0);
 
-  const [clueAnimationComplete, setClueAnimationComplete] = useState(false);
 
   const [
     previewInvestigatorId,
@@ -389,18 +388,6 @@ export default function GameFlowOverlay({
     omenTargetPosition,
   ]);
 
-  useEffect(() => {
-    if (!isMythosClues || decision.type !== "mythos-clues") {
-      setClueAnimationComplete(false);
-      return;
-    }
-    setClueAnimationComplete(false);
-    const timer = window.setTimeout(
-      () => setClueAnimationComplete(true),
-      850 + Math.max(0, decision.spaceIds.length - 1) * 320,
-    );
-    return () => window.clearTimeout(timer);
-  }, [isMythosClues, decision]);
   /*
   * ============================================================
   * ENCOUNTER
@@ -1262,90 +1249,8 @@ export default function GameFlowOverlay({
     );
   }
 
-  if (decision.type === "mythos-clues") {
-    const clueSpaceNames = decision.spaceNames?.length
-      ? decision.spaceNames
-      : decision.spaceIds.map((spaceId) => spaceId.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
-    const newlySpawnedClueIds = new Set(
-      decision.clueTokenIds ?? decision.spaceIds.map((spaceId) => `clue-${spaceId}`),
-    );
-    const mapDisplayGame: GameState = {
-      ...game,
-      board: {
-        ...game.board,
-        spaces: Object.fromEntries(
-          Object.entries(game.board.spaces).map(([spaceId, space]) => {
-            const visibleClueTokenIds = space.clueTokenIds.filter(
-              (clueTokenId) => !newlySpawnedClueIds.has(clueTokenId),
-            );
-            const hiddenCount = space.clueTokenIds.length - visibleClueTokenIds.length;
-            return [
-              spaceId,
-              hiddenCount > 0
-                ? { ...space, clueTokenIds: visibleClueTokenIds, clues: Math.max(0, space.clues - hiddenCount) }
-                : space,
-            ];
-          }),
-        ),
-      },
-    };
-    return (
-      <div className="fixed inset-0 z-200 flex items-center justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm">
-        <section className="mx-auto my-auto flex max-h-[calc(100dvh-24px)] w-[min(94vw,1200px)] flex-col items-center overflow-y-auto rounded-3xl border border-gray-700 bg-[#172033] p-5 text-white shadow-2xl sm:p-7">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-300">MYTHOS PHASE</p>
-          <h2 className="mt-2 text-3xl font-black">{decision.title}</h2>
-          <p className="mt-2 text-center text-gray-300">{decision.message}</p>
-
-          <div className="mt-5 flex w-full justify-center">
-            <div className="relative aspect-3/2 w-full max-w-[1000px] overflow-hidden rounded-xl border-2 border-slate-600 bg-black shadow-2xl">
-              <EldritchMap
-                game={mapDisplayGame}
-                investigators={game.investigators}
-                doom={game.ancientOne.doom}
-                omenPosition={game.ancientOne.omenPosition}
-                assetReserve={game.board.assetReserve}
-              />
-            {decision.spaceIds.map((spaceId, index) => {
-              const position = eldritchMapPositions[spaceId];
-              if (!position) return null;
-              return (
-                <div
-                  key={`${spaceId}-${index}`}
-                  className="pointer-events-none absolute z-20 h-[5.5%] w-[3.8%] -translate-x-1/2 -translate-y-1/2"
-                  style={{
-                    left: `${position.x}%`,
-                    top: `${position.y}%`,
-                    animation: `mythosClueDrop 700ms cubic-bezier(.2,.8,.3,1) ${index * 320}ms both`,
-                  }}
-                  title={spaceId}
-                >
-                  <span className="absolute -inset-[28%] rounded-full border-[3px] border-yellow-300 shadow-[0_0_16px_rgba(250,204,21,0.95)]" />
-                  <img src="/icons/game/clue.png" alt="New clue" className="relative h-full w-full rounded-full border-2 border-yellow-200 bg-amber-400 p-[2px] object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" />
-                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-yellow-300 px-1.5 py-0.5 text-[9px] font-black uppercase leading-none text-slate-950 shadow-lg">NEW</span>
-                </div>
-              );
-            })}
-            </div>
-          </div>
-
-          <p className="mt-4 text-center text-sm font-semibold uppercase tracking-widest text-slate-400">
-            {decision.spaceIds.length === 1 ? "1 clue placed on the map" : `${decision.spaceIds.length} clues placed on the map`}
-          </p>
-          <p className="mt-1 text-center text-sm font-bold text-yellow-200">
-            New clue{clueSpaceNames.length === 1 ? "" : "s"}: {clueSpaceNames.join(", ")}
-          </p>
-          <button
-            type="button"
-            onClick={onContinue}
-            disabled={!clueAnimationComplete}
-            className="mt-4 rounded-xl bg-blue-600 px-10 py-3 text-lg font-black text-white shadow-lg transition hover:bg-blue-500 disabled:cursor-wait disabled:opacity-50"
-          >
-            CONTINUE
-          </button>
-          <style>{`@keyframes mythosClueDrop { from { opacity: 0; transform: translate(-50%, -220%) scale(.55); } 70% { opacity: 1; transform: translate(-50%, 12%) scale(1.12); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }`}</style>
-        </section>
-      </div>
-    );
+  if (isMythosPlacement) {
+    return <MythosPlacementModal key={`${decision.type}:${decision.nextIconIndex}`} game={game} decision={decision} onContinue={onContinue} />;
   }
 
   /*

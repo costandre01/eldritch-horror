@@ -16,7 +16,7 @@ export function rollTest(
     investigator.skills[skill];
 
   const diceRolled = Math.max(
-    0,
+    1,
     skillValue + modifier,
   );
 

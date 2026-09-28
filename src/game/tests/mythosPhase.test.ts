@@ -328,20 +328,11 @@ describe(
           realMythos.id,
         );
 
-        /*
-         * The ongoing Mythos must now be in play.
-         */
+        /* A newly drawn Ongoing card enters play after its icons. */
 
         expect(
           resolvedGame.board.mythosInPlay,
-        ).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              definitionId:
-                realMythos.id,
-            }),
-          ]),
-        );
+        ).toEqual([]);
 
         /* The clue-spawn overlay should identify the new Clues. */
 

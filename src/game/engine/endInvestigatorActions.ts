@@ -1,5 +1,6 @@
 import type { GameState } from "../models/GameState";
 import { coreInvestigators } from "../../content/core/investigators";
+import { startMythosPhase } from "./startMythosPhase";
 
 export function endInvestigatorActions(
   game: GameState,
@@ -37,8 +38,23 @@ export function endInvestigatorActions(
   const currentIndex =
     game.investigatorTurnIndex;
 
-  const nextIndex =
+  let nextIndex =
     currentIndex + 1;
+
+  while (nextIndex < game.investigatorOrder.length) {
+    const candidateId = game.investigatorOrder[nextIndex];
+    const candidate = candidateId ? game.investigators[candidateId] : undefined;
+
+    if (candidateId && !candidate) {
+      throw new Error(`Investigator "${candidateId}" does not exist.`);
+    }
+
+    if (candidate && !candidate.isDefeated) {
+      break;
+    }
+
+    nextIndex++;
+  }
 
   /*
    * ============================================================
@@ -136,8 +152,40 @@ export function endInvestigatorActions(
    * Start Encounter Phase with Investigator 1.
    */
 
+  if (game.investigatorOrder.length === 0) {
+    throw new Error("There are no investigators in the turn order.");
+  }
+
+  let firstInvestigatorIndex = -1;
+  for (let index = 0; index < game.investigatorOrder.length; index++) {
+    const candidateId = game.investigatorOrder[index];
+    const candidate = candidateId ? game.investigators[candidateId] : undefined;
+    if (candidateId && !candidate) {
+      throw new Error(`Investigator "${candidateId}" does not exist.`);
+    }
+    if (candidate && !candidate.isDefeated) {
+      firstInvestigatorIndex = index;
+      break;
+    }
+  }
+
+  /*
+   * If everybody was defeated during the Action phase, the game
+   * continues through the round. Replacements are chosen only at
+   * the end of the Mythos phase.
+   */
+  if (firstInvestigatorIndex === -1) {
+    return startMythosPhase({
+      ...game,
+      phase: "mythos",
+      activeInvestigatorId: null,
+      investigatorTurnIndex: 0,
+      pendingDecision: null,
+    });
+  }
+
   const firstInvestigatorId =
-    game.investigatorOrder[0];
+    game.investigatorOrder[firstInvestigatorIndex];
 
   if (!firstInvestigatorId) {
     throw new Error(
@@ -198,7 +246,7 @@ export function endInvestigatorActions(
     activeInvestigatorId:
       firstInvestigatorId,
 
-    investigatorTurnIndex: 0,
+    investigatorTurnIndex: firstInvestigatorIndex,
 
     pendingDecision: {
       type: "investigator-turn",

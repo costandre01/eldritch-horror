@@ -185,7 +185,11 @@ export function replaceDefeatedInvestigator(
       spellDeck,
     },
 
-    activeInvestigatorId:
-      newInvestigator.id,
+    pendingInvestigatorReplacements:
+      game.pendingInvestigatorReplacements.filter(
+        (investigatorId) =>
+          investigatorId !==
+          defeatedInvestigatorId,
+      ),
   };
 }

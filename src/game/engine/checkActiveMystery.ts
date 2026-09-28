@@ -1,6 +1,5 @@
 import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
-import type { FinalMysteryId } from "../models/FinalMystery";
 import {
   solveActiveMystery,
 } from "./mysteryEngine";
@@ -13,37 +12,11 @@ import {
 import {
   resolveMonsterToughness,
 } from "./resolveMonsterToughness";
-import { startFinalMystery } from "./finalMysteryEngine";
 
 function getInvestigatorCount(
   game: GameState,
 ): number {
-  return Object.keys(
-    game.investigators,
-  ).length;
-}
-
-function getFinalMysteryId(
-  ancientOneId: string,
-): FinalMysteryId {
-  switch (ancientOneId) {
-    case "azathoth":
-      return "azathoth-world-is-devoured";
-
-    case "cthulhu":
-      return "cthulhu-risen-from-the-sea";
-
-    case "shub-niggurath":
-      return "shub-niggurath-battle-in-the-woods";
-
-    case "yog-sothoth":
-      return "yog-sothoth-the-key-and-the-gate";
-
-    default:
-      throw new Error(
-        `No Final Mystery exists for Ancient One "${ancientOneId}".`,
-      );
-  }
+  return game.investigatorOrder.length;
 }
 
 function isActiveMysteryComplete(
@@ -282,41 +255,18 @@ export function checkActiveMystery(
       ),
   };
 
-  /*
-   * ============================================================
-   * START FINAL MYSTERY
-   * ============================================================
-   *
-   * After the 3rd Mystery is solved, the game
-   * does not immediately end.
-   *
-   * A Final Mystery is created according to
-   * the current Ancient One.
-   */
-
+  // Before the Ancient One awakens, solving the required number of
+  // Mysteries wins the game. Final Mysteries belong exclusively to the
+  // awakened side of the Ancient One sheet.
   if (
     solvedGame.mysteries
-      .solvedMysteryIds.length >= 3 &&
-    solvedGame.finalMystery === null
+      .solvedMysteryIds.length >= 3
   ) {
-    const finalMysteryId =
-      getFinalMysteryId(
-        solvedGame.ancientOne.id,
-      );
-
-    const finalMysteryGame: GameState = {
+    return {
       ...solvedGame,
-
-      finalMystery: {
-        id: finalMysteryId,
-        eldritchTokenCount: 0,
-      },
+      status: "victory",
+      pendingDecision: null,
     };
-
-    return startFinalMystery(
-      finalMysteryGame,
-      map,
-    );
   }
 
   /*

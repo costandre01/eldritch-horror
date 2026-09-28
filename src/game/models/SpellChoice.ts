@@ -27,6 +27,8 @@ export interface SpellChoice {
 
   maxValueFromTestResult?: boolean;
 
+  optional?: boolean;
+
   /*
    * Effects that are resolved
    * immediately after the player makes

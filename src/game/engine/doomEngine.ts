@@ -1,4 +1,15 @@
 import type { GameState } from "../models/GameState";
+import type { FinalMysteryId } from "../models/FinalMystery";
+
+function getFinalMysteryId(ancientOneId: string): FinalMysteryId | null {
+  switch (ancientOneId) {
+    case "azathoth": return "azathoth-world-is-devoured";
+    case "cthulhu": return "cthulhu-risen-from-the-sea";
+    case "shub-niggurath": return "shub-niggurath-battle-in-the-woods";
+    case "yog-sothoth": return "yog-sothoth-the-key-and-the-gate";
+    default: return null;
+  }
+}
 
 export function advanceDoom(
   game: GameState,
@@ -31,6 +42,10 @@ export function advanceDoom(
 
   return {
     ...game,
+
+    finalMystery: ancientOneAwakens && getFinalMysteryId(game.ancientOne.id)
+      ? { id: getFinalMysteryId(game.ancientOne.id)!, eldritchTokenCount: 0 }
+      : game.finalMystery,
 
     ancientOne: {
       ...game.ancientOne,

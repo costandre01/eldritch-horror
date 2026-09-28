@@ -12,21 +12,35 @@ function gameWithCondition(definitionId: string, backId: string): GameState {
   const game = createTestGame();
   game.scenarioId = map.id;
   game.board = {
+    ...game.board,
+
     conditionDiscard: [],
+
     assetDiscard: [],
     assetDeck: [],
+
+    spellDiscard: [],
+    artifactDiscard: [],
+
     monsterCup: [],
-    spaces: Object.fromEntries(map.spaces.map((space) => [space.id, {
-      spaceId: space.id,
-      clues: 0,
-      clueTokenIds: [],
-      monsterIds: [],
-      gates: [],
-      expedition: space.isExpedition,
-      rumor: false,
-      eldritchTokenCount: 0,
-    }])),
-  } as unknown as GameState["board"];
+
+    spaces: Object.fromEntries(
+      map.spaces.map((space) => [
+        space.id,
+        {
+          spaceId: space.id,
+          clues: 0,
+          clueTokenIds: [],
+          monsterIds: [],
+          gates: [],
+          expedition:
+            space.isExpedition,
+          rumor: false,
+          eldritchTokenCount: 0,
+        },
+      ]),
+    ),
+  };
   game.ancientOne = {
     id: "azathoth",
     name: "Azathoth",
@@ -95,7 +109,7 @@ describe("resolveCondition back effects", () => {
 
     expect(result.investigators["investigator-1"]?.isDelayed).toBe(true);
     expect(result.investigators["investigator-1"]?.conditionIds).toEqual([]);
-    expect(result.board.conditionDiscard).toContain("condition-test");
+    expect(result.board.conditionDeck).toContain("condition-test");
     expect(result.pendingDecision).toBeNull();
   });
 
@@ -164,7 +178,7 @@ describe("resolveCondition back effects", () => {
     expect(result.cardRevealQueue?.at(-1)).toMatchObject({ id: item.id, name: item.name });
     expect(result.pendingDecision).toMatchObject({ type: "test", skill: "observation", minSuccesses: 3 });
     expect(result.investigators["investigator-1"]?.conditionIds).not.toContain("condition-test");
-    expect(result.board.conditionDiscard).toContain("condition-test");
+    expect(result.board.conditionDeck).toContain("condition-test");
     vi.restoreAllMocks();
   });
 
@@ -183,7 +197,7 @@ describe("resolveCondition back effects", () => {
 
     expect(result.pendingDecision).toEqual(game.pendingDecision);
     expect(result.investigators["investigator-1"]?.conditionIds).toEqual([]);
-    expect(result.board.conditionDiscard).toContain("condition-test");
+    expect(result.board.conditionDeck).toContain("condition-test");
     expect(result.board.assetDeck).toHaveLength(1);
   });
 
@@ -194,21 +208,62 @@ describe("resolveCondition back effects", () => {
 
     expect(result.investigators["investigator-1"]?.health).toBe(2);
     expect(result.investigators["investigator-1"]?.conditionIds).toEqual([]);
-    expect(result.board.conditionDiscard).toContain("condition-test");
+    expect(result.board.conditionDeck).toContain("condition-test");
   });
 
-  it("defeats an investigator resolving Cursed while at sea", () => {
-    const game = gameWithCondition("condition-cursed", "cursed-back-3");
-    game.investigators["investigator-1"]!.spaceId = "space-3";
-    const startingDoom = game.ancientOne.doom;
+  it("devours an investigator resolving Cursed while at sea", () => {
+    const game = gameWithCondition(
+      "condition-cursed",
+      "cursed-back-3",
+    );
 
-    const result = resolveCondition(game, "investigator-1", "condition-test");
+    game.investigators[
+      "investigator-1"
+    ]!.spaceId = "space-3";
 
-    expect(result.investigators["investigator-1"]?.isDefeated).toBe(true);
-    expect(result.investigators["investigator-1"]?.health).toBe(0);
-    expect(result.investigators["investigator-1"]?.sanity).toBe(0);
-    expect(result.ancientOne.doom).toBe(startingDoom - 1);
-    expect(result.board.conditionDiscard).toContain("condition-test");
+    const startingDoom =
+      game.ancientOne.doom;
+
+    const result = resolveCondition(
+      game,
+      "investigator-1",
+      "condition-test",
+    );
+
+    const investigator =
+      result.investigators[
+        "investigator-1"
+      ]!;
+
+    expect(
+      investigator.isDefeated,
+    ).toBe(true);
+
+    expect(
+      investigator.defeatType,
+    ).toBe("devoured");
+
+    expect(
+      investigator.spaceId,
+    ).toBeNull();
+
+    expect(
+      result.ancientOne.doom,
+    ).toBe(startingDoom - 1);
+
+    expect(
+      result.board.conditionDeck,
+    ).toContain("condition-test");
+
+    expect(
+      investigator.conditionIds,
+    ).toEqual([]);
+
+    expect(
+      result.pendingInvestigatorReplacements,
+    ).toContain(
+      "investigator-1",
+    );
   });
 
   it("advances the Omen and discards the Dark Pact back", () => {
@@ -218,7 +273,7 @@ describe("resolveCondition back effects", () => {
 
     expect(result.ancientOne.omenPosition).toBe(1);
     expect(result.investigators["investigator-1"]?.conditionIds).toEqual([]);
-    expect(result.board.conditionDiscard).toContain("condition-test");
+    expect(result.board.conditionDeck).toContain("condition-test");
   });
 
   it("does not spend a Clue or dismiss the choice when the investigator has none", () => {

@@ -954,6 +954,7 @@ export default function EldritchMap({
         {/* ================================================== */}
 
         <div
+          data-map-overlay
           className="
             pointer-events-none
             absolute
@@ -993,6 +994,7 @@ export default function EldritchMap({
         {/* ================================================== */}
 
         <div
+          data-map-overlay
           className="
             pointer-events-none
             absolute
@@ -1022,7 +1024,7 @@ export default function EldritchMap({
           />
         </div>
 
-        <div className="absolute inset-0">
+        <div data-map-overlay className="absolute inset-0">
 
           {/* ================================================== */}
           {/* BANK LOAN - FIXED BOARD CARD */}
@@ -1242,6 +1244,7 @@ export default function EldritchMap({
 
         {isHoveringMap && (
           <div
+            data-map-overlay
             className="
               pointer-events-none
               fixed

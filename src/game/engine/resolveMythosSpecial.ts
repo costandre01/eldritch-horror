@@ -11,6 +11,7 @@ import { advanceDoom } from "./doomEngine";
 import { gainCondition } from "./gainCondition";
 import { getInvestigatorConditionsByCategory } from "./getInvestigatorConditions";
 import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
+import { getGainableSpellIds } from "./getGainableSpellIds";
 import { hasMonsterReckoningAbility } from "./hasMonsterReckoningAbility";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { resolveConditionFrontEffects } from "./resolveConditionFrontEffects";
@@ -22,6 +23,7 @@ import { spawnMonsterAtSpace } from "./spawnMonster";
 import { startConditionReckoning } from "./startConditionReckoning";
 import { startMonsterReckoning } from "./startMonsterReckoning";
 import { startOtherWorldEncounter } from "./startOtherWorldEncounter";
+import { discardSpell } from "./discardSpell";
 
 const ALL_MYTHOS = [
     ...easyMythos,
@@ -88,7 +90,7 @@ function createSilverTwilightAidChoice(
         ]
       : []),
 
-    ...(game.board.spellDeck.length > 0
+    ...(getGainableSpellIds(game, investigator.id).length > 0
       ? [
           {
             id:
@@ -2140,23 +2142,9 @@ export function resolveMythosSpecial(
           * ------------------------------------------------------
           */
 
-          const discardedSpells =
-              investigator.spellIds
-                  .map(
-                      (spellId) =>
-                          currentGame.spells[
-                              spellId
-                          ],
-                  )
-                  .filter(
-                      (
-                          spell,
-                      ): spell is NonNullable<
-                          typeof spell
-                      > =>
-                          spell !==
-                          undefined,
-                  );
+          for (const spellId of [...investigator.spellIds]) {
+              currentGame = discardSpell(currentGame, investigator.id, spellId);
+          }
 
           /*
           * ------------------------------------------------------
@@ -2197,12 +2185,6 @@ export function resolveMythosSpecial(
                       ...currentGame.board
                           .assetDiscard,
                       ...discardedAssets,
-                  ],
-
-                  spellDiscard: [
-                      ...currentGame.board
-                          .spellDiscard,
-                      ...discardedSpells,
                   ],
 
                   artifactDiscard: [
@@ -2623,6 +2605,7 @@ export function resolveMythosSpecial(
           ],
         },
       };
+
     }
 
     case "burden-of-greed": {
@@ -3303,7 +3286,7 @@ export function resolveMythosSpecial(
        * Move all physical Clue tokens to the discard.
        */
 
-      return {
+      const updatedGame: GameState = {
         ...game,
 
         investigators:
@@ -3321,6 +3304,8 @@ export function resolveMythosSpecial(
           ],
         },
       };
+
+      return solveMythosRumor(updatedGame, mythos);
     }
 
     case "silver-twilight-aid": {

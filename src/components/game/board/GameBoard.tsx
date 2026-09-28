@@ -38,7 +38,7 @@ export default function GameBoard({
   doom,
 }: GameBoardProps) {
   return (
-    <section className="w-full min-w-0">
+    <section data-main-map className="w-full min-w-0">
       <EldritchMap
         game={game}
         investigators={game.investigators}

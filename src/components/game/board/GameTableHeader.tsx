@@ -593,7 +593,7 @@ export default function GameTableHeader({
             "/cards/artifacts/Ruby_of_R'lyeh.png",
 
           "Sword of Saint Jerome":
-            "/cards/artifacts/Sword_of_Saint_Jerome.png",
+            "/cards/artifacts/Sword_of_Saint_Jerome.webp",
 
           "The Silver Key":
             "/cards/artifacts/The_Silver_Key.png",
@@ -1182,7 +1182,7 @@ export default function GameTableHeader({
             count={
               artifactDeck.length
             }
-            image="/cards/artifacts/artifact_back.png"
+            image="/cards/artifacts/artifact_back.webp"
             disabled={
               artifactDeck.length === 0
             }

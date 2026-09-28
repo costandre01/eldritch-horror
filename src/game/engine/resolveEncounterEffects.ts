@@ -25,6 +25,8 @@ import type { EyesEverywhereResume } from "../models/PendingDecision";
 import { defeatInvestigator } from "./defeatInvestigator";
 import { coreSpells } from "../../content/core/coreSpell";
 import { returnRandomSolvedMysteryToDeck } from "./mysteryEngine";
+import { devourInvestigator } from "./devourInvestigator";
+import { getGainableSpellIds } from "./getGainableSpellIds";
 
 export function resolveEncounterEffects(
   game: GameState,
@@ -329,44 +331,229 @@ export function resolveEncounterEffects(
       }
 
       case "resolve-spell-loss": {
-        const targetId = effect.target ?? investigatorId;
-        const target = currentGame.investigators[targetId];
-        if (!target) throw new Error(`Investigator "${targetId}" does not exist.`);
-        const amountLost = Math.max(0, (effect.lossAmount ?? 0) - (effect.preventedAmount ?? 0));
-        const stat = effect.spellLossStat === "sanity" ? "sanity" : "health";
-        const nextValue = Math.max(0, target[stat] - amountLost);
-        let nextGame = currentGame;
+        const targetId =
+          effect.target ??
+          investigatorId;
+
+        const target =
+          currentGame.investigators[
+            targetId
+          ];
+
+        if (!target) {
+          throw new Error(
+            `Investigator "${targetId}" does not exist.`,
+          );
+        }
+
+        const amountLost =
+          Math.max(
+            0,
+            (effect.lossAmount ?? 0) -
+              (effect.preventedAmount ?? 0),
+          );
+
+        const stat =
+          effect.spellLossStat ===
+          "sanity"
+            ? "sanity"
+            : "health";
+
+        const nextValue =
+          Math.max(
+            0,
+            target[stat] -
+              amountLost,
+          );
+
+        let nextGame =
+          currentGame;
+
+        /*
+        * ============================================================
+        * DISCARD ASSET
+        * ============================================================
+        */
+
         if (effect.assetId) {
-          const owner = Object.values(currentGame.investigators).find((candidate) => candidate.assetIds.includes(effect.assetId!));
-          const asset = currentGame.assets[effect.assetId];
-          if (owner && asset) nextGame = {
-            ...nextGame,
-            investigators: { ...nextGame.investigators, [owner.id]: { ...owner, assetIds: owner.assetIds.filter((id) => id !== effect.assetId) } },
-            board: { ...nextGame.board, assetDiscard: [...nextGame.board.assetDiscard, asset] },
-          };
+          const owner =
+            Object.values(
+              nextGame.investigators,
+            ).find(
+              (candidate) =>
+                candidate.assetIds.includes(
+                  effect.assetId!,
+                ),
+            );
+
+          const asset =
+            nextGame.assets[
+              effect.assetId
+            ];
+
+          if (owner && asset) {
+            nextGame = {
+              ...nextGame,
+
+              investigators: {
+                ...nextGame.investigators,
+
+                [owner.id]: {
+                  ...owner,
+
+                  assetIds:
+                    owner.assetIds.filter(
+                      (id) =>
+                        id !==
+                        effect.assetId,
+                    ),
+                },
+              },
+
+              board: {
+                ...nextGame.board,
+
+                assetDiscard: [
+                  ...nextGame.board
+                    .assetDiscard,
+
+                  asset,
+                ],
+              },
+            };
+          }
         }
-        if (effect.preventedAmount && effect.spellLossStat === "sanity" && effect.artifactId) {
-          const clueOwner = nextGame.investigators[targetId];
-          if (clueOwner) nextGame = {
-            ...nextGame,
-            investigators: { ...nextGame.investigators, [targetId]: { ...clueOwner, clues: Math.max(0, clueOwner.clues - 1) } },
-            cardRerollUsedRound: { ...nextGame.cardRerollUsedRound, [`${targetId}:grotesque-statue`]: nextGame.round },
-          };
+
+        /*
+        * ============================================================
+        * GROTESQUE STATUE
+        * ============================================================
+        */
+
+        if (
+          effect.preventedAmount &&
+          effect.spellLossStat ===
+            "sanity" &&
+          effect.artifactId
+        ) {
+          const clueOwner =
+            nextGame.investigators[
+              targetId
+            ];
+
+          if (clueOwner) {
+            nextGame = {
+              ...nextGame,
+
+              investigators: {
+                ...nextGame.investigators,
+
+                [targetId]: {
+                  ...clueOwner,
+
+                  clues:
+                    Math.max(
+                      0,
+                      clueOwner.clues -
+                        1,
+                    ),
+                },
+              },
+
+              cardRerollUsedRound: {
+                ...nextGame
+                  .cardRerollUsedRound,
+
+                [`${targetId}:grotesque-statue`]:
+                  nextGame.round,
+              },
+            };
+          }
         }
+
+        /*
+        * ============================================================
+        * APPLY FINAL LOSS
+        * ============================================================
+        *
+        * IMPORTANT:
+        * Use the investigator from nextGame here.
+        *
+        * nextGame may already contain changes made above,
+        * such as discarded Assets or spent Clues.
+        * ============================================================
+        */
+
+        const updatedTarget =
+          nextGame.investigators[
+            targetId
+          ];
+
+        if (!updatedTarget) {
+          throw new Error(
+            `Investigator "${targetId}" does not exist.`,
+          );
+        }
+
         currentGame = {
           ...nextGame,
-          spells: effect.spellId && nextGame.spells[effect.spellId]
-            ? { ...nextGame.spells, [effect.spellId]: { ...nextGame.spells[effect.spellId], flipped: (effect.preventedAmount ?? 0) > 0 } }
-            : nextGame.spells,
+
+          spells:
+            effect.spellId &&
+            nextGame.spells[
+              effect.spellId
+            ]
+              ? {
+                  ...nextGame.spells,
+
+                  [effect.spellId]: {
+                    ...nextGame.spells[
+                      effect.spellId
+                    ],
+
+                    flipped: true,
+                  },
+                }
+              : nextGame.spells,
+
           investigators: {
-            ...currentGame.investigators,
-            [targetId]: { ...target, [stat]: nextValue },
+            ...nextGame.investigators,
+
+            [targetId]: {
+              ...updatedTarget,
+
+              [stat]:
+                nextValue,
+            },
           },
         };
-        if (nextValue <= 0 || (stat === "sanity" ? target.health : target.sanity) <= 0) {
-          currentGame = defeatInvestigator(currentGame, map, targetId);
+
+        /*
+        * ============================================================
+        * DEFEAT
+        * ============================================================
+        */
+
+        if (
+          nextValue <= 0 ||
+          (
+            stat === "sanity"
+              ? updatedTarget.health <=
+                0
+              : updatedTarget.sanity <=
+                0
+          )
+        ) {
+          currentGame =
+            defeatInvestigator(
+              currentGame,
+              map,
+              targetId,
+            );
+
           return currentGame;
         }
+
         break;
       }
 
@@ -880,10 +1067,7 @@ export function resolveEncounterEffects(
        */
 
       case "gain-spell": {
-        const spellIds =
-          currentGame.board.spellDeck.map(
-            (spell) => spell.id,
-          );
+        const spellIds = getGainableSpellIds(currentGame, investigatorId);
 
         if (spellIds.length === 0) {
           break;
@@ -927,8 +1111,10 @@ export function resolveEncounterEffects(
           break;
         }
 
-        const selectionCount =
-          effect.amount ?? 1;
+        const selectionCount = Math.min(
+          effect.amount ?? 1,
+          selectableSpellIds.length,
+        );
 
         currentGame = {
           ...currentGame,
@@ -2898,10 +3084,10 @@ export function resolveEncounterEffects(
       }
 
       /*
-       * ==========================================================
-       * DEVOURED
-       * ==========================================================
-       */
+      * ==========================================================
+      * DEVOURED
+      * ==========================================================
+      */
 
       case "devoured": {
         const investigator =
@@ -2915,40 +3101,8 @@ export function resolveEncounterEffects(
           );
         }
 
-        /*
-        * Being devoured immediately defeats the Investigator.
-        *
-        * Set Health and Sanity to 0 first so the final
-        * Investigator state reflects the devoured result.
-        */
-        currentGame = {
-          ...currentGame,
-
-          investigators: {
-            ...currentGame.investigators,
-
-            [investigatorId]: {
-              ...investigator,
-
-              health: 0,
-
-              sanity: 0,
-            },
-          },
-        };
-
-        /*
-        * Use the centralized defeat flow.
-        *
-        * This applies:
-        * - Doom +1
-        * - move to nearest City
-        * - discard Conditions
-        * - replacement queue
-        * - immediate Lead replacement if necessary
-        */
         currentGame =
-          defeatInvestigator(
+          devourInvestigator(
             currentGame,
             map,
             investigatorId,

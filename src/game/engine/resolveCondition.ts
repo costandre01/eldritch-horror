@@ -14,6 +14,7 @@ import { advanceOmen } from "./omenEngine";
 import { spawnMythosGates } from "./spawnMythosGates";
 import { defeatInvestigator } from "./defeatInvestigator";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
+import { devourInvestigator } from "./devourInvestigator";
 
 export function resolveCondition(
   game: GameState,
@@ -586,24 +587,40 @@ export function resolveCondition(
 
       case "if-on-sea-space": {
         if (currentSpace?.type === "sea") {
-          const devoured = effect.effects.some((nested) => nested.type === "devoured");
+          const devoured =
+            effect.effects.some(
+              (nested) =>
+                nested.type === "devoured",
+            );
+
           if (devoured) {
-            const liveInvestigator = currentGame.investigators[investigatorId];
-            if (liveInvestigator) {
-              currentGame = {
-                ...currentGame,
-                investigators: {
-                  ...currentGame.investigators,
-                  [investigatorId]: { ...liveInvestigator, health: 0, sanity: 0 },
-                },
-              };
-              return defeatInvestigator(currentGame, map, investigatorId);
-            }
+            return devourInvestigator(
+              currentGame,
+              map,
+              investigatorId,
+            );
           }
         } else {
-          for (const nested of effect.otherwise) {
-            if (nested.type === "lose-health") health = Math.max(0, health - nested.amount);
-            if (nested.type === "discard-self") shouldDiscard = true;
+          for (
+            const nested of
+              effect.otherwise
+          ) {
+            if (
+              nested.type ===
+              "lose-health"
+            ) {
+              health = Math.max(
+                0,
+                health - nested.amount,
+              );
+            }
+
+            if (
+              nested.type ===
+              "discard-self"
+            ) {
+              shouldDiscard = true;
+            }
           }
         }
 
@@ -911,11 +928,11 @@ export function resolveCondition(
       }
 
       case "devoured": {
-        const liveInvestigator = currentGame.investigators[investigatorId];
-        if (!liveInvestigator) break;
-        currentGame = { ...currentGame, investigators: { ...currentGame.investigators,
-          [investigatorId]: { ...liveInvestigator, health: 0, sanity: 0 } } };
-        return defeatInvestigator(currentGame, map, investigatorId);
+        return devourInvestigator(
+          currentGame,
+          map,
+          investigatorId,
+        );
       }
 
       case "devour-other-investigator": {

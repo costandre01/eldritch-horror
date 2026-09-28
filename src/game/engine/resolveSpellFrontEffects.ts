@@ -10,6 +10,7 @@ import { performTest } from "./performTest";
 import { resolveSpellFrontTriggeredEffects } from "./resolveSpellFrontTriggeredEffects";
 import { canPerformAction } from "./canPerformAction";
 import { assertNormalActionAllowed } from "./conditionRestrictions";
+import { getCombatSpellOptions, getEncounterSpellOptions } from "./encounterSpellWindow";
 
 export interface ResolveSpellFrontEffectsResult {
   game: GameState;
@@ -82,17 +83,19 @@ export function resolveSpellFrontEffects(
   if (effect.type === "action-test" && (game.phase !== "action" || !canPerformAction(investigator, "component"))) {
     throw new Error("This Spell action can only be used during the Action Phase when the investigator can perform an action.");
   }
-  if (effect.type === "on-encounter-phase" && game.phase !== "encounter") {
-    throw new Error("This Spell ability can only be used during the Encounter Phase.");
+  if (effect.type === "on-encounter-phase" && !options.testResultOverride &&
+      !getEncounterSpellOptions(game).some((option) => option.spellId === spellId)) {
+    throw new Error("Use this Spell before starting your Encounter, once during this Encounter Phase.");
   }
-  if (effect.type === "on-combat-encounter") {
-    const space = investigator.spaceId ? game.board.spaces[investigator.spaceId] : undefined;
-    if (game.phase !== "encounter" || !space || space.monsterIds.length === 0) {
-      throw new Error("This Spell ability can only be used during a Combat Encounter.");
-    }
+  if (effect.type === "on-combat-encounter" && !options.testResultOverride &&
+      !getCombatSpellOptions(game).some((option) => option.spellId === spellId)) {
+    throw new Error("Use this Spell at the start of a Combat Encounter, once for that Monster this round.");
   }
 
   let currentGame = game;
+  if (effect.type === "on-encounter-phase" && !options.testResultOverride) {
+    currentGame = { ...game, encounterSpellUsedRound: { ...game.encounterSpellUsedRound, [spellId]: game.round } };
+  }
 
   let testResult: TestResult | null =
     null;

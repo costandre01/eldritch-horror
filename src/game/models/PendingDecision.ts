@@ -82,6 +82,15 @@ export type EncounterAwakeningResume = {
   effects: EncounterEffect[];
 };
 
+export type InvestigatorDefeatResume =
+  | {
+      type: "mythos-special";
+
+      mythosId: string;
+
+      step: string;
+    };
+
 export type PendingDecision =
   | {
       type: "continue";
@@ -122,6 +131,9 @@ export type PendingDecision =
       source?: string;
 
       onComplete?: EncounterEffect[];
+
+      resume?:
+        InvestigatorDefeatResume;
     }
 
   | {
@@ -253,6 +265,9 @@ export type PendingDecision =
               | "mythos";
 
             pendingDecision?: PendingDecision;
+
+            defeatResume?:
+              InvestigatorDefeatResume;
           };
     }
 
@@ -389,14 +404,16 @@ export type PendingDecision =
     }
 
   | {
-      type: "mythos-clues";
+      type: "mythos-clues" | "mythos-rumor" | "mythos-monsters" | "mythos-gates";
       title: string;
       message?: string;
       spaceIds: string[];
       clueTokenIds?: string[];
+      gateTokenIds?: string[];
+      monsterIds?: string[];
       spaceNames?: string[];
       nextIconIndex: number;
-      source: "mythos:spawn-clues";
+      source: "mythos:spawn-clues" | "mythos:spawn-rumor" | "mythos:spawn-monsters" | "mythos:spawn-gates";
     }
 
   | {

@@ -152,6 +152,8 @@ export function createInvestigator(
 
     isDefeated: false,
 
+    defeatType: null,
+
     /*
      * ========================================================
      * POSSESSIONS

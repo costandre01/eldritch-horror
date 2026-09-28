@@ -2,7 +2,7 @@ import type { GameState } from "../models/GameState";
 import { getCurrentOmen } from "./omenEngine";
 import type { MapDefinition } from "../models/MapDefinition";
 
-import { showMythosContinue } from "./showMythosContinue";
+import { showMythosMonsterPlacement } from "./showMythosMonsterPlacement";
 import { spawnMythosGates } from "./spawnMythosGates";
 import { spawnMonsterAtSpace } from "./spawnMonster";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
@@ -127,8 +127,5 @@ export function resolveMythosMonsterSurge(
       }
     }
 
-  return showMythosContinue(
-    currentGame,
-    nextIconIndex,
-  );
+  return showMythosMonsterPlacement(game, currentGame, nextIconIndex);
 }

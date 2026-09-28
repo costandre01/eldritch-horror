@@ -36,6 +36,7 @@ export function getPassiveTestModifiers(
     : 0;
 
   for (const owner of Object.values(game.investigators)) {
+    if (owner.isDefeated) continue;
     const sharesSpace = Boolean(
       owner.spaceId && owner.spaceId === investigator.spaceId,
     );

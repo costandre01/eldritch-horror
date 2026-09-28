@@ -15,6 +15,14 @@ export function assertNormalActionAllowed(
   game: GameState,
   investigatorId: string,
 ): void {
+  if (
+    game.status !== "playing" ||
+    game.phase !== "action" ||
+    game.activeInvestigatorId !== investigatorId
+  ) {
+    throw new Error("Actions can only be performed by the active investigator during the Action phase.");
+  }
+
   if (isRestrictedByDetained(game, investigatorId)) {
     throw new Error("Detained restricts the Investigator to the Local Action on that Condition.");
   }

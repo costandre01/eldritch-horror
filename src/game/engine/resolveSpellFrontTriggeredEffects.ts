@@ -111,6 +111,17 @@ export function resolveSpellFrontTriggeredEffects(
       effect.type ===
       "choose-investigator"
     ) {
+      const eligibleInvestigators = Object.values(currentGame.investigators).filter((candidate) => {
+        if (effect.location === "same-space" && candidate.spaceId !== investigator.spaceId) return false;
+        if (!effect.excludeConditionDefinitionId) return true;
+        return !candidate.conditionIds.some((conditionId) =>
+          currentGame.conditions[conditionId]?.definitionId === effect.excludeConditionDefinitionId);
+      });
+
+      // A successful cast still proceeds to "Then flip" when its target
+      // restriction leaves no legal investigator.
+      if (eligibleInvestigators.length === 0) continue;
+
       pendingChoice = {
         type: "choose-investigator",
 
@@ -252,6 +263,11 @@ export function resolveSpellFrontTriggeredEffects(
       effect.type ===
       "choose-monster"
     ) {
+      const space = investigator.spaceId
+        ? currentGame.board.spaces[investigator.spaceId]
+        : undefined;
+      if (!space || space.monsterIds.length === 0) continue;
+
       pendingChoice = {
         type: "choose-monster",
 
@@ -329,6 +345,8 @@ export function resolveSpellFrontTriggeredEffects(
 
         spellId,
 
+        optional: true,
+
         effects: [],
 
         remainingEffects:
@@ -391,6 +409,8 @@ export function resolveSpellFrontTriggeredEffects(
         maxValueFromTestResult:
           effect.maxValueFromTestResult ===
           true,
+
+        optional: effect.optional === true,
 
         effects: [
           effect,

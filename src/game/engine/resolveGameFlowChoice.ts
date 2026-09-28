@@ -32,11 +32,12 @@ import { defeatInvestigator } from "./defeatInvestigator";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { startMythosCardReckoning } from "./startMythosCardReckoning";
 import { drawClueToken } from "./clueEngine";
-import { replaceDefeatedInvestigator } from "./replaceDefeatedInvestigator";
 import { discardCondition } from "./discardCondition";
 import { coreSpells } from "../../content/core/coreSpell";
 import { continueAcquireAssetEffects } from "./continueAcquireAssetEffects";
 import { resolveCombatTest } from "./combat/resolveCombatTest";
+import { devourInvestigator } from "./devourInvestigator";
+import { getGainableSpellIds } from "./getGainableSpellIds";
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -51,6 +52,96 @@ export function resolveGameFlowChoice(
     decision.type !== "choice"
   ) {
     return game;
+  }
+
+  if (
+    decision.source?.startsWith(
+      "defeat-type:",
+    )
+  ) {
+    const [
+      ,
+      investigatorId,
+      resumeMonsterId,
+    ] = decision.source.split(":");
+
+    if (!investigatorId) {
+      throw new Error(
+        "Defeat type choice has no investigator.",
+      );
+    }
+
+    const defeatType =
+      choiceId ===
+      `defeat-type:crippled:${investigatorId}`
+        ? "crippled"
+        : choiceId ===
+            `defeat-type:insane:${investigatorId}`
+          ? "insane"
+          : null;
+
+    if (!defeatType) {
+      return game;
+    }
+
+    const defeatedGame =
+      defeatInvestigator(
+        {
+          ...game,
+          pendingDecision: null,
+        },
+        map,
+        investigatorId,
+        resumeMonsterId || undefined,
+        defeatType,
+        decision.resume,
+      );
+
+    /*
+    * defeatInvestigator may have created another
+    * decision, for example choosing a new Lead.
+    *
+    * In that case, the Mythos resume is already
+    * stored inside that decision and must not
+    * execute yet.
+    */
+    if (defeatedGame.pendingDecision) {
+      return defeatedGame;
+    }
+
+    /*
+    * Resume the interrupted Mythos special.
+    */
+    if (
+      decision.resume?.type ===
+      "mythos-special"
+    ) {
+      const mythos =
+        [
+          ...easyMythos,
+          ...normalMythos,
+          ...hardMythos,
+        ].find(
+          (definition) =>
+            definition.id ===
+            decision.resume!.mythosId,
+        );
+
+      if (!mythos) {
+        throw new Error(
+          `Mythos "${decision.resume.mythosId}" does not exist.`,
+        );
+      }
+
+      return resolveMythosSpecial(
+        defeatedGame,
+        mythos,
+        decision.resume.step,
+        map,
+      );
+    }
+
+    return defeatedGame;
   }
 
   if (decision.source?.startsWith("condition:deal:")) {
@@ -82,19 +173,62 @@ export function resolveGameFlowChoice(
     }
   }
 
-  if (decision.source?.startsWith("condition:devour-other:")) {
-    const [, , investigatorId, conditionId] = decision.source.split(":");
-    const targetId = choiceId.startsWith(`condition:devour-other:${investigatorId}:${conditionId}:`)
-      ? choiceId.split(":").at(-1)
-      : undefined;
-    if (!investigatorId || !conditionId || !targetId || targetId === investigatorId || !game.investigators[targetId]) return game;
-    const target = game.investigators[targetId];
-    const defeated = defeatInvestigator({
-      ...game,
-      pendingDecision: null,
-      investigators: { ...game.investigators, [targetId]: { ...target, health: 0, sanity: 0 } },
-    }, map, targetId);
-    return { ...discardCondition(defeated, investigatorId, conditionId), pendingDecision: null };
+  if (
+    decision.source?.startsWith(
+      "condition:devour-other:",
+    )
+  ) {
+    const [
+      ,
+      ,
+      investigatorId,
+      conditionId,
+    ] = decision.source.split(":");
+
+    const expectedPrefix =
+      `condition:devour-other:${investigatorId}:${conditionId}:`;
+
+    const targetId =
+      choiceId.startsWith(expectedPrefix)
+        ? choiceId.slice(
+            expectedPrefix.length,
+          )
+        : undefined;
+
+    if (
+      !investigatorId ||
+      !conditionId ||
+      !targetId ||
+      targetId === investigatorId ||
+      !game.investigators[targetId]
+    ) {
+      return game;
+    }
+
+    /*
+    * Discard the Dark Pact first.
+    *
+    * This is important because devouring the
+    * target can create a new pendingDecision
+    * (for example, choosing a new Lead
+    * Investigator). We must not clear that
+    * decision afterwards.
+    */
+    const gameAfterDiscard =
+      discardCondition(
+        {
+          ...game,
+          pendingDecision: null,
+        },
+        investigatorId,
+        conditionId,
+      );
+
+    return devourInvestigator(
+      gameAfterDiscard,
+      map,
+      targetId,
+    );
   }
 
 
@@ -199,8 +333,8 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "test",
           title: "Puzzle Box",
-          message: "Test Observation -2. If you pass, you may discard this card to gain 1 Artifact.",
-          skill: "observation",
+          message: "Test Lore -2. If you pass, you may discard this card to gain 1 Artifact.",
+          skill: "lore",
           modifier: -2,
           investigatorId,
           onSuccess: [{
@@ -629,88 +763,6 @@ export function resolveGameFlowChoice(
     }
 
     return game;
-  }
-
-  /*
-  * ============================================================
-  * COMBAT — REPLACE DEFEATED INVESTIGATOR
-  * ============================================================
-  *
-  * The Investigator was defeated during normal Combat.
-  *
-  * choiceId = Investigator definition ID.
-  * ============================================================
-  */
-
-  if (
-    decision.source?.startsWith(
-      "combat-defeat-replacement:",
-    )
-  ) {
-    const defeatedInvestigatorId =
-      decision.source.split(":")[1];
-
-    if (!defeatedInvestigatorId) {
-      return game;
-    }
-
-    /*
-    * The selected option ID is the
-    * Investigator definition ID.
-    */
-
-    const replacementDefinitionId =
-      choiceId;
-
-    /*
-    * Create the replacement Investigator.
-    */
-
-    const replacedGame =
-      replaceDefeatedInvestigator(
-        game,
-        defeatedInvestigatorId,
-        replacementDefinitionId,
-      );
-
-    /*
-    * The defeated Investigator's turn is over.
-    *
-    * Keep the defeated Investigator as the temporary
-    * active Investigator so endInvestigatorEncounter()
-    * advances the Investigator Turn Index normally.
-    *
-    * The replacement already occupies the defeated
-    * Investigator's position in investigatorOrder.
-    */
-
-    return endInvestigatorEncounter({
-      ...replacedGame,
-
-      activeInvestigatorId:
-        defeatedInvestigatorId,
-
-      pendingDecision:
-        null,
-
-      pendingEncounterChoice:
-        null,
-
-      combatOrder:
-        null,
-
-      currentEncounterId:
-        null,
-
-      currentEncounterBackId:
-        null,
-
-      currentEncounterRevealed:
-        false,
-
-      currentEncounterDeckType:
-        null,
-    });
   }
 
   /*
@@ -2368,9 +2420,9 @@ export function resolveGameFlowChoice(
       choiceId ===
       `silver-twilight-aid:spell:${investigatorIndex}`
     ) {
-      if (
-        game.board.spellDeck.length === 0
-      ) {
+      const spellIds = getGainableSpellIds(game, investigatorId);
+
+      if (spellIds.length === 0) {
         return resumeSilverTwilightAid(
           {
             ...game,
@@ -2381,12 +2433,6 @@ export function resolveGameFlowChoice(
           investigatorIndex + 1,
         );
       }
-
-      const spellIds =
-        game.board.spellDeck.map(
-          (spell) =>
-            spell.id,
-        );
 
       return {
         ...game,
@@ -3656,7 +3702,7 @@ export function resolveGameFlowChoice(
           investigator.sanity - 2,
         );
 
-      const updatedGame: GameState = {
+      let updatedGame: GameState = {
         ...game,
 
         investigators: {
@@ -3670,10 +3716,6 @@ export function resolveGameFlowChoice(
 
             sanity:
               newSanity,
-
-            isDefeated:
-              newHealth <= 0 ||
-              newSanity <= 0,
           },
         },
 
@@ -3681,8 +3723,45 @@ export function resolveGameFlowChoice(
           null,
       };
 
+      /*
+      * ========================================================
+      * INVESTIGATOR DEFEATED
+      * ========================================================
+      */
       const nextIndex =
         investigatorIndex + 1;
+
+      if (
+        newHealth <= 0 ||
+        newSanity <= 0
+      ) {
+        updatedGame =
+          defeatInvestigator(
+            updatedGame,
+            map,
+            investigatorId,
+            undefined,
+            undefined,
+            {
+              type: "mythos-special",
+              mythosId: "tide-of-despair",
+              step: `tide-of-despair:${nextIndex}`,
+            },
+          );
+
+        /*
+        * defeatInvestigator() pode criar uma decisão:
+        *
+        * - escolha Crippled / Insane;
+        * - escolha de novo Lead Investigator.
+        *
+        * Nesse caso o fluxo do Mythos tem de parar aqui.
+        */
+
+        if (updatedGame.pendingDecision) {
+          return updatedGame;
+        }
+      }
 
       const nextInvestigatorId =
         updatedGame.investigatorOrder[

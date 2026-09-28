@@ -24,6 +24,15 @@ export function resolveSpellChoice(
     );
   }
 
+  if (selectedId === "skip-spell-choice" && choice.optional) {
+    return resolveSpellFrontTriggeredEffects(
+      { ...game, pendingSpellChoice: null },
+      choice.investigatorId,
+      choice.spellId,
+      choice.remainingEffects,
+    ).game;
+  }
+
   /*
    * ============================================================
    * CHOOSE INVESTIGATOR
@@ -296,7 +305,8 @@ export function resolveSpellChoice(
     choice.type ===
     "choose-encounter"
   ) {
-    const currentGame: GameState = { ...game, pendingSpellChoice: null, ignoreMonstersForNextEncounter: true };
+    if (selectedId !== "resolve-encounter" && selectedId !== "encounter-monsters") throw new Error("Choose how to resolve the Encounter.");
+    const currentGame: GameState = { ...game, pendingSpellChoice: null, ignoreMonstersForNextEncounter: selectedId === "resolve-encounter" };
     return resolveSpellFrontTriggeredEffects(currentGame, choice.investigatorId, choice.spellId, choice.remainingEffects).game;
   }
 

@@ -1,6 +1,6 @@
 import type { GameState } from "../models/GameState";
 import { advanceDoom } from "./doomEngine";
-import { showMythosContinue } from "./showMythosContinue";
+import { showMythosGatePlacement } from "./showMythosGatePlacement";
 import { spawnMonsterAtSpace } from "./spawnMonster";
 
 export function spawnMythosGates(
@@ -141,11 +141,9 @@ export function spawnMythosGates(
       },
     };
 
-    currentGame =
-      spawnMonsterAtSpace(
-        currentGame,
-        gateToken.spaceId,
-      );
+    if (currentGame.board.monsterCup.length > 0) {
+      currentGame = spawnMonsterAtSpace(currentGame, gateToken.spaceId);
+    }
 
     /*
      * ============================================================
@@ -175,8 +173,5 @@ export function spawnMythosGates(
     return currentGame;
   }
 
-  return showMythosContinue(
-    currentGame,
-    nextIconIndex,
-  );
+  return showMythosGatePlacement(game, currentGame, nextIconIndex);
 }

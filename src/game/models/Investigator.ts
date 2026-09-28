@@ -14,6 +14,11 @@ export type Skill =
   | "strength"
   | "will";
 
+export type InvestigatorDefeatType =
+  | "crippled"
+  | "insane"
+  | "devoured";
+
 export interface InvestigatorSkills {
   lore: number;
   influence: number;
@@ -72,6 +77,8 @@ export interface Investigator {
   isDelayed: boolean;
 
   isDefeated: boolean;
+
+  defeatType: InvestigatorDefeatType | null;
 
   assetIds: string[];
 

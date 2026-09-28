@@ -51,13 +51,19 @@ export function discardCondition(
     );
 
   /*
-   * ADD CONDITION TO DISCARD
+   * Conditions are double-sided cards. The official discard rule
+   * immediately shuffles them back into their deck, face-up.
    */
-
-  const updatedConditionDiscard = [
-    ...game.board.conditionDiscard,
+  const updatedConditionDeck = [
+    ...(game.board.conditionDeck ?? []),
     conditionId,
   ];
+
+  for (let index = updatedConditionDeck.length - 1; index > 0; index--) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [updatedConditionDeck[index], updatedConditionDeck[randomIndex]] =
+      [updatedConditionDeck[randomIndex], updatedConditionDeck[index]];
+  }
 
   /*
    * RETURN UPDATED GAME
@@ -68,9 +74,18 @@ export function discardCondition(
 
     board: {
       ...game.board,
+      conditionDeck: updatedConditionDeck,
+      conditionDiscard: (game.board.conditionDiscard ?? []).filter(
+        (id) => id !== conditionId,
+      ),
+    },
 
-      conditionDiscard:
-        updatedConditionDiscard,
+    conditions: {
+      ...game.conditions,
+      [conditionId]: {
+        ...condition,
+        flipped: false,
+      },
     },
 
     investigators: {

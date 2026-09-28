@@ -24,7 +24,7 @@ function getAvailableInvestigatorIds(
     );
 }
 
-function getNextReplacementDecision(
+export function getNextReplacementDecision(
   game: GameState,
 ): GameState {
   const defeatedInvestigatorId =
@@ -128,17 +128,27 @@ function getNextReplacementDecision(
     availableInvestigatorIds.length ===
     0
   ) {
-    return {
+    const investigatorOrder = game.investigatorOrder.filter(
+      (id) => id !== defeatedInvestigatorId,
+    );
+    const pendingInvestigatorReplacements =
+      game.pendingInvestigatorReplacements.filter(
+        (id) => id !== defeatedInvestigatorId,
+      );
+
+    const eliminatedGame: GameState = {
       ...game,
-
-      status: "defeat",
-
+      investigatorOrder,
+      pendingInvestigatorReplacements,
       activeInvestigatorId:
         null,
-
       pendingDecision:
         null,
     };
+
+    return investigatorOrder.length === 0
+      ? { ...eliminatedGame, status: "defeat" }
+      : getNextReplacementDecision(eliminatedGame);
   }
 
   return {

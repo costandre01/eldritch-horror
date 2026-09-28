@@ -790,7 +790,7 @@ function TradeCards({
       (item) => ({
         id: item.id,
         name: item.name,
-        image: `/cards/assets/${item.name
+        image: item.image ?? `/cards/assets/${item.name
           .trim()
           .replace(
             /\s+/g,
@@ -807,7 +807,7 @@ function TradeCards({
       (item) => ({
         id: item.id,
         name: item.name,
-        image: `/cards/artifacts/${item.id}.png`,
+        image: item.image,
       }),
     ),
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Investigator } from "../../../game/models/Investigator";
 import type { ConditionLocalAction } from "../../../game/engine/conditionLocalAction";
+import type { SpellActivationOption } from "../../../game/engine/encounterSpellWindow";
 
 import ActionButton from "./ActionButton";
 import ActionTooltip from "./ActionTooltip";
@@ -14,6 +15,7 @@ interface InvestigatorActionsPanelProps {
   canTrade: boolean;
   canAcquireAssets: boolean;
   conditionActions: ConditionLocalAction[];
+  spellActions: SpellActivationOption[];
 
   onStartTravel: () => void;
   onRest: () => void;
@@ -21,6 +23,7 @@ interface InvestigatorActionsPanelProps {
   onTrade: () => void;
   onAcquireAssets: () => void;
   onConditionAction: (conditionId: string) => void;
+  onSpellAction: (spellId: string, effectIndex: number) => void;
 
   onEndTravel: () => void;
   onUndoTravel: () => void;
@@ -36,6 +39,7 @@ export default function InvestigatorActionsPanel({
   canTrade,
   canAcquireAssets,
   conditionActions,
+  spellActions,
 
   onStartTravel,
   onRest,
@@ -43,6 +47,7 @@ export default function InvestigatorActionsPanel({
   onTrade,
   onAcquireAssets,
   onConditionAction,
+  onSpellAction,
 
   onEndTravel,
   onUndoTravel,
@@ -195,6 +200,13 @@ export default function InvestigatorActionsPanel({
           Local Action: Test {action.effect.testType}. If you pass, resolve this Condition's action.
         </span>
       ),
+    })),
+    ...spellActions.map((spell) => ({
+      label: spell.name,
+      icon: spell.image,
+      disabled: false,
+      onClick: () => onSpellAction(spell.spellId, spell.effectIndex),
+      description: <span>{spell.description}</span>,
     })),
   ];
 

@@ -34,6 +34,7 @@ export default function InvestigatorPossessions({
   const getAssetImage = (
     asset: Asset,
   ) => {
+    if (asset.image) return asset.image;
     const filename =
       asset.name
         .trim()
@@ -46,7 +47,7 @@ export default function InvestigatorPossessions({
   const getArtifactImage = (
     artifact: Artifact,
   ) => {
-    return `/cards/artifacts/${artifact.id}.png`;
+    return artifact.image;
   };
 
   const getSpellDefinition = (

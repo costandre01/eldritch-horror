@@ -51,7 +51,7 @@ describe("Condition Local Actions", () => {
 
     const completed = resolveConditionLocalActionTest(started.game, "investigator-1", "debt-1", started.test, map);
     expect(completed.investigators["investigator-1"]?.conditionIds).not.toContain("debt-1");
-    expect(completed.board.conditionDiscard).toContain("debt-1");
+    expect(completed.board.conditionDeck).toContain("debt-1");
   });
 
   it("leaves Detained in play after a failed Local Action test", () => {

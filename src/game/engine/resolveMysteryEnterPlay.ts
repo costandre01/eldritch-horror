@@ -58,7 +58,7 @@ function placeRandomEldritchTokens(
   }
 
   const investigatorCount =
-    Object.keys(game.investigators).length;
+    game.investigatorOrder.length;
 
   const tokenCount = Math.ceil(
     investigatorCount / 2,

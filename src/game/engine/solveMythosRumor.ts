@@ -26,6 +26,18 @@ export function solveMythosRumor(
     ...game.board.spaces,
   };
 
+  const epicMonsterByRumor: Record<string, string | undefined> = {
+    "lost-knowledge": "tick-tock-men",
+    "the-wind-walker": "wind-walker",
+    "web-between-worlds": "spinner-of-webs",
+  };
+  const epicDefinitionId = epicMonsterByRumor[mythos.id];
+  const removedEpicMonsterIds = new Set(
+    Object.values(game.monsters)
+      .filter((monster) => monster.definitionId === epicDefinitionId)
+      .map((monster) => monster.id),
+  );
+
   const rumorIcon =
     mythos.icons.find(
       (icon) =>
@@ -47,8 +59,49 @@ export function solveMythosRumor(
     }
   }
 
+  if (removedEpicMonsterIds.size > 0) {
+    spaces = Object.fromEntries(
+      Object.entries(spaces).map(([spaceId, space]) => [
+        spaceId,
+        {
+          ...space,
+          monsterIds: space.monsterIds.filter(
+            (monsterId) => !removedEpicMonsterIds.has(monsterId),
+          ),
+        },
+      ]),
+    );
+  }
+
+  const monsters = { ...game.monsters };
+  for (const monsterId of removedEpicMonsterIds) {
+    const monster = monsters[monsterId];
+    if (monster) {
+      monsters[monsterId] = {
+        ...monster,
+        spaceId: null,
+        engagedInvestigatorId: null,
+      };
+    }
+  }
+
+  const investigators = Object.fromEntries(
+    Object.entries(game.investigators).map(([investigatorId, investigator]) => [
+      investigatorId,
+      {
+        ...investigator,
+        engagedMonsterIds: investigator.engagedMonsterIds.filter(
+          (monsterId) => !removedEpicMonsterIds.has(monsterId),
+        ),
+      },
+    ]),
+  );
+
   return {
     ...game,
+
+    monsters,
+    investigators,
 
     board: {
       ...game.board,
@@ -58,7 +111,7 @@ export function solveMythosRumor(
       mythosInPlay,
 
       mythosDiscard: [
-        ...game.board.mythosDiscard,
+        ...(game.board.mythosDiscard ?? []),
         mythos,
       ],
     },
