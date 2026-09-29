@@ -23,6 +23,7 @@ import type {
 import type {
   TestResult,
 } from "../models/TestResult";
+import { activatePossessionAbility } from "../engine/activatePossessionAbility";
 
 function prepareGame(): GameState {
   const game =
@@ -55,6 +56,8 @@ function prepareGame(): GameState {
 
     monsterCup: [],
     monsterDiscard: [],
+
+    assetDiscard: [],
 
     conditionDeck: [],
     };
@@ -361,6 +364,158 @@ describe(
               "ghost-1",
           ),
         ).toBe(true);
+      },
+    );
+
+    it(
+      "returns a normal Monster defeated by Dynamite to the Monster Cup",
+      () => {
+        const game =
+          prepareGame();
+
+        game.phase = "action";
+
+        const investigator =
+          game.investigators[
+            "investigator-1"
+          ];
+
+        investigator.actionsPerformed = [];
+        investigator.componentActionsUsedThisRound = [];
+
+        addMonster(
+          game,
+          "ghoul-dynamite",
+          "ghoul",
+          3,
+          false,
+        );
+
+        game.assets[
+          "dynamite-test"
+        ] = {
+          id: "dynamite-test",
+          name: "Dynamite",
+          type: "item",
+          traits: [],
+          value: 0,
+          description: "",
+        };
+
+        investigator.assetIds.push(
+          "dynamite-test",
+        );
+
+        const result =
+          activatePossessionAbility(
+            game,
+            "investigator-1",
+            "asset",
+            "dynamite-test",
+            "action",
+            {
+              id: "test-map",
+              name: "Test Map",
+              startingSpaceId:
+                "arkham",
+              spaces: [],
+            },
+          );
+
+        expect(
+          result.board.spaces[
+            "arkham"
+          ].monsterIds,
+        ).not.toContain(
+          "ghoul-dynamite",
+        );
+
+        expect(
+          result.monsters[
+            "ghoul-dynamite"
+          ].spaceId,
+        ).toBeNull();
+
+        expect(
+          result.board.monsterCup.some(
+            (monster) =>
+              monster.id ===
+              "ghoul-dynamite",
+          ),
+        ).toBe(true);
+      },
+    );
+
+    it(
+      "does not return an Epic Monster defeated by Dynamite to the Monster Cup",
+      () => {
+        const game =
+          prepareGame();
+
+        game.phase = "action";
+
+        const investigator =
+          game.investigators[
+            "investigator-1"
+          ];
+
+        investigator.actionsPerformed = [];
+        investigator.componentActionsUsedThisRound = [];
+
+        addMonster(
+          game,
+          "cthylla-dynamite",
+          "cthylla",
+          3,
+          true,
+        );
+
+        game.assets[
+          "dynamite-test"
+        ] = {
+          id: "dynamite-test",
+          name: "Dynamite",
+          type: "item",
+          traits: [],
+          value: 0,
+          description: "",
+        };
+
+        investigator.assetIds.push(
+          "dynamite-test",
+        );
+
+        const result =
+          activatePossessionAbility(
+            game,
+            "investigator-1",
+            "asset",
+            "dynamite-test",
+            "action",
+            {
+              id: "test-map",
+              name: "Test Map",
+              startingSpaceId:
+                "arkham",
+              spaces: [],
+            },
+          );
+
+        expect(
+          result.board.spaces[
+            "arkham"
+          ].monsterIds,
+        ).not.toContain(
+          "cthylla-dynamite",
+        );
+
+        expect(
+          result.board.monsterCup.some(
+            (monster) =>
+              monster.id ===
+              "cthylla-dynamite",
+          ),
+        ).toBe(false);
       },
     );
   },

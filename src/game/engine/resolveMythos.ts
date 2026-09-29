@@ -747,16 +747,8 @@ export function resolveMythos(
          */
 
         if (firstInvestigatorIndex === -1) {
-          return {
+          const updatedGame: GameState = {
             ...currentGame,
-
-            board: {
-              ...currentGame.board,
-
-              mythosDiscard: [...currentGame.board.mythosDiscard, mythos],
-            },
-
-            currentMythosId: null,
 
             activeInvestigatorId: null,
 
@@ -764,6 +756,11 @@ export function resolveMythos(
 
             combatOrder: null,
           };
+
+          return finishMythosPhase(
+            updatedGame,
+            map,
+          );
         }
 
         const investigatorId = investigatorIds[firstInvestigatorIndex];
@@ -1021,6 +1018,37 @@ export function resolveMythos(
     }
   }
 
+    return finishMythosPhase(currentGame, map);
+}
+
+/*
+ * ============================================================
+ * FINISH MYTHOS PHASE
+ * ============================================================
+ *
+ * Completes the currently resolving Mythos card and performs
+ * all end-of-Mythos-phase processing.
+ *
+ * This function can also be called after a Mythos effect that
+ * temporarily paused resolution for a player decision.
+ */
+
+export function finishMythosPhase(
+  game: GameState,
+  map: MapDefinition,
+): GameState {
+  if (!game.currentMythosId) {
+    throw new Error(
+      "There is no current Mythos to finish.",
+    );
+  }
+
+  const mythos = getMythosById(
+    game.currentMythosId,
+  );
+
+  let currentGame = game;
+
   /*
    * ============================================================
    * MYTHOS PHASE COMPLETE
@@ -1041,16 +1069,23 @@ export function resolveMythos(
       board: {
         ...currentGame.board,
 
-        mythosDiscard: [...currentGame.board.mythosDiscard, mythos],
+        mythosDiscard: [
+          ...currentGame.board.mythosDiscard,
+          mythos,
+        ],
       },
 
       currentMythosId: null,
+
+      pendingDecision: null,
     };
   } else {
     currentGame = {
       ...currentGame,
 
       currentMythosId: null,
+
+      pendingDecision: null,
     };
   }
 
@@ -1063,14 +1098,21 @@ export function resolveMythos(
    * Mythos Phase has been resolved.
    */
 
-  currentGame = checkActiveMystery(currentGame, map);
+  currentGame =
+    checkActiveMystery(
+      currentGame,
+      map,
+    );
 
   /*
    * If the Mystery caused the game to end,
    * stop here.
    */
 
-  if (currentGame.status === "victory") {
+  if (
+    currentGame.status ===
+    "victory"
+  ) {
     return currentGame;
   }
 
@@ -1081,7 +1123,10 @@ export function resolveMythos(
    * for the next round.
    */
 
-  if (currentGame.pendingDecision || currentGame.pendingEncounterChoice) {
+  if (
+    currentGame.pendingDecision ||
+    currentGame.pendingEncounterChoice
+  ) {
     return currentGame;
   }
 
@@ -1095,8 +1140,14 @@ export function resolveMythos(
    * Lead Investigator is selected for the next round.
    */
 
-  if (currentGame.pendingInvestigatorReplacements.length > 0) {
-    return getNextReplacementDecision(currentGame);
+  if (
+    currentGame
+      .pendingInvestigatorReplacements
+      .length > 0
+  ) {
+    return getNextReplacementDecision(
+      currentGame,
+    );
   }
 
   /*
@@ -1110,7 +1161,8 @@ export function resolveMythos(
    * The current Lead may keep the token.
    */
 
-  const selectableInvestigatorIds = currentGame.investigatorOrder;
+  const selectableInvestigatorIds =
+    currentGame.investigatorOrder;
 
   /*
    * Solo game:
@@ -1119,8 +1171,12 @@ export function resolveMythos(
    * so no choice is necessary.
    */
 
-  if (selectableInvestigatorIds.length === 1) {
-    const currentLead = currentGame.leadInvestigatorId;
+  if (
+    selectableInvestigatorIds.length ===
+    1
+  ) {
+    const currentLead =
+      currentGame.leadInvestigatorId;
 
     if (!currentLead) {
       throw new Error(
@@ -1128,7 +1184,10 @@ export function resolveMythos(
       );
     }
 
-    return startNextRoundAfterMythos(currentGame, currentLead);
+    return startNextRoundAfterMythos(
+      currentGame,
+      currentLead,
+    );
   }
 
   /*
@@ -1148,12 +1207,14 @@ export function resolveMythos(
     pendingDecision: {
       type: "select-investigator",
 
-      title: "Choose Lead Investigator",
+      title:
+        "Choose Lead Investigator",
 
       message:
         "Choose which investigator receives the Lead Investigator token for the next round.",
 
-      investigatorIds: selectableInvestigatorIds,
+      investigatorIds:
+        selectableInvestigatorIds,
 
       source: "mythos:end-lead",
     },

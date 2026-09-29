@@ -7,6 +7,7 @@ import {
 
 import { createTestGame } from "./helpers/createTestGame";
 import { eldritchBaseMap } from "../../content/core/maps/eldritchBaseMap";
+import { resolveGameFlowChoice } from "../engine/resolveGameFlowChoice";
 
 describe("getMythosById", () => {
   it("returns an existing Mythos by id", () => {
@@ -38,6 +39,204 @@ describe("resolveMythos", () => {
       ),
     ).toThrow(
       "Mythos can only be resolved during the Mythos phase.",
+    );
+  });
+
+  it("finishes Omen of Good Fortune and asks for the Lead when the Omen is not moved", () => {
+    const game = createTestGame();
+
+    game.phase = "mythos";
+    game.currentMythosId =
+      "omen-of-good-fortune";
+
+    game.leadInvestigatorId =
+      "investigator-1";
+
+    game.investigatorOrder = [
+      "investigator-1",
+      "investigator-2",
+      "investigator-3",
+    ];
+
+    game.ancientOne.omenPosition = 2;
+
+    game.board.mythosDiscard = [];
+
+    game.mysteries.activeMysteryId =
+      null;
+
+    game.pendingEncounterChoice =
+      null;
+
+    game.pendingInvestigatorReplacements =
+      [];
+
+    /*
+     * Skip the three Mythos icons and resolve
+     * only the card-specific effect.
+     */
+
+    const choiceGame = resolveMythos(
+      game,
+      eldritchBaseMap,
+      3,
+    );
+
+    expect(
+      choiceGame.pendingDecision,
+    ).toMatchObject({
+      type: "choice",
+      source:
+        "mythos:omen-of-good-fortune",
+    });
+
+    /*
+     * The Lead Investigator chooses to leave
+     * the Omen exactly where it is.
+     */
+
+    const result =
+      resolveGameFlowChoice(
+        choiceGame,
+        "omen-position:pass",
+        eldritchBaseMap,
+      );
+
+    /*
+     * The Omen must not move.
+     */
+
+    expect(
+      result.ancientOne.omenPosition,
+    ).toBe(2);
+
+    /*
+     * The Mythos card must finish normally.
+     */
+
+    expect(
+      result.currentMythosId,
+    ).toBeNull();
+
+    expect(
+      result.board.mythosDiscard.some(
+        (mythos) =>
+          mythos.id ===
+          "omen-of-good-fortune",
+      ),
+    ).toBe(true);
+
+    /*
+     * Most importantly, finishing the card
+     * must continue to the end-of-Mythos
+     * Lead Investigator selection.
+     */
+
+    expect(
+      result.pendingDecision,
+    ).toMatchObject({
+      type: "select-investigator",
+      source: "mythos:end-lead",
+    });
+
+    expect(
+      result.pendingDecision?.type,
+    ).toBe(
+      "select-investigator",
+    );
+  });
+
+  it("finishes Omen of Good Fortune and asks for the Lead after moving the Omen", () => {
+    const game = createTestGame();
+
+    game.phase = "mythos";
+    game.currentMythosId =
+      "omen-of-good-fortune";
+
+    game.leadInvestigatorId =
+      "investigator-1";
+
+    game.investigatorOrder = [
+      "investigator-1",
+      "investigator-2",
+      "investigator-3",
+    ];
+
+    game.ancientOne.omenPosition = 2;
+
+    game.board.mythosDiscard = [];
+
+    game.mysteries.activeMysteryId =
+      null;
+
+    game.pendingEncounterChoice =
+      null;
+
+    game.pendingInvestigatorReplacements =
+      [];
+
+    /*
+     * Skip the Mythos icons and reach
+     * Omen of Good Fortune's special choice.
+     */
+
+    const choiceGame = resolveMythos(
+      game,
+      eldritchBaseMap,
+      3,
+    );
+
+    expect(
+      choiceGame.pendingDecision,
+    ).toMatchObject({
+      type: "choice",
+      source:
+        "mythos:omen-of-good-fortune",
+    });
+
+    /*
+     * Move the Omen to position 0.
+     */
+
+    const result =
+      resolveGameFlowChoice(
+        choiceGame,
+        "omen-position:0",
+        eldritchBaseMap,
+      );
+
+    /*
+     * The Omen moves without interrupting
+     * the end of the Mythos Phase.
+     */
+
+    expect(
+      result.ancientOne.omenPosition,
+    ).toBe(0);
+
+    expect(
+      result.currentMythosId,
+    ).toBeNull();
+
+    expect(
+      result.board.mythosDiscard.some(
+        (mythos) =>
+          mythos.id ===
+          "omen-of-good-fortune",
+      ),
+    ).toBe(true);
+
+    expect(
+      result.pendingDecision,
+    ).toMatchObject({
+      type: "select-investigator",
+      source: "mythos:end-lead",
+    });
+
+    expect(
+      result.pendingDecision?.type,
+    ).toBe(
+      "select-investigator",
     );
   });
 

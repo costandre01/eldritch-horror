@@ -45,6 +45,7 @@ import { getGainableSpellIds } from "./getGainableSpellIds";
 import { continueDarkPower } from "./continueDarkPower";
 import { getImprovableSkills, improveInvestigatorSkill, startNextStartingImprovement } from "./improvementEngine";
 import { startInvestigatorActions } from "./startInvestigatorActions";
+import { finishMythosPhase } from "./resolveMythos";
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -1390,47 +1391,16 @@ export function resolveGameFlowChoice(
       choiceId ===
       "decline-dark-pact"
     ) {
-      const currentMythosId =
-        game.currentMythosId;
-
-      if (!currentMythosId) {
-        return {
-          ...game,
-          pendingDecision: null,
-        };
-      }
-
-      const mythos =
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-            currentMythosId,
-        );
-
-      if (!mythos) {
-        return game;
-      }
-
-      return {
+      const updatedGame: GameState = {
         ...game,
-
-        board: {
-          ...game.board,
-
-          mythosDiscard: [
-            ...game.board.mythosDiscard,
-            mythos,
-          ],
-        },
-
-        currentMythosId: null,
 
         pendingDecision: null,
       };
+
+      return finishMythosPhase(
+        updatedGame,
+        map,
+      );
     }
 
     /*
@@ -1525,12 +1495,16 @@ export function resolveGameFlowChoice(
        */
 
       if (rumorIds.length === 0) {
-        return {
-          ...gameWithDarkPact,
+        const updatedGame: GameState = {
+          ...game,
 
-          pendingDecision:
-            null,
+          pendingDecision: null,
         };
+
+        return finishMythosPhase(
+          updatedGame,
+          map,
+        );
       }
 
       /*
@@ -1617,67 +1591,22 @@ export function resolveGameFlowChoice(
       return game;
     }
 
-    /*
-    * Solve the selected Rumor.
-    */
-
     const solvedGame =
       solveMythosRumor(
         game,
         rumor,
       );
 
-    /*
-    * A Proposition is an Event Mythos,
-    * so discard it after resolving its effect.
-    */
-
-    const currentMythosId =
-      solvedGame.currentMythosId;
-
-    if (!currentMythosId) {
-      return {
-        ...solvedGame,
-        pendingDecision: null,
-      };
-    }
-
-    const currentMythos =
-      [
-        ...easyMythos,
-        ...normalMythos,
-        ...hardMythos,
-      ].find(
-        (definition) =>
-          definition.id ===
-          currentMythosId,
-      );
-
-    if (!currentMythos) {
-      return {
-        ...solvedGame,
-        pendingDecision: null,
-      };
-    }
-
-    return {
+    const updatedGame: GameState = {
       ...solvedGame,
 
-      board: {
-        ...solvedGame.board,
-
-        mythosDiscard: [
-          ...solvedGame.board.mythosDiscard,
-          currentMythos,
-        ],
-      },
-
-      currentMythosId:
-        null,
-
-      pendingDecision:
-        null,
+      pendingDecision: null,
     };
+
+    return finishMythosPhase(
+      updatedGame,
+      map,
+    );
   }
 
   /*
@@ -1783,11 +1712,8 @@ export function resolveGameFlowChoice(
           * The Mythos card itself is finished.
           */
 
-          return {
+          const finishedGame: GameState = {
               ...updatedGame,
-
-              currentMythosId:
-                  null,
 
               pendingDecision:
                   null,
@@ -1795,6 +1721,11 @@ export function resolveGameFlowChoice(
               activeInvestigatorId:
                   null,
           };
+
+          return finishMythosPhase(
+              finishedGame,
+              map,
+          );
       }
 
       /*
@@ -1808,25 +1739,27 @@ export function resolveGameFlowChoice(
           "all-for-nothing:do-not-spend"
       ) {
           const updatedMysteries =
-              returnRandomSolvedMysteryToDeck(
-                  game.mysteries,
-              );
+            returnRandomSolvedMysteryToDeck(
+                game.mysteries,
+            );
 
-          return {
-              ...game,
+        const updatedGame: GameState = {
+            ...game,
 
-              mysteries:
-                  updatedMysteries,
+            mysteries:
+                updatedMysteries,
 
-              currentMythosId:
-                  null,
+            pendingDecision:
+                null,
 
-              pendingDecision:
-                  null,
+            activeInvestigatorId:
+                null,
+        };
 
-              activeInvestigatorId:
-                  null,
-          };
+        return finishMythosPhase(
+            updatedGame,
+            map,
+        );
       }
 
       return game;
@@ -1841,9 +1774,6 @@ export function resolveGameFlowChoice(
   if (
     decision.source?.startsWith(
       "mythos:everyone-has-a-price:",
-    ) &&
-    !decision.source?.startsWith(
-      "mythos:everyone-has-a-price-discard:",
     )
   ) {
     const sourceParts =
@@ -1886,10 +1816,16 @@ export function resolveGameFlowChoice(
         ];
 
       if (!nextInvestigatorId) {
-        return {
+        const updatedGame: GameState = {
           ...game,
+
           pendingDecision: null,
         };
+
+        return finishMythosPhase(
+          updatedGame,
+          map,
+        );
       }
 
       return {
@@ -1961,10 +1897,16 @@ export function resolveGameFlowChoice(
           ];
 
         if (!nextInvestigatorId) {
-          return {
+          const updatedGame: GameState = {
             ...game,
+
             pendingDecision: null,
           };
+
+          return finishMythosPhase(
+            updatedGame,
+            map,
+          );
         }
 
         return {
@@ -2049,11 +1991,16 @@ export function resolveGameFlowChoice(
           );
 
       if (!gainedDebt) {
-        return {
+        const updatedGame: GameState = {
           ...gameWithDebt,
 
           pendingDecision: null,
         };
+
+        return finishMythosPhase(
+          updatedGame,
+          map,
+        );
       }
 
       /*
@@ -2629,18 +2576,18 @@ export function resolveGameFlowChoice(
       ];
 
     if (!investigatorId) {
-      return {
+      const finishedGame: GameState = {
         ...game,
 
-        pendingDecision:
-          null,
+        activeInvestigatorId: null,
 
-        activeInvestigatorId:
-          null,
-
-        currentMythosId:
-          null,
+        pendingDecision: null,
       };
+
+      return finishMythosPhase(
+        finishedGame,
+        map,
+      );
     }
 
     const investigator =
@@ -2691,18 +2638,18 @@ export function resolveGameFlowChoice(
       */
 
       if (!nextInvestigatorId) {
-        return {
+        const finishedGame: GameState = {
           ...updatedGame,
 
-          currentMythosId:
-            null,
+          activeInvestigatorId: null,
 
-          activeInvestigatorId:
-            null,
-
-          pendingDecision:
-            null,
+          pendingDecision: null,
         };
+
+        return finishMythosPhase(
+          finishedGame,
+          map,
+        );
       }
 
       const nextInvestigator =
@@ -2821,18 +2768,18 @@ export function resolveGameFlowChoice(
       */
 
       if (!nextInvestigatorId) {
-        return {
+        const finishedGame: GameState = {
           ...currentGame,
 
-          currentMythosId:
-            null,
+          activeInvestigatorId: null,
 
-          activeInvestigatorId:
-            null,
-
-          pendingDecision:
-            null,
+          pendingDecision: null,
         };
+
+        return finishMythosPhase(
+          finishedGame,
+          map,
+        );
       }
 
       const nextInvestigator =
@@ -4862,29 +4809,32 @@ export function resolveGameFlowChoice(
     }
 
     /*
-     * ==========================================================
-     * DO NOT MOVE THE OMEN
-     * ==========================================================
-     */
+    * ==========================================================
+    * DO NOT MOVE THE OMEN
+    * ==========================================================
+    */
 
     if (
       choiceId ===
       "omen-position:pass"
     ) {
-      return {
+      const updatedGame: GameState = {
         ...game,
-
-        currentMythosId: null,
 
         pendingDecision: null,
       };
+
+      return finishMythosPhase(
+        updatedGame,
+        map,
+      );
     }
 
     /*
-     * ==========================================================
-     * SELECT OMEN POSITION
-     * ==========================================================
-     */
+    * ==========================================================
+    * SELECT OMEN POSITION
+    * ==========================================================
+    */
 
     const omenPositionMap: Record<
       string,
@@ -4908,15 +4858,15 @@ export function resolveGameFlowChoice(
     }
 
     /*
-     * ==========================================================
-     * MOVE OMEN
-     * ==========================================================
-     *
-     * IMPORTANT:
-     * This does NOT advance Doom.
-     */
+    * ==========================================================
+    * MOVE OMEN
+    * ==========================================================
+    *
+    * IMPORTANT:
+    * This does NOT advance Doom.
+    */
 
-    return {
+    const updatedGame: GameState = {
       ...game,
 
       ancientOne: {
@@ -4926,10 +4876,13 @@ export function resolveGameFlowChoice(
           targetPosition,
       },
 
-      currentMythosId: null,
-
       pendingDecision: null,
     };
+
+    return finishMythosPhase(
+      updatedGame,
+      map,
+    );
   }
 
   /*

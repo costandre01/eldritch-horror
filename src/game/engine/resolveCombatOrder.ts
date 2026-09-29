@@ -20,6 +20,44 @@ export function resolveCombatOrder(
     );
   }
 
+  /*
+  * ============================================================
+  * VALIDATE COMBAT ORDER
+  * ============================================================
+  *
+  * Non-Epic Monsters must be encountered before Epic Monsters.
+  *
+  * The investigator may choose the order among the
+  * Non-Epic Monsters and among the Epic Monsters, but an
+  * Epic Monster cannot appear before a remaining Non-Epic
+  * Monster.
+  */
+
+  let epicMonsterFound = false;
+
+  for (const monsterId of orderedMonsterIds) {
+    const monster =
+      game.monsters[monsterId];
+
+    if (!monster) {
+      throw new Error(
+        `Monster "${monsterId}" does not exist.`,
+      );
+    }
+
+    if (monster.isEpic) {
+      epicMonsterFound = true;
+
+      continue;
+    }
+
+    if (epicMonsterFound) {
+      throw new Error(
+        "Non-Epic Monsters must be encountered before Epic Monsters.",
+      );
+    }
+  }
+
   const firstMonsterId =
     orderedMonsterIds[0];
 

@@ -73,8 +73,8 @@ function damageMonstersAtSpace(
 
   const defeated: string[] = [];
 
-  const discarded = [
-    ...game.board.monsterDiscard,
+  const monsterCup  = [
+    ...game.board.monsterCup,
   ];
 
   for (const id of space.monsterIds) {
@@ -105,9 +105,19 @@ function damageMonstersAtSpace(
     if (health === 0) {
       defeated.push(id);
 
-      discarded.push(
-        monsters[id],
-      );
+      if (
+        !monster.isEpic &&
+        !monsterCup.some(
+          (cupMonster) =>
+            cupMonster.id === id,
+        )
+      ) {
+        monsterCup.push({
+          ...monster,
+          spaceId: null,
+          engagedInvestigatorId: null,
+        });
+      }
     }
   }
 
@@ -119,8 +129,7 @@ function damageMonstersAtSpace(
     board: {
       ...game.board,
 
-      monsterDiscard:
-        discarded,
+      monsterCup,
 
       spaces: {
         ...game.board.spaces,

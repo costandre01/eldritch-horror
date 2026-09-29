@@ -19,6 +19,7 @@ import type {
 import type {
   MapDefinition,
 } from "../models/MapDefinition";
+import { resolveCombatOrder } from "../engine/resolveCombatOrder";
 
 function createTestMap(): MapDefinition {
   return {
@@ -1869,6 +1870,151 @@ describe(
         expect(
           result.pendingDecision?.type,
         ).toBe("choice");
+      },
+    );
+
+    it(
+      "allows Non-Epic Monsters before an Epic Monster in combat order",
+      () => {
+        const game =
+          prepareGame();
+
+        addMonster(
+          game,
+          "monster-1",
+          "cultist",
+          "arkham",
+        );
+
+        addMonster(
+          game,
+          "monster-2",
+          "cultist",
+          "arkham",
+        );
+
+        addMonster(
+          game,
+          "epic-1",
+          "azathoth",
+          "arkham",
+          {
+            isEpic: true,
+          },
+        );
+
+        const result =
+          resolveCombatOrder(
+            game,
+            [
+              "monster-2",
+              "monster-1",
+              "epic-1",
+            ],
+          );
+
+        expect(
+          result.combatOrder,
+        ).toEqual([
+          "monster-2",
+          "monster-1",
+          "epic-1",
+        ]);
+
+        expect(
+          result.pendingDecision?.type,
+        ).toBe("combat");
+
+        if (
+          result.pendingDecision?.type ===
+          "combat"
+        ) {
+          expect(
+            result.pendingDecision.monsterId,
+          ).toBe("monster-2");
+        }
+      },
+    );
+
+    it(
+      "rejects an Epic Monster before a Non-Epic Monster in combat order",
+      () => {
+        const game =
+          prepareGame();
+
+        addMonster(
+          game,
+          "monster-1",
+          "cultist",
+          "arkham",
+        );
+
+        addMonster(
+          game,
+          "epic-1",
+          "azathoth",
+          "arkham",
+          {
+            isEpic: true,
+          },
+        );
+
+        expect(() =>
+          resolveCombatOrder(
+            game,
+            [
+              "epic-1",
+              "monster-1",
+            ],
+          ),
+        ).toThrow(
+          "Non-Epic Monsters must be encountered before Epic Monsters.",
+        );
+      },
+    );
+
+    it(
+      "rejects a Non-Epic Monster placed after an Epic Monster in a longer combat order",
+      () => {
+        const game =
+          prepareGame();
+
+        addMonster(
+          game,
+          "monster-1",
+          "cultist",
+          "arkham",
+        );
+
+        addMonster(
+          game,
+          "monster-2",
+          "cultist",
+          "arkham",
+        );
+
+        addMonster(
+          game,
+          "epic-1",
+          "azathoth",
+          "arkham",
+          {
+            isEpic: true,
+          },
+        );
+
+        expect(() =>
+          resolveCombatOrder(
+            game,
+            [
+              "monster-1",
+              "epic-1",
+              "monster-2",
+            ],
+          ),
+        ).toThrow(
+          "Non-Epic Monsters must be encountered before Epic Monsters.",
+        );
       },
     );
   },
