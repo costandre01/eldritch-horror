@@ -639,7 +639,7 @@ describe(
     );
 
     it(
-      "supports Expedition Encounters at an Expedition space",
+      "supports Expedition Encounters at the active Expedition space",
       () => {
         const game =
           prepareGame();
@@ -653,6 +653,12 @@ describe(
         game.encounters[
           "expedition-card"
         ].name = "Arkham";
+
+        /*
+        * Arkham is the current Active Expedition.
+        */
+        game.board.activeExpeditionSpaceId =
+          "arkham";
 
         const result =
           startEncounter(

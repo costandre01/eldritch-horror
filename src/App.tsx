@@ -2376,6 +2376,7 @@ function App() {
     const standardTestResult =
       resolveStandardTestResult(
         currentGame,
+        eldritchBaseMap,
         testDecision,
         diceTest,
       );

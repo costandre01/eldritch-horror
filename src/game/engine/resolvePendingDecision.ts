@@ -2,6 +2,7 @@ import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
+import { syncActiveExpedition } from "./syncActiveExpedition";
 
 export function resolvePendingDecision(
   game: GameState,
@@ -122,7 +123,7 @@ export function resolvePendingDecision(
         const deckType =
           currentGame.currentEncounterDeckType;
 
-        return {
+        let finishedGame: GameState = {
           ...currentGame,
 
           board: {
@@ -158,6 +159,25 @@ export function resolvePendingDecision(
           pendingDecision:
             null,
         };
+
+        /*
+        * ========================================================
+        * SYNC ACTIVE EXPEDITION
+        * ========================================================
+        */
+
+        if (
+          deckType ===
+          "expedition"
+        ) {
+          finishedGame =
+            syncActiveExpedition(
+              finishedGame,
+              map,
+            );
+        }
+
+        return finishedGame;
       }
 
       return currentGame;
@@ -182,7 +202,7 @@ export function resolvePendingDecision(
       const deckType =
         game.currentEncounterDeckType;
 
-      return {
+      let finishedGame: GameState = {
         ...game,
 
         board: {
@@ -218,6 +238,25 @@ export function resolvePendingDecision(
         currentEncounterDeckType:
           null,
       };
+
+      /*
+      * ========================================================
+      * SYNC ACTIVE EXPEDITION
+      * ========================================================
+      */
+
+      if (
+        deckType ===
+        "expedition"
+      ) {
+        finishedGame =
+          syncActiveExpedition(
+            finishedGame,
+            map,
+          );
+      }
+
+      return finishedGame;
     }
 
     return {

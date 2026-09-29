@@ -14,6 +14,7 @@ import { advanceDoom } from "./doomEngine";
 import { spawnMonsterAtSpace } from "./spawnMonster";
 import { advanceOmen } from "./omenEngine";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
+import { syncActiveExpedition } from "./syncActiveExpedition";
 
 const ALL_MYTHOS = [
   ...easyMythos,
@@ -351,7 +352,7 @@ export function resolveMythosCardReckoning(
       };
     }
 
-    return {
+    let currentGame: GameState = {
       ...game,
 
       board: {
@@ -374,6 +375,14 @@ export function resolveMythosCardReckoning(
         ],
       },
     };
+
+    currentGame =
+      syncActiveExpedition(
+        currentGame,
+        _map,
+      );
+
+    return currentGame;
   }
 
   /*

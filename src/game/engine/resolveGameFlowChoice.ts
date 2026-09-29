@@ -116,6 +116,9 @@ export function resolveGameFlowChoice(
       decision.resume?.type ===
       "mythos-special"
     ) {
+      const resume =
+        decision.resume;
+
       const mythos =
         [
           ...easyMythos,
@@ -124,12 +127,12 @@ export function resolveGameFlowChoice(
         ].find(
           (definition) =>
             definition.id ===
-            decision.resume!.mythosId,
+            resume.mythosId,
         );
 
       if (!mythos) {
         throw new Error(
-          `Mythos "${decision.resume.mythosId}" does not exist.`,
+          `Mythos "${resume.mythosId}" does not exist.`,
         );
       }
 
@@ -4710,7 +4713,6 @@ export function resolveGameFlowChoice(
       deckType === "expedition"
         ? drawExpeditionEncounter(
             game,
-            currentSpace.name,
           )
         : drawEncounter(
             game,

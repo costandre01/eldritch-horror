@@ -89,6 +89,17 @@ export type InvestigatorDefeatResume =
       mythosId: string;
 
       step: string;
+    }
+  | {
+      type: "mythos-dark-power";
+
+      investigatorIds: string[];
+
+      currentInvestigatorIndex: number;
+
+      monsterIds: string[];
+
+      resolvedMonsterIds: string[];
     };
 
 export type PendingDecision =

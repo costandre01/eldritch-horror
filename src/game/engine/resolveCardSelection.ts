@@ -18,6 +18,7 @@ import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 import { continueAcquireAssetEffects } from "./continueAcquireAssetEffects";
 import { findNearestCity } from "./findNearestCity";
 import { discardSpell } from "./discardSpell";
+import { syncActiveExpedition } from "./syncActiveExpedition";
 
 export type CardSelectionResult =
   | {
@@ -1968,6 +1969,23 @@ export function resolveCardSelection(
           currentEncounterDeckType:
             null,
         };
+
+        /*
+        * ========================================================
+        * SYNC ACTIVE EXPEDITION
+        * ========================================================
+        */
+
+        if (
+          encounterDeckType ===
+          "expedition"
+        ) {
+          currentGame =
+            syncActiveExpedition(
+              currentGame,
+              map,
+            );
+        }
 
         currentGame =
           endInvestigatorEncounter(

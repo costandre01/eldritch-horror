@@ -3,6 +3,7 @@ import type { MapDefinition } from "../models/MapDefinition";
 import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
+import { syncActiveExpedition } from "./syncActiveExpedition";
 
 export function resolveCurrentEncounter(
   game: GameState,
@@ -129,6 +130,27 @@ export function resolveCurrentEncounter(
       currentEncounterDeckType:
         null,
     };
+
+    /*
+    * ============================================================
+    * SYNC ACTIVE EXPEDITION
+    * ============================================================
+    *
+    * After an Expedition Encounter is resolved and discarded,
+    * the top card of the Expedition deck determines the new
+    * Active Expedition location.
+    */
+
+    if (
+      encounterDeckType ===
+      "expedition"
+    ) {
+      currentGame =
+        syncActiveExpedition(
+          currentGame,
+          map,
+        );
+    }
 
     return endInvestigatorEncounter(
       currentGame,

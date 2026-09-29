@@ -24,6 +24,7 @@ import { startConditionReckoning } from "./startConditionReckoning";
 import { startMonsterReckoning } from "./startMonsterReckoning";
 import { startOtherWorldEncounter } from "./startOtherWorldEncounter";
 import { discardSpell } from "./discardSpell";
+import { syncActiveExpedition } from "./syncActiveExpedition";
 
 const ALL_MYTHOS = [
     ...easyMythos,
@@ -4251,7 +4252,7 @@ export function resolveMythosSpecial(
           current;
       }
 
-      return {
+      let currentGame: GameState = {
         ...game,
 
         investigators:
@@ -4268,6 +4269,14 @@ export function resolveMythosSpecial(
           },
         },
       };
+
+      currentGame =
+        syncActiveExpedition(
+          currentGame,
+          map,
+        );
+
+      return currentGame;
     }
 
     case "treacherous-magic": {

@@ -1,8 +1,10 @@
 import type { GameState } from "../models/GameState";
+import type { MapDefinition } from "../models/MapDefinition";
 import type { PendingDecision } from "../models/PendingDecision";
 import type { TestResult } from "../models/TestResult";
 
 import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
+import { syncActiveExpedition } from "./syncActiveExpedition";
 
 export type StandardTestResult =
   | {
@@ -16,6 +18,7 @@ export type StandardTestResult =
 
 export function resolveStandardTestResult(
   game: GameState,
+  map: MapDefinition,
   testDecision: Extract<
     PendingDecision,
     { type: "test" }
@@ -299,6 +302,24 @@ export function resolveStandardTestResult(
           },
         },
       };
+    }
+
+    /*
+    * ==========================================================
+    * SYNC ACTIVE EXPEDITION
+    * ==========================================================
+    */
+
+    if (
+      encounterId &&
+      encounterDeckType ===
+        "expedition"
+    ) {
+      finishedGame =
+        syncActiveExpedition(
+          finishedGame,
+          map,
+        );
     }
 
     /*

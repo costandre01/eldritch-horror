@@ -2,6 +2,7 @@ import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
+import { syncActiveExpedition } from "./syncActiveExpedition";
 
 function getSilverKeyDiscount(game: GameState, investigatorId: string, choice: import("../models/Encounter").EncounterChoice) {
   const investigator = game.investigators[investigatorId];
@@ -322,6 +323,23 @@ export function resolveEncounterChoice(
         currentEncounterDeckType:
           null,
       };
+
+      /*
+      * ==========================================================
+      * SYNC ACTIVE EXPEDITION
+      * ==========================================================
+      */
+
+      if (
+        encounterDeckType ===
+        "expedition"
+      ) {
+        currentGame =
+          syncActiveExpedition(
+            currentGame,
+            map,
+          );
+      }
 
       return endInvestigatorEncounter(
         currentGame,

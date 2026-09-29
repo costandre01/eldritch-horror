@@ -124,18 +124,14 @@ export function startEncounter(
     );
   
   if (
-    currentSpace.isExpedition &&
-    !secretsOfThePastInPlay
+    currentSpace.id ===
+      result.game.board.activeExpeditionSpaceId &&
+    !secretsOfThePastInPlay &&
+    result.game.board.encounterDecks.expedition.length > 0
   ) {
-    if (
-      result.game.board
-        .encounterDecks.expedition
-        .length > 0
-    ) {
-      possibleDeckTypes.push(
-        "expedition",
-      );
-    }
+    possibleDeckTypes.push(
+      "expedition",
+    );
   }
 
   /*
@@ -648,30 +644,28 @@ function getEncounterDeckName(
 function getEncounterDeckImage(
   game: GameState,
   deckType: EncounterDeckType,
-  expeditionName?: string,
+  _expeditionName?: string,
 ): string | undefined {
   const deck =
     game.board.encounterDecks[
       deckType
     ];
 
-  let topEncounterId: string | undefined;
+  /*
+   * ============================================================
+   * TOP CARD
+   * ============================================================
+   *
+   * The UI represents the physical Encounter deck using its
+   * current top card.
+   *
+   * This is especially important for Expedition Encounters:
+   * the top Expedition card determines the location of the
+   * Active Expedition token.
+   */
 
-  if (
-    deckType === "expedition" &&
-    expeditionName
-  ) {
-    topEncounterId =
-      deck.find(
-        (encounterId) =>
-          game.encounters[
-            encounterId
-          ]?.name === expeditionName,
-      );
-  } else {
-    topEncounterId =
-      deck[0];
-  }
+  const topEncounterId =
+    deck[0];
 
   if (!topEncounterId) {
     return undefined;

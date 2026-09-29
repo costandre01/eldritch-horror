@@ -344,7 +344,7 @@ describe(
     );
 
     it(
-      "returns the Active Expedition encounters belonging to the active Expedition space",
+      "returns the Active Expedition encounters and moves the Active Expedition to the new top card",
       () => {
         const game = prepareGame(
           "secrets-of-the-past",
@@ -363,26 +363,70 @@ describe(
           "encounter-1": {
             name: "City",
           } as never,
+
           "encounter-2": {
-            name: "Other Space",
+            name: "Wilderness",
           } as never,
+
           "encounter-3": {
             name: "City",
           } as never,
         };
 
+        /*
+        * The remaining top Expedition card
+        * points to Wilderness, so Wilderness
+        * must be a valid Expedition space.
+        */
+        const map =
+          createTestMap();
+
+        const wildernessSpace =
+          map.spaces.find(
+            (space) =>
+              space.id ===
+              "wilderness",
+          );
+
+        if (!wildernessSpace) {
+          throw new Error(
+            'Test space "wilderness" does not exist.',
+          );
+        }
+
+        wildernessSpace.isExpedition =
+          true;
+
         const result =
           resolveMythosCardReckoning(
             game,
-            createTestMap(),
+            map,
           );
 
+        /*
+        * Secrets of the Past returns all
+        * Expedition encounters belonging
+        * to the current Active Expedition.
+        *
+        * encounter-1 and encounter-3 belong
+        * to City, so only encounter-2 remains.
+        */
         expect(
           result.board.encounterDecks
             .expedition,
         ).toEqual([
           "encounter-2",
         ]);
+
+        /*
+        * encounter-2 is now the top card,
+        * so the Active Expedition moves
+        * to Wilderness.
+        */
+        expect(
+          result.board
+            .activeExpeditionSpaceId,
+        ).toBe("wilderness");
 
         expect(
           result.status,
@@ -391,7 +435,8 @@ describe(
         expect(
           result.pendingDecision,
         ).toMatchObject({
-          type: "mythos-card-reckoning",
+          type:
+            "mythos-card-reckoning",
           resolvedMythosIds: [
             "secrets-of-the-past",
           ],

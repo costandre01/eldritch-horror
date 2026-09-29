@@ -29,6 +29,7 @@ import { gainCondition } from "./gainCondition";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { defeatInvestigator } from "./defeatInvestigator";
 import { startMonsterReckoning } from "./startMonsterReckoning";
+import { syncActiveExpedition } from "./syncActiveExpedition";
 
 export interface GameFlowContinueResult {
   game: GameState;
@@ -946,7 +947,7 @@ export function resolveGameFlowContinue(
         );
       }
 
-      const finishedGame: GameState = {
+      let finishedGame: GameState = {
         ...resolvedGame,
 
         board: {
@@ -986,6 +987,17 @@ export function resolveGameFlowContinue(
           null,
       };
 
+      if (
+        encounterDeckType ===
+        "expedition"
+      ) {
+        finishedGame =
+          syncActiveExpedition(
+            finishedGame,
+            map,
+          );
+      }
+
       const nextGame =
         endInvestigatorEncounter(
           finishedGame,
@@ -1023,7 +1035,7 @@ export function resolveGameFlowContinue(
       );
     }
 
-    const finishedGame: GameState = {
+    let finishedGame: GameState = {
       ...gameWithoutDecision,
 
       board: {
@@ -1062,6 +1074,17 @@ export function resolveGameFlowContinue(
       pendingEncounterChoice:
         null,
     };
+
+    if (
+      encounterDeckType ===
+      "expedition"
+    ) {
+      finishedGame =
+        syncActiveExpedition(
+          finishedGame,
+          map,
+        );
+    }
 
     const nextGame =
       endInvestigatorEncounter(

@@ -215,46 +215,6 @@ function makeGame(
   } as GameState;
 }
 
-/**
- * endInvestigatorEncounter() exige inicialmente a fase
- * "encounter", mas o startInvestigatorActions() chamado
- * no caminho do próximo investigador exige "action".
- *
- * Esta fixture permite testar especificamente o caminho
- * interno que chama startInvestigatorActions(), fazendo
- * a primeira leitura devolver "encounter" e as seguintes
- * devolverem "action".
- */
-function makeGameForNextInvestigator(
-  overrides: Partial<GameState> = {},
-): GameState {
-  const game =
-    makeGame(overrides);
-
-  let phaseReads = 0;
-
-  Object.defineProperty(
-    game,
-    "phase",
-    {
-      configurable: true,
-      enumerable: true,
-
-      get() {
-        phaseReads++;
-
-        if (phaseReads === 1) {
-          return "encounter";
-        }
-
-        return "action";
-      },
-    },
-  );
-
-  return game;
-}
-
 describe(
   "endInvestigatorEncounter",
   () => {
@@ -523,10 +483,10 @@ describe(
     );
 
     it(
-      "moves to the next investigator and starts their actions",
+      "moves to the next investigator and keeps the Encounter phase",
       () => {
         const game =
-          makeGameForNextInvestigator({
+          makeGame({
             investigatorTurnIndex:
               0,
 
@@ -548,6 +508,10 @@ describe(
 
         const result =
           endInvestigatorEncounter(game);
+
+        expect(
+          result.phase,
+        ).toBe("encounter");
 
         expect(
           result.activeInvestigatorId,
@@ -592,7 +556,7 @@ describe(
       "skips an empty investigator entry",
       () => {
         const game =
-          makeGameForNextInvestigator({
+          makeGame({
             investigatorOrder: [
               "i1",
               "",
@@ -624,7 +588,7 @@ describe(
       "skips an investigator that does not exist",
       () => {
         const game =
-          makeGameForNextInvestigator({
+          makeGame({
             investigatorOrder: [
               "i1",
               "missing",
@@ -656,7 +620,7 @@ describe(
       "skips a defeated investigator",
       () => {
         const game =
-          makeGameForNextInvestigator({
+          makeGame({
             investigators: {
               i1: makeInvestigator({
                 id: "i1",

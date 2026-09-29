@@ -8,7 +8,6 @@ export interface DrawExpeditionEncounterResult {
 
 export function drawExpeditionEncounter(
   game: GameState,
-  expeditionName: string,
 ): DrawExpeditionEncounterResult {
   const deck =
     game.board.encounterDecks.expedition;
@@ -27,43 +26,18 @@ export function drawExpeditionEncounter(
 
   /*
    * ============================================================
-   * FIND ENCOUNTERS FOR THIS EXPEDITION
+   * DRAW TOP CARD
    * ============================================================
    *
-   * The Expedition deck contains all Expedition Encounters.
+   * The Active Expedition is determined by the top card of the
+   * Expedition Encounter deck.
    *
-   * Only Encounters belonging to the current Expedition
-   * may be drawn.
+   * Therefore an Expedition Encounter always draws the top card.
+   * We must never search the deck for another card matching the
+   * investigator's current space.
    */
 
-  const matchingIds =
-    deck.filter(
-      (encounterId: string) =>
-        game.encounters[
-          encounterId
-        ]?.name === expeditionName,
-    );
-
-  if (matchingIds.length === 0) {
-    throw new Error(
-      `No Expedition Encounters exist for "${expeditionName}".`,
-    );
-  }
-
-  /*
-   * ============================================================
-   * DRAW RANDOM ENCOUNTER
-   * ============================================================
-   */
-
-  const randomIndex =
-    Math.floor(
-      Math.random() *
-        matchingIds.length,
-    );
-
-  const encounterId =
-    matchingIds[randomIndex];
+  const encounterId = deck[0];
 
   if (!encounterId) {
     throw new Error(
@@ -82,40 +56,23 @@ export function drawExpeditionEncounter(
 
   /*
    * ============================================================
-   * REMOVE FROM DECK
+   * REMOVE TOP CARD
    * ============================================================
    */
 
-  const deckIndex =
-    deck.indexOf(encounterId);
-
-  if (deckIndex === -1) {
-    throw new Error(
-      `Expedition Encounter "${encounterId}" was not found in the deck.`,
-    );
-  }
-
-  const newDeck = [
-    ...deck.slice(
-      0,
-      deckIndex,
-    ),
-
-    ...deck.slice(
-      deckIndex + 1,
-    ),
-  ];
+  const newDeck =
+    deck.slice(1);
 
   /*
    * ============================================================
    * UPDATE GAME
    * ============================================================
    *
-   * The card is now considered drawn from the physical
-   * Expedition Encounter deck.
+   * The card remains the current Encounter until it has been
+   * completely resolved.
    *
-   * The source deck is stored in GameState so that the
-   * card can later be returned to the correct discard pile.
+   * At that point it will be discarded and the Active Expedition
+   * will be synchronized with the new top card.
    */
 
   const currentGame: GameState = {
@@ -142,7 +99,7 @@ export function drawExpeditionEncounter(
       false,
 
     currentEncounterIsResearch:
-      encounter.region === "research",
+      false,
 
     currentEncounterDeckType:
       "expedition",
@@ -150,7 +107,6 @@ export function drawExpeditionEncounter(
 
   return {
     game: currentGame,
-
     encounter,
   };
 }
