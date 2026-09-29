@@ -96,6 +96,8 @@ export function createInvestigator(
       ...options.definition.skills,
     },
 
+    improvementTokens: {},
+
     /*
      * ========================================================
      * RESOURCES
@@ -106,6 +108,8 @@ export function createInvestigator(
 
     clues:
       options.definition.startingClues,
+
+    clueTokens: [],
 
     /*
      * ========================================================
@@ -188,6 +192,8 @@ export function createInvestigator(
      */
 
     actionsPerformed: [],
+
+    componentActionsUsedThisRound: [],
 
     /*
      * ========================================================

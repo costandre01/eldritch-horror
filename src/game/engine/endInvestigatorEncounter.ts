@@ -1,6 +1,7 @@
 import { coreInvestigators } from "../../content/core/investigators";
 import type { GameState } from "../models/GameState";
 import { startMythosPhase } from "./startMythosPhase";
+import { CORE_MYSTERIES } from "../../content/core/coreMysteries";
 
 export function endInvestigatorEncounter(
   game: GameState,
@@ -61,6 +62,10 @@ export function endInvestigatorEncounter(
     }
   }
 
+  const activeMysteryDefinition = CORE_MYSTERIES.find(
+    (mystery) => mystery.id === game.mysteries.activeMysteryId,
+  );
+
   /*
   * ============================================================
   * OCCULT RESEARCH
@@ -75,7 +80,8 @@ export function endInvestigatorEncounter(
   if (
     game.currentEncounterIsResearch &&
     (game.encounterCluesGained ?? 0) > 0 &&
-    game.mysteries.activeMysteryId
+    game.mysteries.activeMysteryId &&
+    activeMysteryDefinition?.type === "research-encounter"
   ) {
     const investigatorId =
       game.activeInvestigatorId;
@@ -121,7 +127,7 @@ export function endInvestigatorEncounter(
         type: "choice",
 
         title:
-          "Occult Research",
+          activeMysteryDefinition.name,
 
         message:
           `You gained ${
@@ -158,17 +164,24 @@ export function endInvestigatorEncounter(
         ],
 
         source:
-          "mystery:occult-research",
+          `mystery:${activeMysteryDefinition.id}`,
       },
     };
   }
 
-  if (game.currentEncounterIsResearch || game.researchEncounterBonusDice?.[investigatorId]) {
+  if (
+    game.currentEncounterIsResearch ||
+    game.researchEncounterBonusDice?.[investigatorId] ||
+    (game.encounterCluesGained ?? 0) > 0 ||
+    (game.encounterClueTokenIdsGained?.length ?? 0) > 0
+  ) {
     const researchEncounterBonusDice = { ...game.researchEncounterBonusDice };
     delete researchEncounterBonusDice[investigatorId];
     game = {
       ...game,
       currentEncounterIsResearch: false,
+      encounterCluesGained: 0,
+      encounterClueTokenIdsGained: [],
       researchEncounterBonusDice,
     };
   }

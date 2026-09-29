@@ -1,6 +1,7 @@
 import type { GameState } from "../models/GameState";
 import { gainCondition } from "./gainCondition";
 import { resolveSpellBackEffects } from "./resolveSpellBackEffects";
+import { getImprovableSkills, improveInvestigatorSkill } from "./improvementEngine";
 
 export function resolveSpellBackChoice(game: GameState, choiceId: string): GameState {
   const pending = game.pendingSpellBackResolution;
@@ -76,7 +77,8 @@ export function resolveSpellBackChoice(game: GameState, choiceId: string): GameS
       const target = nextGame.investigators[targetId];
       if (!target) throw new Error("Spell target no longer exists.");
       const skill = choiceId as keyof typeof target.skills;
-      nextGame = { ...nextGame, investigators: { ...nextGame.investigators, [targetId]: { ...target, skills: { ...target.skills, [skill]: target.skills[skill] + effect.amount } } } };
+      if (!getImprovableSkills(target).includes(skill)) throw new Error("That skill already has a +2 Improvement token.");
+      nextGame = improveInvestigatorSkill(nextGame, targetId, skill, effect.amount);
       break;
     }
     case "gain-asset":

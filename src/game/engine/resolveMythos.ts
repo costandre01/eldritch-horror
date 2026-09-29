@@ -50,19 +50,11 @@ const ALL_MYTHOS: MythosDefinition[] = [
  * ============================================================
  */
 
-export function getMythosById(
-  mythosId: string,
-): MythosDefinition {
-  const mythos =
-    ALL_MYTHOS.find(
-      (definition) =>
-        definition.id === mythosId,
-    );
+export function getMythosById(mythosId: string): MythosDefinition {
+  const mythos = ALL_MYTHOS.find((definition) => definition.id === mythosId);
 
   if (!mythos) {
-    throw new Error(
-      `Mythos "${mythosId}" does not exist.`,
-    );
+    throw new Error(`Mythos "${mythosId}" does not exist.`);
   }
 
   return mythos;
@@ -86,21 +78,14 @@ export function resolveMythos(
    */
 
   if (game.phase !== "mythos") {
-    throw new Error(
-      "Mythos can only be resolved during the Mythos phase.",
-    );
+    throw new Error("Mythos can only be resolved during the Mythos phase.");
   }
 
   if (!game.currentMythosId) {
-    throw new Error(
-      "There is no current Mythos to resolve.",
-    );
+    throw new Error("There is no current Mythos to resolve.");
   }
 
-  const mythos =
-    getMythosById(
-      game.currentMythosId,
-    );
+  const mythos = getMythosById(game.currentMythosId);
 
   /*
    * ============================================================
@@ -121,8 +106,7 @@ export function resolveMythos(
    */
 
   const isPersistentMythos =
-    mythos.type === "ongoing" ||
-    mythos.type === "rumor";
+    mythos.type === "ongoing" || mythos.type === "rumor";
 
   /*
    * ============================================================
@@ -132,218 +116,188 @@ export function resolveMythos(
    * Icons are resolved before the card-specific effects.
    */
 
-    for (
-      let iconIndex = startIconIndex;
-      iconIndex < mythos.icons.length;
-      iconIndex++
-    ) {
-      const icon =
-        mythos.icons[iconIndex];
+  for (
+    let iconIndex = startIconIndex;
+    iconIndex < mythos.icons.length;
+    iconIndex++
+  ) {
+    const icon = mythos.icons[iconIndex];
 
-      if (!icon) {
-        continue;
+    if (!icon) {
+      continue;
+    }
+
+    switch (icon.type) {
+      /*
+       * --------------------------------------------------------
+       * ADVANCE OMEN
+       * --------------------------------------------------------
+       */
+
+      case "advance-omen": {
+        return prepareAdvanceOmen(currentGame, iconIndex + 1);
       }
 
-      switch (icon.type) {
-        /*
-        * --------------------------------------------------------
-        * ADVANCE OMEN
-        * --------------------------------------------------------
-        */
+      /*
+       * --------------------------------------------------------
+       * MYTHOS RECKONING
+       * --------------------------------------------------------
+       */
 
-        case "advance-omen": {
-          return prepareAdvanceOmen(
-            currentGame,
-            iconIndex + 1,
-          );
+      case "mythos-reckoning": {
+        return startMonsterReckoning(currentGame, map, iconIndex + 1);
+      }
+
+      /*
+       * --------------------------------------------------------
+       * SPAWN GATES
+       * --------------------------------------------------------
+       */
+
+      case "spawn-gates": {
+        const wasAwakened = currentGame.ancientOne.awakened;
+
+        currentGame = spawnMythosGates(currentGame, iconIndex + 1);
+
+        /*
+         * If resolving Spawn Gates caused Doom
+         * to reach 0, resolve the Ancient One
+         * Awakening before continuing the Mythos.
+         */
+
+        if (!wasAwakened && currentGame.ancientOne.awakened) {
+          return resolveAncientOneAwakening(currentGame, map, iconIndex + 1);
         }
 
-        /*
-        * --------------------------------------------------------
-        * MYTHOS RECKONING
-        * --------------------------------------------------------
-        */
+        return currentGame;
+      }
 
-        case "mythos-reckoning": {
-          return startMonsterReckoning(
-            currentGame,
-            map,
-            iconIndex + 1,
-          );
-        }
+      /*
+       * --------------------------------------------------------
+       * MONSTER SURGE
+       * --------------------------------------------------------
+       */
 
-        /*
-        * --------------------------------------------------------
-        * SPAWN GATES
-        * --------------------------------------------------------
-        */
+      case "monster-surge":
+        return resolveMythosMonsterSurge(currentGame, map, iconIndex + 1);
 
-        case "spawn-gates": {
-          const wasAwakened =
-            currentGame.ancientOne.awakened;
+      /*
+       * --------------------------------------------------------
+       * SPAWN CLUES
+       * --------------------------------------------------------
+       */
 
-          currentGame =
-            spawnMythosGates(
-              currentGame,
-              iconIndex + 1,
-            );
+      case "spawn-clues": {
+        const clueIdsBefore = new Set(
+          Object.values(currentGame.board.spaces).flatMap(
+            (space) => space.clueTokenIds ?? [],
+          ),
+        );
+        currentGame = spawnMythosClues(currentGame);
 
-          /*
-          * If resolving Spawn Gates caused Doom
-          * to reach 0, resolve the Ancient One
-          * Awakening before continuing the Mythos.
-          */
-
-          if (
-            !wasAwakened &&
-            currentGame.ancientOne.awakened
-          ) {
-            return resolveAncientOneAwakening(
-              currentGame,
-              map,
-              iconIndex + 1,
-            );
-          }
-
-          return currentGame;
-        }
-
-        /*
-        * --------------------------------------------------------
-        * MONSTER SURGE
-        * --------------------------------------------------------
-        */
-
-        case "monster-surge":
-          return resolveMythosMonsterSurge(
-            currentGame,
-            map,
-            iconIndex + 1,
-          );
-
-        /*
-        * --------------------------------------------------------
-        * SPAWN CLUES
-        * --------------------------------------------------------
-        */
-
-        case "spawn-clues": {
-          const clueIdsBefore = new Set(
-            Object.values(currentGame.board.spaces).flatMap(
-              (space) => space.clueTokenIds ?? [],
-            ),
-          );
-          currentGame =
-            spawnMythosClues(
-              currentGame,
-            );
-
-          const newClues = Object.entries(currentGame.board.spaces).flatMap(
-            ([spaceId, space]) => (space.clueTokenIds ?? [])
+        const newClues = Object.entries(currentGame.board.spaces).flatMap(
+          ([spaceId, space]) =>
+            (space.clueTokenIds ?? [])
               .filter((clueId) => !clueIdsBefore.has(clueId))
               .map((clueTokenId) => ({ clueTokenId, spaceId })),
-          );
+        );
 
-          if (newClues.length > 0) {
-            return {
-              ...currentGame,
-              pendingDecision: {
-                type: "mythos-clues",
-                title: "Spawn Clues",
-                message: "Clues are placed on the map.",
-                spaceIds: newClues.map(({ spaceId }) => spaceId),
-                clueTokenIds: newClues.map(({ clueTokenId }) => clueTokenId),
-                spaceNames: newClues.map(({ spaceId }) =>
-                  map.spaces.find((space) => space.id === spaceId)?.name ?? spaceId,
-                ),
-                nextIconIndex: iconIndex + 1,
-                source: "mythos:spawn-clues",
-              },
-            };
-          }
-
-          return showMythosContinue(
-            currentGame,
-            iconIndex + 1,
-          );
-        }
-
-        /*
-        * --------------------------------------------------------
-        * SPAWN RUMOR
-        * --------------------------------------------------------
-        */
-
-        case "spawn-rumor": {
-          currentGame =
-            spawnMythosRumor(
-              currentGame,
-              icon.spaceId,
-            );
-
+        if (newClues.length > 0) {
           return {
             ...currentGame,
             pendingDecision: {
-              type: "mythos-rumor",
-              title: "Spawn Rumor",
-              message: "A Rumor token is placed on the map.",
-              spaceIds: [icon.spaceId],
-              spaceNames: [map.spaces.find((space) => space.id === icon.spaceId)?.name ?? icon.spaceId],
+              type: "mythos-clues",
+              title: "Spawn Clues",
+              message: "Clues are placed on the map.",
+              spaceIds: newClues.map(({ spaceId }) => spaceId),
+              clueTokenIds: newClues.map(({ clueTokenId }) => clueTokenId),
+              spaceNames: newClues.map(
+                ({ spaceId }) =>
+                  map.spaces.find((space) => space.id === spaceId)?.name ??
+                  spaceId,
+              ),
               nextIconIndex: iconIndex + 1,
-              source: "mythos:spawn-rumor",
+              source: "mythos:spawn-clues",
             },
           };
         }
 
-        /*
-        * --------------------------------------------------------
-        * PLACE ELDRITCH TOKENS
-        * --------------------------------------------------------
-        */
+        return showMythosContinue(currentGame, iconIndex + 1);
+      }
 
-        case "place-eldritch-tokens": {
-          if (
-            isPersistentMythos &&
-            !currentGame.board.mythosInPlay.some((entry) => entry.definitionId === mythos.id)
-          ) {
-            currentGame = {
-              ...currentGame,
-              board: {
-                ...currentGame.board,
-                mythosInPlay: [
-                  ...currentGame.board.mythosInPlay,
-                  { definitionId: mythos.id, eldritchTokens: 0 },
-                ],
-              },
-            };
-          }
+      /*
+       * --------------------------------------------------------
+       * SPAWN RUMOR
+       * --------------------------------------------------------
+       */
 
-          currentGame =
-            addMythosEldritchTokens(
-              currentGame,
-              mythos.id,
-              icon.amount,
-            );
+      case "spawn-rumor": {
+        currentGame = spawnMythosRumor(currentGame, icon.spaceId);
 
-          return showMythosContinue(
-            currentGame,
-            iconIndex + 1,
-          );
+        return {
+          ...currentGame,
+          pendingDecision: {
+            type: "mythos-rumor",
+            title: "Spawn Rumor",
+            message: "A Rumor token is placed on the map.",
+            spaceIds: [icon.spaceId],
+            spaceNames: [
+              map.spaces.find((space) => space.id === icon.spaceId)?.name ??
+                icon.spaceId,
+            ],
+            nextIconIndex: iconIndex + 1,
+            source: "mythos:spawn-rumor",
+          },
+        };
+      }
+
+      /*
+       * --------------------------------------------------------
+       * PLACE ELDRITCH TOKENS
+       * --------------------------------------------------------
+       */
+
+      case "place-eldritch-tokens": {
+        if (
+          isPersistentMythos &&
+          !currentGame.board.mythosInPlay.some(
+            (entry) => entry.definitionId === mythos.id,
+          )
+        ) {
+          currentGame = {
+            ...currentGame,
+            board: {
+              ...currentGame.board,
+              mythosInPlay: [
+                ...currentGame.board.mythosInPlay,
+                { definitionId: mythos.id, eldritchTokens: 0 },
+              ],
+            },
+          };
         }
 
-        default:
-          throw new Error(
-            `Unsupported Mythos icon.`,
-          );
+        currentGame = addMythosEldritchTokens(
+          currentGame,
+          mythos.id,
+          icon.amount,
+        );
+
+        return showMythosContinue(currentGame, iconIndex + 1);
       }
+
+      default:
+        throw new Error(`Unsupported Mythos icon.`);
     }
+  }
 
   // Ongoing and Rumor cards enter play while resolving their text, after
   // all icons. In particular, a newly drawn card must not resolve its own
   // Reckoning effect from the Reckoning icon printed above that text.
   if (
     isPersistentMythos &&
-    !currentGame.board.mythosInPlay.some((entry) => entry.definitionId === mythos.id)
+    !currentGame.board.mythosInPlay.some(
+      (entry) => entry.definitionId === mythos.id,
+    )
   ) {
     currentGame = {
       ...currentGame,
@@ -365,11 +319,8 @@ export function resolveMythos(
    * These effects will be implemented one by one.
    */
 
-  for (
-    const effect of mythos.effects
-  ) {
+  for (const effect of mythos.effects) {
     switch (effect.type) {
-
       /*
        * --------------------------------------------------------
        * GAIN ARTIFACT
@@ -379,9 +330,7 @@ export function resolveMythos(
       case "gain-artifact": {
         const investigatorId =
           effect.investigator === "lead"
-            ? getLeadInvestigatorId(
-                currentGame,
-              )
+            ? getLeadInvestigatorId(currentGame)
             : currentGame.activeInvestigatorId;
 
         if (!investigatorId) {
@@ -390,57 +339,42 @@ export function resolveMythos(
           );
         }
 
-        currentGame =
-          gainArtifact(
-            currentGame,
-            investigatorId,
-          );
+        currentGame = gainArtifact(currentGame, investigatorId);
 
         break;
       }
 
       case "world-fights-back": {
-        const investigatorId =
-          currentGame.investigatorOrder[0];
+        const investigatorId = currentGame.investigatorOrder[0];
 
         if (!investigatorId) {
           break;
         }
 
-        const investigator =
-          currentGame.investigators[investigatorId];
+        const investigator = currentGame.investigators[investigatorId];
 
         if (!investigator) {
-          throw new Error(
-            `Investigator "${investigatorId}" does not exist.`,
-          );
+          throw new Error(`Investigator "${investigatorId}" does not exist.`);
         }
 
-        const monsterIds =
-          investigator.spaceId
-            ? (
-                currentGame.board.spaces[
-                  investigator.spaceId
-                ]?.monsterIds ?? []
-              ).filter(
-                (monsterId) =>
-                  currentGame.monsters[monsterId] !==
-                  undefined,
-              )
-            : [];
+        const monsterIds = investigator.spaceId
+          ? (
+              currentGame.board.spaces[investigator.spaceId]?.monsterIds ?? []
+            ).filter(
+              (monsterId) => currentGame.monsters[monsterId] !== undefined,
+            )
+          : [];
 
         const options = [
           {
             id: `world-fights-back:health:0`,
             title: "Recover 2 Health",
-            description:
-              "Recover 2 Health.",
+            description: "Recover 2 Health.",
           },
           {
             id: `world-fights-back:sanity:0`,
             title: "Recover 2 Sanity",
-            description:
-              "Recover 2 Sanity.",
+            description: "Recover 2 Sanity.",
           },
         ];
 
@@ -456,8 +390,7 @@ export function resolveMythos(
         options.push({
           id: `world-fights-back:pass:0`,
           title: "Do Nothing",
-          description:
-            "Do not use the effect.",
+          description: "Do not use the effect.",
         });
 
         return {
@@ -466,16 +399,14 @@ export function resolveMythos(
           pendingDecision: {
             type: "choice",
 
-            title:
-              "The World Fights Back",
+            title: "The World Fights Back",
 
             message:
               "This Investigator may recover 2 Health, recover 2 Sanity, or discard 1 Monster from his space.",
 
             options,
 
-            source:
-              `mythos:world-fights-back:0`,
+            source: `mythos:world-fights-back:0`,
           },
         };
       }
@@ -489,9 +420,7 @@ export function resolveMythos(
       case "roll-single-die": {
         const investigatorId =
           effect.investigator === "lead"
-            ? getLeadInvestigatorId(
-                currentGame,
-              )
+            ? getLeadInvestigatorId(currentGame)
             : currentGame.activeInvestigatorId;
 
         if (!investigatorId) {
@@ -506,28 +435,21 @@ export function resolveMythos(
           pendingDecision: {
             type: "single-die-roll",
 
-            title:
-              mythos.name,
+            title: mythos.name,
 
-            message:
-              "Roll 1 die. On a 1 or 2, lose 2 Health and 2 Sanity.",
+            message: "Roll 1 die. On a 1 or 2, lose 2 Health and 2 Sanity.",
 
-            image:
-              mythos.image,
+            image: mythos.image,
 
             investigatorId,
 
-            onOneOrTwo:
-              effect.onOneOrTwo,
+            onOneOrTwo: effect.onOneOrTwo,
 
-            onThreeToSix:
-              [],
+            onThreeToSix: [],
 
-            onComplete:
-              [],
+            onComplete: [],
 
-            source:
-              `mythos:single-die-roll:${mythos.id}`,
+            source: `mythos:single-die-roll:${mythos.id}`,
           },
         };
       }
@@ -541,15 +463,11 @@ export function resolveMythos(
       case "move-omen-choice": {
         const investigatorId =
           effect.investigator === "lead"
-            ? getLeadInvestigatorId(
-                currentGame,
-              )
+            ? getLeadInvestigatorId(currentGame)
             : currentGame.activeInvestigatorId;
 
         if (!investigatorId) {
-          throw new Error(
-            "No investigator available for Mythos Omen effect.",
-          );
+          throw new Error("No investigator available for Mythos Omen effect.");
         }
 
         return {
@@ -558,8 +476,7 @@ export function resolveMythos(
           pendingDecision: {
             type: "choice",
 
-            title:
-              mythos.name,
+            title: mythos.name,
 
             message:
               "The Lead Investigator may move the Omen to any space on the Omen track without advancing Doom.",
@@ -570,45 +487,39 @@ export function resolveMythos(
 
                 title: "Green",
 
-                description:
-                  "Move the Omen to the green space.",
+                description: "Move the Omen to the green space.",
               },
               {
                 id: "omen-position:1",
 
                 title: "Blue",
 
-                description:
-                  "Move the Omen to the blue space.",
+                description: "Move the Omen to the blue space.",
               },
               {
                 id: "omen-position:2",
 
                 title: "Red",
 
-                description:
-                  "Move the Omen to the red space.",
+                description: "Move the Omen to the red space.",
               },
               {
                 id: "omen-position:3",
 
                 title: "Blue",
 
-                description:
-                  "Move the Omen to the blue space.",
+                description: "Move the Omen to the blue space.",
               },
               {
                 id: "omen-position:pass",
 
                 title: "Do Not Move",
 
-                description:
-                  "Leave the Omen where it is.",
+                description: "Leave the Omen where it is.",
               },
             ],
 
-            source:
-              "mythos:omen-of-good-fortune",
+            source: "mythos:omen-of-good-fortune",
           },
         };
       }
@@ -622,54 +533,37 @@ export function resolveMythos(
       case "gain-ally": {
         const investigatorId =
           effect.investigator === "lead"
-            ? getLeadInvestigatorId(
-                currentGame,
-              )
+            ? getLeadInvestigatorId(currentGame)
             : currentGame.activeInvestigatorId;
 
         if (!investigatorId) {
-          throw new Error(
-            "No investigator available for Mythos Ally effect.",
-          );
+          throw new Error("No investigator available for Mythos Ally effect.");
         }
 
-        currentGame =
-          resolveEncounterEffects(
-            currentGame,
-            investigatorId,
-            [
-              {
-                type: "gain-ally",
-              },
-            ],
-            map,
-          );
+        currentGame = resolveEncounterEffects(
+          currentGame,
+          investigatorId,
+          [
+            {
+              type: "gain-ally",
+            },
+          ],
+          map,
+        );
 
         break;
       }
 
       case "mythos-special": {
-        currentGame =
-          resolveMythosSpecial(
-            currentGame,
-            mythos,
-            effect.id,
-            map,
-          );
+        currentGame = resolveMythosSpecial(currentGame, mythos, effect.id, map);
 
         break;
       }
 
       case "select-gate": {
-        const gateSpaceIds =
-          Object.entries(
-            currentGame.board.spaces,
-          )
-            .filter(
-              ([, space]) =>
-                space.gates.length > 0,
-            )
-            .map(([spaceId]) => spaceId);
+        const gateSpaceIds = Object.entries(currentGame.board.spaces)
+          .filter(([, space]) => space.gates.length > 0)
+          .map(([spaceId]) => spaceId);
 
         if (gateSpaceIds.length === 0) {
           break;
@@ -681,19 +575,15 @@ export function resolveMythos(
           pendingDecision: {
             type: "select-space",
 
-            title:
-              "That Which Consumes",
+            title: "That Which Consumes",
 
-            message:
-              "As a group, choose 1 Gate on the game board to discard.",
+            message: "As a group, choose 1 Gate on the game board to discard.",
 
-            spaceIds:
-              gateSpaceIds,
+            spaceIds: gateSpaceIds,
 
             onSpaceSelected: [],
 
-            source:
-              "mythos:that-which-consumes",
+            source: "mythos:that-which-consumes",
           },
         };
       }
@@ -709,9 +599,7 @@ export function resolveMythos(
       case "gain-condition": {
         const investigatorId =
           effect.investigator === "lead"
-            ? getLeadInvestigatorId(
-                currentGame,
-              )
+            ? getLeadInvestigatorId(currentGame)
             : currentGame.activeInvestigatorId;
 
         if (!investigatorId) {
@@ -726,12 +614,11 @@ export function resolveMythos(
           );
         }
 
-        currentGame =
-          gainCondition(
-            currentGame,
-            investigatorId,
-            effect.conditionDefinitionId,
-          );
+        currentGame = gainCondition(
+          currentGame,
+          investigatorId,
+          effect.conditionDefinitionId,
+        );
 
         break;
       }
@@ -746,29 +633,19 @@ export function resolveMythos(
        */
 
       case "spawn-monsters": {
-        if (
-          effect.location ===
-          "active-expedition"
-        ) {
+        if (effect.location === "active-expedition") {
           const activeExpeditionSpaceId =
             currentGame.board.activeExpeditionSpaceId;
 
           if (!activeExpeditionSpaceId) {
-            throw new Error(
-              "There is no Active Expedition space.",
-            );
+            throw new Error("There is no Active Expedition space.");
           }
 
-          for (
-            let i = 0;
-            i < effect.amount;
-            i++
-          ) {
-            currentGame =
-              spawnMonsterAtSpace(
-                currentGame,
-                activeExpeditionSpaceId,
-              );
+          for (let i = 0; i < effect.amount; i++) {
+            currentGame = spawnMonsterAtSpace(
+              currentGame,
+              activeExpeditionSpaceId,
+            );
           }
         }
 
@@ -797,13 +674,8 @@ export function resolveMythos(
           ...currentGame.monsters,
         };
 
-        for (
-          const monsterId of Object.keys(
-            healedMonsters,
-          )
-        ) {
-          const monster =
-            healedMonsters[monsterId];
+        for (const monsterId of Object.keys(healedMonsters)) {
+          const monster = healedMonsters[monsterId];
 
           if (!monster) {
             continue;
@@ -812,13 +684,11 @@ export function resolveMythos(
           const definition =
             CORE_MONSTERS.find(
               (monsterDefinition) =>
-                monsterDefinition.id ===
-                monster.definitionId,
+                monsterDefinition.id === monster.definitionId,
             ) ??
             CORE_EPIC_MONSTERS.find(
               (monsterDefinition) =>
-                monsterDefinition.id ===
-                monster.definitionId,
+                monsterDefinition.id === monster.definitionId,
             );
 
           if (!definition) {
@@ -827,25 +697,19 @@ export function resolveMythos(
             );
           }
 
-          const toughness =
-            resolveMonsterToughness(
-              currentGame,
-              definition,
-            );
+          const toughness = resolveMonsterToughness(currentGame, definition);
 
           healedMonsters[monsterId] = {
             ...monster,
 
-            health:
-              toughness,
+            health: toughness,
           };
         }
 
         currentGame = {
           ...currentGame,
 
-          monsters:
-            healedMonsters,
+          monsters: healedMonsters,
         };
 
         /*
@@ -854,38 +718,27 @@ export function resolveMythos(
          * ------------------------------------------------------
          */
 
-        const investigatorIds =
-          currentGame.investigatorOrder;
+        const investigatorIds = currentGame.investigatorOrder;
 
-        const firstInvestigatorIndex =
-          investigatorIds.findIndex(
-            (investigatorId) => {
-              const investigator =
-                currentGame.investigators[
-                  investigatorId
-                ];
+        const firstInvestigatorIndex = investigatorIds.findIndex(
+          (investigatorId) => {
+            const investigator = currentGame.investigators[investigatorId];
 
-              if (!investigator?.spaceId) {
-                return false;
-              }
+            if (!investigator?.spaceId) {
+              return false;
+            }
 
-              const space =
-                currentGame.board.spaces[
-                  investigator.spaceId
-                ];
+            const space = currentGame.board.spaces[investigator.spaceId];
 
-              if (!space) {
-                return false;
-              }
+            if (!space) {
+              return false;
+            }
 
-              return space.monsterIds.some(
-                (monsterId) =>
-                  currentGame.monsters[
-                    monsterId
-                  ] !== undefined,
-              );
-            },
-          );
+            return space.monsterIds.some(
+              (monsterId) => currentGame.monsters[monsterId] !== undefined,
+            );
+          },
+        );
 
         /*
          * ------------------------------------------------------
@@ -893,19 +746,14 @@ export function resolveMythos(
          * ------------------------------------------------------
          */
 
-        if (
-          firstInvestigatorIndex === -1
-        ) {
+        if (firstInvestigatorIndex === -1) {
           return {
             ...currentGame,
 
             board: {
               ...currentGame.board,
 
-              mythosDiscard: [
-                ...currentGame.board.mythosDiscard,
-                mythos,
-              ],
+              mythosDiscard: [...currentGame.board.mythosDiscard, mythos],
             },
 
             currentMythosId: null,
@@ -918,10 +766,7 @@ export function resolveMythos(
           };
         }
 
-        const investigatorId =
-          investigatorIds[
-            firstInvestigatorIndex
-          ];
+        const investigatorId = investigatorIds[firstInvestigatorIndex];
 
         if (!investigatorId) {
           throw new Error(
@@ -929,10 +774,7 @@ export function resolveMythos(
           );
         }
 
-        const investigator =
-          currentGame.investigators[
-            investigatorId
-          ];
+        const investigator = currentGame.investigators[investigatorId];
 
         if (!investigator?.spaceId) {
           throw new Error(
@@ -941,13 +783,8 @@ export function resolveMythos(
         }
 
         const monsterIds =
-          currentGame.board.spaces[
-            investigator.spaceId
-          ]?.monsterIds.filter(
-            (monsterId) =>
-              currentGame.monsters[
-                monsterId
-              ] !== undefined,
+          currentGame.board.spaces[investigator.spaceId]?.monsterIds.filter(
+            (monsterId) => currentGame.monsters[monsterId] !== undefined,
           ) ?? [];
 
         /*
@@ -957,28 +794,24 @@ export function resolveMythos(
          */
 
         const resume: DarkPowerResume = {
-          type:
-            "mythos-dark-power",
+          type: "mythos-dark-power",
 
           investigatorIds,
 
-          currentInvestigatorIndex:
-            firstInvestigatorIndex,
+          currentInvestigatorIndex: firstInvestigatorIndex,
 
           monsterIds,
 
           resolvedMonsterIds: [],
         };
 
-        const gameWithInvestigator =
-          {
-            ...currentGame,
+        const gameWithInvestigator = {
+          ...currentGame,
 
-            activeInvestigatorId:
-              investigatorId,
+          activeInvestigatorId: investigatorId,
 
-            combatOrder: null,
-          };
+          combatOrder: null,
+        };
 
         /*
          * If there is only one Monster,
@@ -986,13 +819,10 @@ export function resolveMythos(
          */
 
         if (monsterIds.length === 1) {
-          const firstMonsterId =
-            monsterIds[0];
+          const firstMonsterId = monsterIds[0];
 
           if (!firstMonsterId) {
-            throw new Error(
-              "A Dark Power could not determine the Monster.",
-            );
+            throw new Error("A Dark Power could not determine the Monster.");
           }
 
           return startMonsterCombat(
@@ -1014,8 +844,7 @@ export function resolveMythos(
           pendingDecision: {
             type: "combat-order",
 
-            title:
-              "A Dark Power — Combat Order",
+            title: "A Dark Power — Combat Order",
 
             message:
               "Choose the order in which you will encounter the Monsters on your space.",
@@ -1024,8 +853,7 @@ export function resolveMythos(
 
             orderedMonsterIds: [],
 
-            source:
-              "combat-order",
+            source: "combat-order",
 
             resume,
           },
@@ -1051,15 +879,11 @@ export function resolveMythos(
       case "test-and-gain-clues": {
         const investigatorId =
           effect.investigator === "lead"
-            ? getLeadInvestigatorId(
-                currentGame,
-              )
+            ? getLeadInvestigatorId(currentGame)
             : currentGame.activeInvestigatorId;
 
         if (!investigatorId) {
-          throw new Error(
-            "No investigator available for Mythos test.",
-          );
+          throw new Error("No investigator available for Mythos test.");
         }
 
         return {
@@ -1068,22 +892,17 @@ export function resolveMythos(
           pendingDecision: {
             type: "test",
 
-            title:
-              mythos.name,
+            title: mythos.name,
 
-            message:
-              "The Lead Investigator tests Influence.",
+            message: "The Lead Investigator tests Influence.",
 
-            skill:
-              effect.skill,
+            skill: effect.skill,
 
-            modifier:
-              0,
+            modifier: 0,
 
             investigatorId,
 
-            source:
-              `mythos:test-and-gain-clues:${investigatorId}`,
+            source: `mythos:test-and-gain-clues:${investigatorId}`,
           },
         };
       }
@@ -1095,28 +914,20 @@ export function resolveMythos(
        */
 
       case "gain-dark-pact-to-solve-rumor": {
-
-        const rumorIds =
-          currentGame.board.mythosInPlay
-            .filter((entry) => {
-              const rumor =
-                ALL_MYTHOS.find(
-                  (definition) =>
-                    definition.id ===
-                    entry.definitionId,
-                );
-
-              return rumor?.type === "rumor";
-            })
-            .map(
-              (entry) =>
-                entry.definitionId,
+        const rumorIds = currentGame.board.mythosInPlay
+          .filter((entry) => {
+            const rumor = ALL_MYTHOS.find(
+              (definition) => definition.id === entry.definitionId,
             );
 
+            return rumor?.type === "rumor";
+          })
+          .map((entry) => entry.definitionId);
+
         /*
-        * If there are no Rumors in play,
-        * there is nothing to solve.
-        */
+         * If there are no Rumors in play,
+         * there is nothing to solve.
+         */
 
         if (rumorIds.length === 0) {
           break;
@@ -1128,8 +939,7 @@ export function resolveMythos(
           pendingDecision: {
             type: "choice",
 
-            title:
-              "A Proposition",
+            title: "A Proposition",
 
             message:
               "The Lead Investigator may gain a Dark Pact Condition to immediately solve 1 Rumor Mythos in play.",
@@ -1137,22 +947,18 @@ export function resolveMythos(
             options: [
               {
                 id: "gain-dark-pact",
-                title:
-                  "Gain Dark Pact",
+                title: "Gain Dark Pact",
                 description:
                   "Gain a Dark Pact Condition, then choose 1 Rumor Mythos in play to solve.",
               },
               {
                 id: "decline-dark-pact",
-                title:
-                  "Do Not Gain Dark Pact",
-                description:
-                  "Do not gain the Dark Pact Condition.",
+                title: "Do Not Gain Dark Pact",
+                description: "Do not gain the Dark Pact Condition.",
               },
             ],
 
-            source:
-              "mythos:a-proposition-dark-pact",
+            source: "mythos:a-proposition-dark-pact",
           },
         };
       }
@@ -1164,17 +970,13 @@ export function resolveMythos(
        */
 
       case "gain-debt-to-discard-condition": {
-        const investigatorIds =
-          currentGame.investigatorOrder;
+        const investigatorIds = currentGame.investigatorOrder;
 
-        if (
-          investigatorIds.length === 0
-        ) {
+        if (investigatorIds.length === 0) {
           break;
         }
 
-        const firstInvestigatorId =
-          investigatorIds[0];
+        const firstInvestigatorId = investigatorIds[0];
 
         if (!firstInvestigatorId) {
           break;
@@ -1186,181 +988,139 @@ export function resolveMythos(
           pendingDecision: {
             type: "choice",
 
-            title:
-              "Everyone Has a Price",
+            title: "Everyone Has a Price",
 
             message:
               "May this Investigator gain a Debt Condition to discard 1 Condition?",
 
             options: [
               {
-                id:
-                  `gain-debt:${firstInvestigatorId}`,
+                id: `gain-debt:${firstInvestigatorId}`,
 
-                title:
-                  "Gain Debt",
+                title: "Gain Debt",
 
-                description:
-                  "Gain a Debt Condition and discard 1 Condition.",
+                description: "Gain a Debt Condition and discard 1 Condition.",
               },
 
               {
-                id:
-                  `decline-debt:${firstInvestigatorId}`,
+                id: `decline-debt:${firstInvestigatorId}`,
 
-                title:
-                  "Do Not Gain Debt",
+                title: "Do Not Gain Debt",
 
-                description:
-                  "Do not gain a Debt Condition.",
+                description: "Do not gain a Debt Condition.",
               },
             ],
 
-            source:
-              `mythos:everyone-has-a-price:${firstInvestigatorId}:0`,
+            source: `mythos:everyone-has-a-price:${firstInvestigatorId}:0`,
           },
         };
       }
 
-
       default:
-        throw new Error(
-          `Unsupported Mythos effect.`,
-        );
+        throw new Error(`Unsupported Mythos effect.`);
     }
   }
 
   /*
-  * ============================================================
-  * MYTHOS PHASE COMPLETE
-  * ============================================================
-  *
-  * The Mythos card has now been fully resolved.
-  *
-  * Event cards go to the discard pile.
-  * Ongoing and Rumor cards remain in play.
-  *
-  * The currently resolving Mythos is no longer active.
-  */
+   * ============================================================
+   * MYTHOS PHASE COMPLETE
+   * ============================================================
+   *
+   * The Mythos card has now been fully resolved.
+   *
+   * Event cards go to the discard pile.
+   * Ongoing and Rumor cards remain in play.
+   *
+   * The currently resolving Mythos is no longer active.
+   */
 
-  if (
-    mythos.type === "event"
-  ) {
+  if (mythos.type === "event") {
     currentGame = {
       ...currentGame,
 
       board: {
         ...currentGame.board,
 
-        mythosDiscard: [
-          ...currentGame.board.mythosDiscard,
-          mythos,
-        ],
+        mythosDiscard: [...currentGame.board.mythosDiscard, mythos],
       },
 
-      currentMythosId:
-        null,
+      currentMythosId: null,
     };
   } else {
     currentGame = {
       ...currentGame,
 
-      currentMythosId:
-        null,
+      currentMythosId: null,
     };
   }
 
   /*
-  * ============================================================
-  * CHECK ACTIVE MYSTERY
-  * ============================================================
-  *
-  * Mysteries are checked only after the entire
-  * Mythos Phase has been resolved.
-  */
+   * ============================================================
+   * CHECK ACTIVE MYSTERY
+   * ============================================================
+   *
+   * Mysteries are checked only after the entire
+   * Mythos Phase has been resolved.
+   */
 
-  currentGame =
-    checkActiveMystery(
-      currentGame,
-      map,
-    );
+  currentGame = checkActiveMystery(currentGame, map);
 
   /*
-  * If the Mystery caused the game to end,
-  * stop here.
-  */
+   * If the Mystery caused the game to end,
+   * stop here.
+   */
 
-  if (
-    currentGame.status ===
-    "victory"
-  ) {
+  if (currentGame.status === "victory") {
     return currentGame;
   }
 
   /*
-  * If resolving the Mystery created a
-  * pending decision, that decision must
-  * be resolved before choosing the Lead
-  * for the next round.
-  */
+   * If resolving the Mystery created a
+   * pending decision, that decision must
+   * be resolved before choosing the Lead
+   * for the next round.
+   */
 
-  if (
-    currentGame.pendingDecision ||
-    currentGame.pendingEncounterChoice
-  ) {
+  if (currentGame.pendingDecision || currentGame.pendingEncounterChoice) {
     return currentGame;
   }
 
   /*
-  * ============================================================
-  * REPLACE DEFEATED INVESTIGATORS
-  * ============================================================
-  *
-  * Investigators defeated during this round choose their
-  * replacements at the end of the Mythos Phase, before the
-  * Lead Investigator is selected for the next round.
-  */
+   * ============================================================
+   * REPLACE DEFEATED INVESTIGATORS
+   * ============================================================
+   *
+   * Investigators defeated during this round choose their
+   * replacements at the end of the Mythos Phase, before the
+   * Lead Investigator is selected for the next round.
+   */
 
-  if (
-    currentGame.pendingInvestigatorReplacements.length >
-    0
-  ) {
-    return getNextReplacementDecision(
-      currentGame,
-    );
+  if (currentGame.pendingInvestigatorReplacements.length > 0) {
+    return getNextReplacementDecision(currentGame);
   }
 
   /*
-  * ============================================================
-  * CHOOSE NEW LEAD INVESTIGATOR
-  * ============================================================
-  *
-  * At the end of the Mythos Phase, the Lead Investigator
-  * may pass the Lead token to another investigator.
-  *
-  * The current Lead is therefore excluded from the choice.
-  */
+   * ============================================================
+   * CHOOSE LEAD INVESTIGATOR
+   * ============================================================
+   *
+   * At the end of the Mythos Phase, the Lead Investigator
+   * may pass the Lead Investigator token to any investigator.
+   *
+   * The current Lead may keep the token.
+   */
 
-  const selectableInvestigatorIds =
-    currentGame.investigatorOrder.filter(
-      (investigatorId) =>
-        investigatorId !==
-        currentGame.leadInvestigatorId,
-    );
+  const selectableInvestigatorIds = currentGame.investigatorOrder;
 
   /*
-  * Solo game:
-  *
-  * There is nobody else to receive the Lead token,
-  * so the current Lead remains Lead and the next
-  * round starts immediately.
-  */
+   * Solo game:
+   *
+   * There is only one possible Lead Investigator,
+   * so no choice is necessary.
+   */
 
-  if (
-    selectableInvestigatorIds.length === 0
-  ) {
-    const currentLead =
-      currentGame.leadInvestigatorId;
+  if (selectableInvestigatorIds.length === 1) {
+    const currentLead = currentGame.leadInvestigatorId;
 
     if (!currentLead) {
       throw new Error(
@@ -1368,42 +1128,34 @@ export function resolveMythos(
       );
     }
 
-    return startNextRoundAfterMythos(
-      currentGame,
-      currentLead,
-    );
+    return startNextRoundAfterMythos(currentGame, currentLead);
   }
 
   /*
-  * Multiplayer:
-  *
-  * Show the same Lead Investigator selection
-  * already used during game setup.
-  */
+   * Multiplayer:
+   *
+   * Allow any investigator to receive the Lead token,
+   * including the current Lead.
+   */
 
   return {
     ...currentGame,
 
-    activeInvestigatorId:
-      null,
+    activeInvestigatorId: null,
 
-    investigatorTurnIndex:
-      0,
+    investigatorTurnIndex: 0,
 
     pendingDecision: {
       type: "select-investigator",
 
-      title:
-        "Choose Lead Investigator",
+      title: "Choose Lead Investigator",
 
       message:
         "Choose which investigator receives the Lead Investigator token for the next round.",
 
-      investigatorIds:
-        selectableInvestigatorIds,
+      investigatorIds: selectableInvestigatorIds,
 
-      source:
-        "mythos:end-lead",
+      source: "mythos:end-lead",
     },
   };
 }

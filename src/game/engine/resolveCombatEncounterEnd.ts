@@ -19,6 +19,7 @@ import { normalMythos } from "../../content/core/mythos/normalMythos";
 import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { startMonsterReckoning } from "./startMonsterReckoning";
+import { continueDarkPower } from "./continueDarkPower";
 
 export function resolveCombatEncounterEnd(
   game: GameState,
@@ -252,197 +253,21 @@ export function resolveCombatEncounterEnd(
      * CURRENT INVESTIGATOR FINISHED
      * ----------------------------------------------------------
      *
-     * Find the next Investigator who has Monsters on
-     * their current space.
+     * Continue A Dark Power with the next applicable
+     * Investigator.
      */
 
-    let nextInvestigatorIndex =
-      resume.currentInvestigatorIndex + 1;
-
-    while (
-      nextInvestigatorIndex <
-      resume.investigatorIds.length
-    ) {
-      const nextInvestigatorId =
-        resume.investigatorIds[
-          nextInvestigatorIndex
-        ];
-
-      if (!nextInvestigatorId) {
-        nextInvestigatorIndex++;
-        continue;
-      }
-
-      const nextInvestigator =
-        game.investigators[
-          nextInvestigatorId
-        ];
-
-      if (!nextInvestigator?.spaceId) {
-        nextInvestigatorIndex++;
-        continue;
-      }
-
-      const nextSpace =
-        game.board.spaces[
-          nextInvestigator.spaceId
-        ];
-
-      if (!nextSpace) {
-        nextInvestigatorIndex++;
-        continue;
-      }
-
-      const nextMonsterIds =
-        nextSpace.monsterIds.filter(
-          (monsterId) =>
-            game.monsters[
-              monsterId
-            ] !== undefined,
-        );
-
-      if (
-        nextMonsterIds.length > 0
-      ) {
-        const nextResume = {
-          type:
-            "mythos-dark-power" as const,
-
-          investigatorIds:
-            resume.investigatorIds,
-
-          currentInvestigatorIndex:
-            nextInvestigatorIndex,
-
-          monsterIds:
-            nextMonsterIds,
-
-          resolvedMonsterIds: [],
-        };
-
-        /*
-         * One Monster:
-         * start Combat immediately.
-         */
-
-        if (
-          nextMonsterIds.length === 1
-        ) {
-          const nextMonsterId =
-            nextMonsterIds[0];
-
-          if (!nextMonsterId) {
-            throw new Error(
-              "A Dark Power could not determine the next Monster.",
-            );
-          }
-
-          return startMonsterCombat(
-            {
-              ...game,
-
-              activeInvestigatorId:
-                nextInvestigatorId,
-
-              pendingDecision:
-                null,
-
-              combatOrder:
-                null,
-            },
-            nextMonsterId,
-            nextResume,
-          );
-        }
-
-        /*
-         * Multiple Monsters:
-         * the Investigator chooses the order.
-         */
-
-        return {
-          ...game,
-
-          activeInvestigatorId:
-            nextInvestigatorId,
-
-          combatOrder:
-            null,
-
-          pendingDecision: {
-            type:
-              "combat-order",
-
-            title:
-              "A Dark Power — Combat Order",
-
-            message:
-              "Choose the order in which you will encounter the Monsters on your space.",
-
-            monsterIds:
-              nextMonsterIds,
-
-            orderedMonsterIds: [],
-
-            source:
-              "combat-order",
-
-            resume:
-              nextResume,
-          },
-        };
-      }
-
-      nextInvestigatorIndex++;
-    }
-
-    /*
-     * ----------------------------------------------------------
-     * A DARK POWER FINISHED
-     * ----------------------------------------------------------
-     */
-
-    const currentMythos =
-      [
-        ...easyMythos,
-        ...normalMythos,
-        ...hardMythos,
-      ].find(
-        (mythos) =>
-          mythos.id ===
-          game.currentMythosId,
-      );
-
-    if (!currentMythos) {
-      throw new Error(
-        "A Dark Power could not find the current Mythos card.",
-      );
-    }
-
-    return {
-      ...game,
-
-      board: {
-        ...game.board,
-
-        mythosDiscard: [
-          ...game.board.mythosDiscard,
-          currentMythos,
-        ],
+    return continueDarkPower(
+      {
+        ...game,
+        pendingDecision: null,
+        combatOrder: null,
       },
-
-      currentMythosId:
-        null,
-
-      activeInvestigatorId:
-        null,
-
-      pendingDecision:
-        null,
-
-      combatOrder:
-        null,
-    };
+      {
+        ...resume,
+        resolvedMonsterIds,
+      },
+    );
   }
 
   const investigatorId =

@@ -27,6 +27,104 @@ import { coreSpells } from "../../content/core/coreSpell";
 import { returnRandomSolvedMysteryToDeck } from "./mysteryEngine";
 import { devourInvestigator } from "./devourInvestigator";
 import { getGainableSpellIds } from "./getGainableSpellIds";
+import { CORE_CLUES } from "../../content/core/coreClues";
+import {
+  drawClueToken,
+  gainInvestigatorClues,
+  spendInvestigatorClues,
+  spawnCluesAtSpace,
+} from "./clueEngine";
+import { getImprovableSkills, improveInvestigatorSkill } from "./improvementEngine";
+
+function gainEncounterClues(
+  game: GameState,
+  investigatorId: string,
+  requestedAmount: number,
+): GameState {
+  const investigator = game.investigators[investigatorId];
+  if (!investigator) {
+    throw new Error(`Investigator "${investigatorId}" does not exist.`);
+  }
+
+  const amount = Math.max(0, requestedAmount);
+  if (amount === 0) {
+    return game;
+  }
+
+  if (!game.currentEncounterIsResearch) {
+    const currentGame = gainInvestigatorClues(game, investigatorId, amount);
+    const gainedAmount =
+      currentGame.investigators[investigatorId].clues - investigator.clues;
+    return {
+      ...currentGame,
+      encounterCluesGained:
+        currentGame.currentEncounterId !== null
+          ? (currentGame.encounterCluesGained ?? 0) + gainedAmount
+          : currentGame.encounterCluesGained,
+    };
+  }
+
+  let currentGame = game;
+  const gainedTokens = [] as NonNullable<typeof investigator.clueTokens>;
+  const spaceId = investigator.spaceId;
+  const space = spaceId ? currentGame.board.spaces[spaceId] : undefined;
+
+  /* "Gain this Clue": take the encountered token from the board first. */
+  if ((currentGame.encounterCluesGained ?? 0) === 0 && space?.clueTokenIds[0]) {
+    const sourceSpaceId = spaceId as string;
+    const clueTokenId = space.clueTokenIds[0];
+    gainedTokens.push(
+      CORE_CLUES.find((token) => token.id === clueTokenId) ?? {
+        id: clueTokenId,
+        spaceId: sourceSpaceId,
+      },
+    );
+    currentGame = {
+      ...currentGame,
+      board: {
+        ...currentGame.board,
+        spaces: {
+          ...currentGame.board.spaces,
+          [sourceSpaceId]: {
+            ...space,
+            clues: Math.max(0, space.clues - 1),
+            clueTokenIds: space.clueTokenIds.filter((id) => id !== clueTokenId),
+          },
+        },
+      },
+    };
+  }
+
+  /* Any additional Clues named by the encounter come from the pool. */
+  const canDrawFromPool =
+    gainedTokens.length > 0 || (currentGame.encounterCluesGained ?? 0) > 0;
+  while (gainedTokens.length < amount && canDrawFromPool) {
+    const drawn = drawClueToken(currentGame);
+    currentGame = drawn.game;
+    if (!drawn.clue) break;
+    gainedTokens.push(drawn.clue);
+  }
+
+  const gainedAmount = gainedTokens.length;
+  const latestInvestigator = currentGame.investigators[investigatorId] ?? investigator;
+
+  return {
+    ...currentGame,
+    investigators: {
+      ...currentGame.investigators,
+      [investigatorId]: {
+        ...latestInvestigator,
+        clues: latestInvestigator.clues + gainedAmount,
+        clueTokens: [...(latestInvestigator.clueTokens ?? []), ...gainedTokens],
+      },
+    },
+    encounterCluesGained: (currentGame.encounterCluesGained ?? 0) + gainedAmount,
+    encounterClueTokenIdsGained: [
+      ...(currentGame.encounterClueTokenIdsGained ?? []),
+      ...gainedTokens.map((token) => token.id),
+    ],
+  };
+}
 
 export function resolveEncounterEffects(
   game: GameState,
@@ -443,22 +541,7 @@ export function resolveEncounterEffects(
 
           if (clueOwner) {
             nextGame = {
-              ...nextGame,
-
-              investigators: {
-                ...nextGame.investigators,
-
-                [targetId]: {
-                  ...clueOwner,
-
-                  clues:
-                    Math.max(
-                      0,
-                      clueOwner.clues -
-                        1,
-                    ),
-                },
-              },
+              ...spendInvestigatorClues(nextGame, targetId, 1),
 
               cardRerollUsedRound: {
                 ...nextGame
@@ -669,34 +752,11 @@ export function resolveEncounterEffects(
           );
         }
 
-        const amount =
-          effect.amount ?? 0;
-
-        currentGame = {
-          ...currentGame,
-
-          investigators: {
-            ...currentGame.investigators,
-
-            [investigatorId]: {
-              ...investigator,
-
-              clues:
-                investigator.clues + amount,
-            },
-          },
-
-          /*
-          * Track Clues gained during the current Encounter.
-          *
-          * Used by the Occult Research Mystery.
-          */
-          encounterCluesGained:
-            currentGame.currentEncounterId !== null
-              ? (currentGame.encounterCluesGained ?? 0) +
-                amount
-              : currentGame.encounterCluesGained,
-        };
+        currentGame = gainEncounterClues(
+          currentGame,
+          investigatorId,
+          effect.amount ?? 0,
+        );
 
         break;
       }
@@ -719,25 +779,11 @@ export function resolveEncounterEffects(
           );
         }
 
-        const amount =
-          effect.amount ?? 0;
-
-        currentGame = {
-          ...currentGame,
-
-          investigators: {
-            ...currentGame.investigators,
-
-            [investigatorId]: {
-              ...investigator,
-
-              clues: Math.max(
-                0,
-                investigator.clues - amount,
-              ),
-            },
-          },
-        };
+        currentGame = spendInvestigatorClues(
+          currentGame,
+          investigatorId,
+          effect.amount ?? 0,
+        );
 
         break;
       }
@@ -2513,29 +2559,18 @@ export function resolveEncounterEffects(
           effect.amount ?? 1;
 
         if (effect.skillType) {
-          currentGame = {
-            ...currentGame,
-
-            investigators: {
-              ...currentGame.investigators,
-
-              [investigatorId]: {
-                ...investigator,
-
-                skills: {
-                  ...investigator.skills,
-
-                  [effect.skillType]:
-                    investigator.skills[
-                      effect.skillType
-                    ] + amount,
-                },
-              },
-            },
-          };
+          currentGame = improveInvestigatorSkill(
+            currentGame,
+            investigatorId,
+            effect.skillType,
+            amount,
+          );
 
           break;
         }
+
+        const improvableSkills = getImprovableSkills(investigator);
+        if (improvableSkills.length === 0) break;
 
         currentGame = {
           ...currentGame,
@@ -2559,42 +2594,11 @@ export function resolveEncounterEffects(
                   ]?.frontImage
                 : undefined,
 
-            options: [
-              {
-                id: "strength",
-                title: "Strength",
-                description:
-                  "Improve Strength.",
-              },
-
-              {
-                id: "influence",
-                title: "Influence",
-                description:
-                  "Improve Influence.",
-              },
-
-              {
-                id: "will",
-                title: "Will",
-                description:
-                  "Improve Will.",
-              },
-
-              {
-                id: "lore",
-                title: "Lore",
-                description:
-                  "Improve Lore.",
-              },
-
-              {
-                id: "observation",
-                title: "Observation",
-                description:
-                  "Improve Observation.",
-              },
-            ],
+            options: improvableSkills.map((skill) => ({
+              id: skill,
+              title: `${skill[0].toUpperCase()}${skill.slice(1)}`,
+              description: `Place or upgrade the ${skill} Improvement token.`,
+            })),
 
             onComplete:
               effects.slice(
@@ -2897,16 +2901,7 @@ export function resolveEncounterEffects(
         ) {
           const currentInvestigator = currentGame.investigators[investigatorId];
           if (currentInvestigator) {
-            currentGame = {
-              ...currentGame,
-              investigators: {
-                ...currentGame.investigators,
-                [investigatorId]: {
-                  ...currentInvestigator,
-                  clues: currentInvestigator.clues + 1,
-                },
-              },
-            };
+            currentGame = gainInvestigatorClues(currentGame, investigatorId, 1);
           }
         }
 
@@ -3297,24 +3292,7 @@ export function resolveEncounterEffects(
         const amount =
           effect.amount ?? 1;
 
-        currentGame = {
-          ...currentGame,
-
-          board: {
-            ...currentGame.board,
-
-            spaces: {
-              ...currentGame.board.spaces,
-
-              [effect.spaceId]: {
-                ...space,
-
-                clues:
-                  space.clues + amount,
-              },
-            },
-          },
-        };
+        currentGame = spawnCluesAtSpace(currentGame, effect.spaceId, amount);
 
         break;
       }
@@ -3431,34 +3409,11 @@ export function resolveEncounterEffects(
           );
         }
 
-        const amount =
-          effect.amount ?? 1;
-
-        currentGame = {
-          ...currentGame,
-
-          investigators: {
-            ...currentGame.investigators,
-
-            [investigatorId]: {
-              ...investigator,
-
-              clues:
-                investigator.clues + amount,
-            },
-          },
-
-          /*
-          * Track Clues gained during the current Encounter.
-          *
-          * Used by the Occult Research Mystery.
-          */
-          encounterCluesGained:
-            currentGame.currentEncounterId !== null
-              ? (currentGame.encounterCluesGained ?? 0) +
-                amount
-              : currentGame.encounterCluesGained,
-        };
+        currentGame = gainEncounterClues(
+          currentGame,
+          investigatorId,
+          effect.amount ?? 1,
+        );
 
         break;
       }
@@ -4002,6 +3957,20 @@ export function resolveEncounterEffects(
           effect.targetSpaceType ??
             "sea",
         );
+
+        if (
+          currentGame.pendingDecision?.type === "select-space" &&
+          currentGame.pendingDecision.resume?.type === "encounter-nearest-clue"
+        ) {
+          currentGame = {
+            ...currentGame,
+            pendingDecision: {
+              ...currentGame.pendingDecision,
+              onComplete: effects.slice(effectIndex + 1),
+            },
+          };
+          return currentGame;
+        }
 
         break;
       }

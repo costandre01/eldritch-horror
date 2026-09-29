@@ -245,6 +245,8 @@ export function drawEncounter(
     */
     encounterCluesGained:
       0,
+
+    encounterClueTokenIdsGained: [],
   };
 
   return {

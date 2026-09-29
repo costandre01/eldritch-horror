@@ -25,6 +25,8 @@ import { startMonsterReckoning } from "./startMonsterReckoning";
 import { startOtherWorldEncounter } from "./startOtherWorldEncounter";
 import { discardSpell } from "./discardSpell";
 import { syncActiveExpedition } from "./syncActiveExpedition";
+import { spendInvestigatorClues } from "./clueEngine";
+import { CORE_CLUES } from "../../content/core/coreClues";
 
 const ALL_MYTHOS = [
     ...easyMythos,
@@ -3243,10 +3245,12 @@ export function resolveMythosSpecial(
           const clueTokenId of
             space.clueTokenIds
         ) {
-          clueTokensToDiscard.push({
-            id: clueTokenId,
-            spaceId,
-          });
+          clueTokensToDiscard.push(
+            CORE_CLUES.find((token) => token.id === clueTokenId) ?? {
+              id: clueTokenId,
+              spaceId,
+            },
+          );
         }
 
         updatedSpaces[spaceId] = {
@@ -3274,12 +3278,14 @@ export function resolveMythosSpecial(
           game.investigators,
         )
       ) {
+        clueTokensToDiscard.push(...(investigator.clueTokens ?? []));
         updatedInvestigators[
           investigatorId
         ] = {
           ...investigator,
 
           clues: 0,
+          clueTokens: [],
         };
       }
 
@@ -4581,23 +4587,11 @@ export function resolveMythosSpecial(
             continue;
           }
 
-          currentGame = {
-            ...currentGame,
-
-            investigators: {
-              ...currentGame.investigators,
-
-              [investigatorId]: {
-                ...investigator,
-
-                clues: Math.max(
-                  0,
-                  investigator.clues -
-                    rumorCount,
-                ),
-              },
-            },
-          };
+          currentGame = spendInvestigatorClues(
+            currentGame,
+            investigatorId,
+            rumorCount,
+          );
         }
 
         return {

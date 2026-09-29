@@ -463,7 +463,7 @@ describe(
 
         expect(
           pendingDecision.investigatorIds,
-        ).not.toContain(
+        ).toContain(
           leadInvestigatorId,
         );
       },

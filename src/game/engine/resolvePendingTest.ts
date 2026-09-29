@@ -4,6 +4,7 @@ import type { MapDefinition } from "../models/MapDefinition";
 import { rollTest } from "./rollTest";
 import { getEffectiveSkill } from "./getEffectiveSkill";
 import { getPassiveTestModifiers } from "./getPassiveTestModifiers";
+import { getSuccessfulTestResults } from "./getSuccessfulTestResults";
 
 export function resolvePendingTest(
   game: GameState,
@@ -101,11 +102,21 @@ export function resolvePendingTest(
           [decision.skill]:
             effectiveSkill,
         },
+        improvementTokens: {},
       },
       decision.skill,
       decision.modifier + passiveModifiers.bonusDice,
       1,
-      { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
+      {
+        sixCountsAsTwo:
+          passiveModifiers.sixCountsAsTwo,
+
+        successfulResults:
+          getSuccessfulTestResults(
+            game,
+            decision.investigatorId,
+          ),
+      },
     );
 
   /*

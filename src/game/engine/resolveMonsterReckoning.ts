@@ -13,6 +13,7 @@ import { startMonsterReckoning } from "./startMonsterReckoning";
 import { spawnMonsterAtSpace } from "./spawnMonster";
 import { spawnMythosGates } from "./spawnMythosGates";
 import { defeatInvestigator } from "./defeatInvestigator";
+import { CORE_CLUES } from "../../content/core/coreClues";
 
 function getMonsterDefinition(
   definitionId: string,
@@ -934,20 +935,19 @@ export function resolveMonsterReckoning(
         const clueTokenId =
           sourceSpace.clueTokenIds[0];
 
-        const clueToken = {
-          id:
-            clueTokenId ??
-            `clue-${targetSpaceId}`,
-          spaceId:
-            targetSpaceId,
-        };
+        const clueToken = clueTokenId
+          ? CORE_CLUES.find((token) => token.id === clueTokenId) ?? {
+              id: clueTokenId,
+              spaceId: targetSpaceId,
+            }
+          : null;
 
         const currentMonsterSpace =
           updatedGame.board.spaces[
             monster.spaceId
           ];
 
-        if (currentMonsterSpace) {
+        if (currentMonsterSpace && clueToken) {
           updatedGame = {
             ...updatedGame,
 

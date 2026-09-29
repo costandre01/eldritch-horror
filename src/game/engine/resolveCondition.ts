@@ -15,6 +15,7 @@ import { spawnMythosGates } from "./spawnMythosGates";
 import { defeatInvestigator } from "./defeatInvestigator";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
 import { devourInvestigator } from "./devourInvestigator";
+import { gainInvestigatorClues, spendInvestigatorClues } from "./clueEngine";
 
 export function resolveCondition(
   game: GameState,
@@ -164,6 +165,13 @@ export function resolveCondition(
   let shouldDiscard = false;
   let gainedAssetId: string | null = null;
 
+  const applyClueTotal = (state: GameState): GameState => {
+    const currentClues = state.investigators[investigatorId]?.clues ?? 0;
+    return clues > currentClues
+      ? gainInvestigatorClues(state, investigatorId, clues - currentClues)
+      : spendInvestigatorClues(state, investigatorId, currentClues - clues);
+  };
+
   const commitProgress = (): GameState => {
     let next: GameState = {
       ...currentGame,
@@ -175,10 +183,11 @@ export function resolveCondition(
         ...currentGame.investigators,
         [investigatorId]: {
           ...currentGame.investigators[investigatorId],
-          health, sanity, clues, assetIds, isDelayed,
+          health, sanity, assetIds, isDelayed,
         },
       },
     };
+    next = applyClueTotal(next);
     if (shouldDiscard) next = discardCondition(next, investigatorId, conditionId);
     return next;
   };
@@ -1137,12 +1146,12 @@ export function resolveCondition(
 
         health,
         sanity,
-        clues,
         assetIds,
         isDelayed,
       },
     },
   };
+  currentGame = applyClueTotal(currentGame);
 
   /*
    * ============================================================

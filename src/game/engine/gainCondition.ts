@@ -3,6 +3,7 @@ import type { ConditionCategory } from "../models/ConditionDefinition";
 
 import { coreConditionDefinitions } from "../../content/core/coreConditions";
 import { drawCondition } from "./drawCondition";
+import { discardCondition } from "./discardCondition";
 
 export function gainCondition(
   game: GameState,
@@ -18,13 +19,144 @@ export function gainCondition(
     );
   }
 
-  // An investigator cannot gain or choose to gain a second copy of the
-  // same Condition, even if another physical copy is available.
-  if (investigator.conditionIds.some(
-    (conditionId) => game.conditions[conditionId]?.definitionId === definitionId,
-  )) {
+  /*
+   * ============================================================
+   * EXISTING CONDITION REPLACEMENT EFFECTS
+   * ============================================================
+   *
+   * Some Conditions replace the effect of gaining another
+   * Condition.
+   *
+   * Blessed / Cursed are the main examples:
+   *
+   * - Blessed + gain Blessed -> flip Blessed instead
+   * - Blessed + gain Cursed  -> discard Blessed instead
+   * - Cursed  + gain Cursed  -> flip Cursed instead
+   * - Cursed  + gain Blessed -> discard Cursed instead
+   *
+   * The new Condition is not drawn when one of these replacement
+   * effects applies.
+   */
+
+  for (
+    const conditionId of
+    investigator.conditionIds
+  ) {
+    const condition =
+      game.conditions[conditionId];
+
+    if (
+      !condition ||
+      condition.flipped
+    ) {
+      continue;
+    }
+
+    const definition =
+      coreConditionDefinitions.find(
+        (candidate) =>
+          candidate.id ===
+          condition.definitionId,
+      );
+
+    if (!definition) {
+      continue;
+    }
+
+    const replacementEffect =
+      definition.frontEffects.find(
+        (effect) =>
+          effect.type ===
+            "replace-gain-condition" &&
+          effect.conditionDefinitionId ===
+            definitionId,
+      );
+
+    if (
+      !replacementEffect ||
+      replacementEffect.type !==
+        "replace-gain-condition"
+    ) {
+      continue;
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * FLIP EXISTING CONDITION
+     * ----------------------------------------------------------
+     */
+
+    const flipsSelf =
+      replacementEffect.effects.some(
+        (effect) =>
+          effect.type ===
+          "flip-self",
+      );
+
+    if (flipsSelf) {
+      return {
+        ...game,
+
+        conditions: {
+          ...game.conditions,
+
+          [conditionId]: {
+            ...condition,
+            flipped: true,
+          },
+        },
+      };
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * DISCARD EXISTING CONDITION
+     * ----------------------------------------------------------
+     */
+
+    const discardsSelf =
+      replacementEffect.effects.some(
+        (effect) =>
+          effect.type ===
+          "discard-self",
+      );
+
+    if (discardsSelf) {
+      return discardCondition(
+        game,
+        investigatorId,
+        conditionId,
+      );
+    }
+  }
+
+  /*
+   * ============================================================
+   * DUPLICATE CONDITION
+   * ============================================================
+   *
+   * If no replacement effect handled the gain above, an
+   * investigator cannot gain another copy of a Condition
+   * that they already have.
+   */
+
+  const alreadyHasCondition =
+    investigator.conditionIds.some(
+      (conditionId) =>
+        game.conditions[conditionId]
+          ?.definitionId ===
+        definitionId,
+    );
+
+  if (alreadyHasCondition) {
     return game;
   }
+
+  /*
+   * ============================================================
+   * DRAW CONDITION
+   * ============================================================
+   */
 
   const result =
     drawCondition(
@@ -36,6 +168,12 @@ export function gainCondition(
     return result.game;
   }
 
+  /*
+   * ============================================================
+   * GIVE CONDITION TO INVESTIGATOR
+   * ============================================================
+   */
+
   const conditionIds = [
     ...investigator.conditionIds,
     result.conditionId,
@@ -43,10 +181,15 @@ export function gainCondition(
 
   return {
     ...result.game,
+
     investigators: {
       ...result.game.investigators,
+
       [investigatorId]: {
-        ...result.game.investigators[investigatorId],
+        ...result.game.investigators[
+          investigatorId
+        ],
+
         conditionIds,
       },
     },
@@ -59,42 +202,85 @@ export function gainConditionByCategory(
   category: ConditionCategory,
   random: () => number = Math.random,
 ): GameState {
-  const investigator = game.investigators[investigatorId];
+  const investigator =
+    game.investigators[investigatorId];
+
   if (!investigator) {
-    throw new Error(`Investigator "${investigatorId}" does not exist.`);
+    throw new Error(
+      `Investigator "${investigatorId}" does not exist.`,
+    );
   }
-  const ownedDefinitionIds = new Set(
-    investigator.conditionIds
-      .map((conditionId) => game.conditions[conditionId]?.definitionId)
-      .filter((id): id is string => id !== undefined),
-  );
+
+  /*
+   * ============================================================
+   * OWNED CONDITIONS
+   * ============================================================
+   */
+
+  const ownedDefinitionIds =
+    new Set(
+      investigator.conditionIds
+        .map(
+          (conditionId) =>
+            game.conditions[conditionId]
+              ?.definitionId,
+        )
+        .filter(
+          (id): id is string =>
+            id !== undefined,
+        ),
+    );
+
+  /*
+   * ============================================================
+   * AVAILABLE CONDITIONS
+   * ============================================================
+   */
 
   const availableDefinitionIds =
     coreConditionDefinitions
       .filter(
         (definition) =>
-          definition.category === category &&
-          !ownedDefinitionIds.has(definition.id) &&
+          definition.category ===
+            category &&
+          !ownedDefinitionIds.has(
+            definition.id,
+          ) &&
           game.board.conditionDeck.some(
             (conditionId) =>
-              game.conditions[conditionId]?.definitionId ===
+              game.conditions[
+                conditionId
+              ]?.definitionId ===
               definition.id,
           ),
       )
       .map(
-        (definition) => definition.id,
+        (definition) =>
+          definition.id,
       );
 
-  if (availableDefinitionIds.length === 0) {
+  if (
+    availableDefinitionIds.length === 0
+  ) {
     return game;
   }
 
-  const randomIndex = Math.floor(
-    random() * availableDefinitionIds.length,
-  );
+  /*
+   * ============================================================
+   * RANDOM CONDITION
+   * ============================================================
+   */
+
+  const randomIndex =
+    Math.floor(
+      random() *
+        availableDefinitionIds.length,
+    );
 
   const definitionId =
-    availableDefinitionIds[randomIndex];
+    availableDefinitionIds[
+      randomIndex
+    ];
 
   if (!definitionId) {
     return game;

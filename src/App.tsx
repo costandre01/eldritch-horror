@@ -105,22 +105,65 @@ import { startNextRoundAfterMythos } from "./game/engine/startNextRoundAfterMyth
 import GameEndModal from "./components/game/modals/GameEndModal";
 import { resolveDefeatedInvestigatorReplacement } from "./game/engine/resolveDefeatedInvestigatorReplacement.ts";
 import { getConditionLocalActions, hasDetainedActionRestriction, resolveConditionLocalActionTest, startConditionLocalAction } from "./game/engine/conditionLocalAction";
+import { continueDarkPower } from "./game/engine/continueDarkPower.ts";
+import { gainInvestigatorClues, spendInvestigatorClues } from "./game/engine/clueEngine";
+import { CORE_MONSTERS } from "./content/core/coreMonsters";
+import { CORE_EPIC_MONSTERS } from "./content/core/coreEpicMonsters";
+import { getImprovableSkills, startNextStartingImprovement } from "./game/engine/improvementEngine";
+
+interface TestRerollOption {
+  id: string;
+  name: string;
+  amount: number;
+  image?: string;
+  description?: string;
+  resultModifier?: number;
+  sanityCost?: number;
+  rerollEachDieOnce?: boolean;
+  paymentGroupSize?: number;
+}
 
 function getTestRerollOptions(
   game: GameState,
   decision: Extract<PendingDecision, { type: "test" }>,
   axePaidThisTest = false,
-) {
+): TestRerollOption[] {
   const investigator = game.investigators[decision.investigatorId];
   if (!investigator) return [];
 
   const combatTest = decision.source?.startsWith("combat:") ?? false;
+  const combatMonsterId = combatTest ? decision.source?.split(":")[2] : undefined;
+  const combatMonster = combatMonsterId ? game.monsters[combatMonsterId] : undefined;
+  const combatMonsterDefinition = combatMonster
+    ? [...CORE_MONSTERS, ...CORE_EPIC_MONSTERS].find(
+        (definition) => definition.id === combatMonster.definitionId,
+      )
+    : undefined;
+  const cluesBlocked = combatTest && [
+    combatMonsterDefinition,
+    ...investigator.engagedMonsterIds.map((monsterId) => {
+      const monster = game.monsters[monsterId];
+      return monster
+        ? [...CORE_MONSTERS, ...CORE_EPIC_MONSTERS].find(
+            (definition) => definition.id === monster.definitionId,
+          )
+        : undefined;
+    }),
+  ].some((definition) => definition?.specialAbilities?.some(
+    (ability) => ability.type === "cannot-spend-clues-to-reroll",
+  ));
+  const clueRerollsPerSpend = Object.values(game.investigators).some(
+    (candidate) =>
+      candidate.definitionId === "trish-scarborough" &&
+      candidate.spaceId !== null &&
+      candidate.spaceId === investigator.spaceId,
+  ) ? 2 : 1;
   const cards = [
     ...investigator.assetIds.map((id) => game.assets[id]).filter(Boolean),
     ...investigator.artifactIds.map((id) => game.artifacts[id]).filter(Boolean),
   ];
 
-  return cards.flatMap((card) =>
+  return (cards.flatMap((card) =>
     (card.testRerolls ?? []).flatMap((ability: TestRerollAbility, index: number) => {
       if (ability.sanityCost && !axePaidThisTest && investigator.sanity <= ability.sanityCost) return [];
       if (ability.oncePerRound && game.cardRerollUsedRound?.[`${card.id}:${index}`] === game.round) return [];
@@ -138,7 +181,7 @@ function getTestRerollOptions(
         ...(ability.resultModifier !== undefined ? { resultModifier: ability.resultModifier } : {}),
       }];
     }),
-  ).concat(
+  ) as TestRerollOption[]).concat(
     (game.activeTestRerolls ?? [])
       .filter((ability) => ability.investigatorId === investigator.id)
       .filter((ability) => ability.skill === decision.skill)
@@ -155,6 +198,19 @@ function getTestRerollOptions(
           amount: ability.amount,
         };
       }),
+  ).concat(
+    investigator.clues > 0 && !cluesBlocked
+      ? [{
+          id: "clue-reroll",
+          name: "Clue",
+          image: "/icons/game/clue.png",
+          description: clueRerollsPerSpend === 2
+            ? "Spend 1 Clue to reroll up to 2 dice (Trish Scarborough)."
+            : "Spend 1 Clue to reroll 1 die.",
+          amount: investigator.clues * clueRerollsPerSpend,
+          paymentGroupSize: clueRerollsPerSpend,
+        }]
+      : [],
   );
 }
 
@@ -479,7 +535,16 @@ function App() {
       return ids.map((id) => ({ id, label: currentGame.monsters[id]?.definitionId ?? "Monster" }));
     }
     if (choice.type === "choose-skill") {
-      return ["lore", "influence", "observation", "strength", "will"].map((skill) => ({ id: skill, label: skill[0].toUpperCase() + skill.slice(1) }));
+      const effect = choice.effects.find((item) => item.type === "improve-skill");
+      const spell = currentGame.spells[choice.spellId];
+      const targetId = effect?.type === "improve-skill" && effect.target === "chosen-investigator"
+        ? spell?.pendingChosenInvestigatorId
+        : choice.investigatorId;
+      const target = targetId ? currentGame.investigators[targetId] : undefined;
+      return (target ? getImprovableSkills(target) : []).map((skill) => ({
+        id: skill,
+        label: skill[0].toUpperCase() + skill.slice(1),
+      }));
     }
     if (choice.type === "choose-asset") {
       const maxValue = choice.maxValueFromTestResult
@@ -1442,11 +1507,12 @@ function App() {
         decision.source ===
         "setup:lead-investigator"
       ) {
-        const updatedGame =
+        const updatedGame = startNextStartingImprovement(
           setLeadInvestigator(
             game,
             investigatorId,
-          );
+          ),
+        );
 
         setGame(updatedGame);
 
@@ -1544,6 +1610,44 @@ function App() {
               mythos,
               defeatResume.step,
               eldritchBaseMap,
+            );
+
+          setGame(resumedGame);
+
+          return;
+        }
+
+        /*
+        * ========================================================
+        * RESUME A DARK POWER
+        * ========================================================
+        *
+        * The defeated Investigator was the Lead Investigator.
+        *
+        * A new Lead has now been selected, so the defeat is
+        * completely resolved and A Dark Power can continue
+        * with the next applicable Investigator.
+        */
+
+        if (
+          defeatResume?.type ===
+          "mythos-dark-power"
+        ) {
+          const resumedGame =
+            continueDarkPower(
+              {
+                ...updatedGame,
+
+                activeInvestigatorId:
+                  null,
+
+                pendingDecision:
+                  null,
+
+                combatOrder:
+                  null,
+              },
+              defeatResume,
             );
 
           setGame(resumedGame);
@@ -2317,26 +2421,19 @@ function App() {
         return;
       }
 
+      const gameAfterClues = gainInvestigatorClues(
+        currentGame,
+        investigatorId,
+        cluesGained,
+      );
       const resolvedGame: GameState = {
-        ...currentGame,
-
-        investigators: {
-          ...currentGame.investigators,
-
-          [investigatorId]: {
-            ...investigator,
-
-            clues:
-              investigator.clues +
-              cluesGained,
-          },
-        },
+        ...gameAfterClues,
 
         board: {
-          ...currentGame.board,
+          ...gameAfterClues.board,
 
           mythosDiscard: [
-            ...currentGame.board.mythosDiscard,
+            ...gameAfterClues.board.mythosDiscard,
             mythos,
           ],
         },
@@ -4081,7 +4178,15 @@ function App() {
                 ? getTestRerollOptions(game, (pendingTestDecision ?? pendingTestDecisionRef.current)!, axePaidThisTest)
                 : []
             }
-            onReroll={(dieIndex, abilityId) => {
+            onReroll={(dieIndex, abilityId, requiresPayment) => {
+              if (abilityId === "clue-reroll" && requiresPayment) {
+                const investigatorId = (pendingTestDecision ?? pendingTestDecisionRef.current)?.investigatorId;
+                const investigator = investigatorId && game ? game.investigators[investigatorId] : undefined;
+                if (!investigatorId || !investigator || investigator.clues <= 0) return;
+                setGame((current) => current
+                  ? spendInvestigatorClues(current, investigatorId, 1)
+                  : current);
+              }
               const [cardId, abilityIndex] = abilityId.split(":");
               const cardAbility = game
                 ? (game.assets[cardId]?.testRerolls ?? game.artifacts[cardId]?.testRerolls)?.[Number(abilityIndex)]
@@ -4154,7 +4259,15 @@ function App() {
                   : `spell:${spellTestSpellId}`;
               })(),
             }, axePaidThisTest) : []}
-            onReroll={(dieIndex, abilityId) => {
+            onReroll={(dieIndex, abilityId, requiresPayment) => {
+              if (abilityId === "clue-reroll" && requiresPayment) {
+                const investigatorId = game?.activeInvestigatorId;
+                const investigator = investigatorId && game ? game.investigators[investigatorId] : undefined;
+                if (!investigatorId || !investigator || investigator.clues <= 0) return;
+                setGame((current) => current
+                  ? spendInvestigatorClues(current, investigatorId, 1)
+                  : current);
+              }
               const [cardId, abilityIndex] = abilityId.split(":");
               const cardAbility = game
                 ? (game.assets[cardId]?.testRerolls ?? game.artifacts[cardId]?.testRerolls)?.[Number(abilityIndex)]

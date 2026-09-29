@@ -20,7 +20,6 @@ import { resolveMonsterReckoning } from "./resolveMonsterReckoning";
 import { startAncientOneReckoning } from "./startAncientOneReckoning";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { resolveNextYogSothothInvestigator } from "./resolveYogSothothReckoning";
-import { startMonsterCombat } from "./startMonsterCombat";
 import { easyMythos } from "../../content/core/mythos/easyMythos";
 import { normalMythos } from "../../content/core/mythos/normalMythos";
 import { hardMythos } from "../../content/core/mythos/hardMythos";
@@ -30,6 +29,7 @@ import { solveMythosRumor } from "./solveMythosRumor";
 import { defeatInvestigator } from "./defeatInvestigator";
 import { startMonsterReckoning } from "./startMonsterReckoning";
 import { syncActiveExpedition } from "./syncActiveExpedition";
+import { continueDarkPower } from "./continueDarkPower";
 
 export interface GameFlowContinueResult {
   game: GameState;
@@ -1861,17 +1861,22 @@ export function resolveGameFlowContinue(
     }
 
     /*
-    * ==========================================================
-    * A DARK POWER COMBAT
-    * ==========================================================
-    *
-    * The investigator was defeated while resolving
-    * A Dark Power.
-    *
-    * The defeated investigator's sequence ends.
-    * Continue with the next investigator from the
-    * original investigator snapshot.
-    */
+     * ==========================================================
+     * A DARK POWER COMBAT
+     * ==========================================================
+     *
+     * The Investigator was defeated while resolving
+     * A Dark Power.
+     *
+     * Apply the complete normal Investigator defeat flow.
+     *
+     * If the defeat creates an intermediate decision
+     * (Crippled / Insane or Lead Investigator replacement),
+     * stop here and preserve the A Dark Power resume.
+     *
+     * Otherwise continue A Dark Power with the next
+     * applicable Investigator.
+     */
 
     if (
       decision.resume?.type ===
@@ -1889,211 +1894,72 @@ export function resolveGameFlowContinue(
         );
       }
 
-      const defeatedInvestigator =
-        finishedGame.investigators[
-          defeatedInvestigatorId
-        ];
+      /*
+       * ==========================================================
+       * APPLY NORMAL DEFEAT RULES
+       * ==========================================================
+       *
+       * defeatInvestigator() applies:
+       *
+       * - Doom +1
+       * - move to nearest City
+       * - discard Conditions
+       * - Crippled / Insane
+       * - pending Investigator replacement
+       * - Lead Investigator replacement
+       *
+       * The A Dark Power resume is passed through so that
+       * any intermediate defeat decision can return to the
+       * interrupted Mythos sequence.
+       */
 
-      if (!defeatedInvestigator) {
-        throw new Error(
-          `Investigator "${defeatedInvestigatorId}" does not exist.`,
+      const gameAfterDefeat =
+        defeatInvestigator(
+          {
+            ...finishedGame,
+
+            activeInvestigatorId:
+              null,
+
+            combatOrder:
+              null,
+          },
+          map,
+          defeatedInvestigatorId,
+          undefined,
+          undefined,
+          resume,
         );
-      }
 
       /*
-      * Mark the Investigator as defeated.
-      */
+       * ==========================================================
+       * DEFEAT INTERRUPTED A DARK POWER
+       * ==========================================================
+       *
+       * defeatInvestigator() may require player input before
+       * the defeat is completely resolved.
+       *
+       * Examples:
+       *
+       * - Health and Sanity both reached 0:
+       *   choose Crippled or Insane.
+       *
+       * - The defeated Investigator was the Lead:
+       *   choose a new Lead Investigator.
+       *
+       * Do not advance A Dark Power until that decision
+       * has been resolved.
+       */
 
-      let gameAfterDefeat: GameState = {
-        ...finishedGame,
-
-        activeInvestigatorId:
-          null,
-
-        combatOrder:
-          null,
-
-        investigators: {
-          ...finishedGame.investigators,
-
-          [defeatedInvestigatorId]: {
-            ...defeatedInvestigator,
-
-            isDefeated:
-              true,
-          },
-        },
-      };
-
-      /*
-      * ----------------------------------------------------------
-      * FIND NEXT INVESTIGATOR
-      * ----------------------------------------------------------
-      */
-
-      let nextInvestigatorIndex =
-        resume.currentInvestigatorIndex + 1;
-
-      while (
-        nextInvestigatorIndex <
-        resume.investigatorIds.length
+      if (
+        gameAfterDefeat.status === "defeat" ||
+        gameAfterDefeat.pendingDecision?.type ===
+          "choice" ||
+        gameAfterDefeat.pendingDecision?.type ===
+          "select-investigator"
       ) {
-        const nextInvestigatorId =
-          resume.investigatorIds[
-            nextInvestigatorIndex
-          ];
-
-        if (!nextInvestigatorId) {
-          nextInvestigatorIndex++;
-          continue;
-        }
-
-        const nextInvestigator =
-          gameAfterDefeat.investigators[
-            nextInvestigatorId
-          ];
-
-        /*
-        * Defeated Investigators cannot resolve
-        * A Dark Power encounters.
-        */
-
-        if (
-          !nextInvestigator ||
-          nextInvestigator.isDefeated ||
-          !nextInvestigator.spaceId
-        ) {
-          nextInvestigatorIndex++;
-          continue;
-        }
-
-        const nextSpace =
-          gameAfterDefeat.board.spaces[
-            nextInvestigator.spaceId
-          ];
-
-        if (!nextSpace) {
-          nextInvestigatorIndex++;
-          continue;
-        }
-
-        /*
-        * Only Monsters that still exist on the space
-        * can be encountered.
-        */
-
-        const nextMonsterIds =
-          nextSpace.monsterIds.filter(
-            (monsterId) =>
-              gameAfterDefeat.monsters[
-                monsterId
-              ] !== undefined,
-          );
-
-        if (
-          nextMonsterIds.length === 0
-        ) {
-          nextInvestigatorIndex++;
-          continue;
-        }
-
-        const nextResume = {
-          type:
-            "mythos-dark-power" as const,
-
-          investigatorIds:
-            resume.investigatorIds,
-
-          currentInvestigatorIndex:
-            nextInvestigatorIndex,
-
-          monsterIds:
-            nextMonsterIds,
-
-          resolvedMonsterIds: [],
-        };
-
-        /*
-        * One Monster:
-        * start Combat immediately.
-        */
-
-        if (
-          nextMonsterIds.length === 1
-        ) {
-          const nextMonsterId =
-            nextMonsterIds[0];
-
-          if (!nextMonsterId) {
-            throw new Error(
-              "A Dark Power could not determine the next Monster.",
-            );
-          }
-
-          return {
-            game:
-              startMonsterCombat(
-                {
-                  ...gameAfterDefeat,
-
-                  activeInvestigatorId:
-                    nextInvestigatorId,
-
-                  pendingDecision:
-                    null,
-
-                  combatOrder:
-                    null,
-                },
-                nextMonsterId,
-                nextResume,
-              ),
-
-            resetEncounterStartedForTurn:
-              false,
-          };
-        }
-
-        /*
-        * Multiple Monsters:
-        * choose their encounter order.
-        */
-
-        gameAfterDefeat = {
-          ...gameAfterDefeat,
-
-          activeInvestigatorId:
-            nextInvestigatorId,
-
-          combatOrder:
-            null,
-
-          pendingDecision: {
-            type:
-              "combat-order",
-
-            title:
-              "A Dark Power — Combat Order",
-
-            message:
-              "Choose the order in which you will encounter the Monsters on your space.",
-
-            monsterIds:
-              nextMonsterIds,
-
-            orderedMonsterIds: [],
-
-            source:
-              "combat-order",
-
-            resume:
-              nextResume,
-          },
-        };
-
         return {
-          game:
-            gameAfterDefeat,
+          game: gameAfterDefeat,
 
           resetEncounterStartedForTurn:
             false,
@@ -2101,55 +1967,36 @@ export function resolveGameFlowContinue(
       }
 
       /*
-      * ----------------------------------------------------------
-      * NO MORE INVESTIGATORS
-      * ----------------------------------------------------------
-      *
-      * A Dark Power is completely resolved.
-      */
+       * ==========================================================
+       * CONTINUE A DARK POWER
+       * ==========================================================
+       *
+       * The current Investigator's defeat is now completely
+       * resolved.
+       *
+       * Continue with the next applicable Investigator from
+       * the original A Dark Power Investigator snapshot.
+       */
 
-      const currentMythos =
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (mythos) =>
-            mythos.id ===
-            gameAfterDefeat.currentMythosId,
-        );
+      const nextGame =
+        continueDarkPower(
+          {
+            ...gameAfterDefeat,
 
-      if (!currentMythos) {
-        throw new Error(
-          "A Dark Power could not find the current Mythos card.",
+            pendingDecision:
+              null,
+
+            activeInvestigatorId:
+              null,
+
+            combatOrder:
+              null,
+          },
+          resume,
         );
-      }
 
       return {
-        game: {
-          ...gameAfterDefeat,
-
-          board: {
-            ...gameAfterDefeat.board,
-
-            mythosDiscard: [
-              ...gameAfterDefeat.board.mythosDiscard,
-              currentMythos,
-            ],
-          },
-
-          currentMythosId:
-            null,
-
-          activeInvestigatorId:
-            null,
-
-          pendingDecision:
-            null,
-
-          combatOrder:
-            null,
-        },
+        game: nextGame,
 
         resetEncounterStartedForTurn:
           false,

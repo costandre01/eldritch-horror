@@ -5,8 +5,8 @@ interface DiceRollModalProps {
   title?: string;
   sixCountsAsTwo?: boolean;
   onComplete?: () => void;
-  rerollAbilities?: { id: string; name: string; amount: number; image?: string; description?: string; resultModifier?: number; sanityCost?: number; rerollEachDieOnce?: boolean }[];
-  onReroll?: (dieIndex: number, abilityId: string) => void;
+  rerollAbilities?: { id: string; name: string; amount: number; image?: string; description?: string; resultModifier?: number; sanityCost?: number; rerollEachDieOnce?: boolean; paymentGroupSize?: number }[];
+  onReroll?: (dieIndex: number, abilityId: string, requiresPayment: boolean) => void;
 }
 
 function DicePips({
@@ -174,6 +174,10 @@ export default function DiceRollModal({
   const [usedRerollDice, setUsedRerollDice] =
     useState<Record<string, boolean>>({});
 
+  // A test's available rerolls are fixed when its modal opens. This also
+  // preserves Trish's second, already-paid reroll after the Clue is spent.
+  const initialRerollAbilities = useRef(rerollAbilities).current;
+
   const [displayValues, setDisplayValues] =
     useState<number[]>(() =>
       results.map(
@@ -315,9 +319,30 @@ export default function DiceRollModal({
     0,
   );
 
-  const availableRerolls = rerollAbilities.filter(
+  const availableRerolls = initialRerollAbilities.filter(
     (ability) => (usedRerolls[ability.id] ?? 0) < ability.amount,
   );
+
+  const selectedRerollAbility = initialRerollAbilities.find(
+    (ability) => ability.id === selectedReroll,
+  );
+
+  function wasDieAlreadyRerolledInCurrentUse(dieIndex: number): boolean {
+    if (!selectedRerollAbility) return false;
+    if (selectedRerollAbility.rerollEachDieOnce) {
+      return !!usedRerollDice[`${selectedRerollAbility.id}:${dieIndex}`];
+    }
+    if ((selectedRerollAbility.paymentGroupSize ?? 1) <= 1) return false;
+    const groupIndex = Math.floor(
+      (usedRerolls[selectedRerollAbility.id] ?? 0) /
+        selectedRerollAbility.paymentGroupSize!,
+    );
+    const usedInCurrentGroup = !!usedRerollDice[
+      `${selectedRerollAbility.id}:${groupIndex}:${dieIndex}`
+    ];
+    const nextGroupStart = (groupIndex + 1) * selectedRerollAbility.paymentGroupSize!;
+    return usedInCurrentGroup && nextGroupStart >= selectedRerollAbility.amount;
+  }
 
   return (
     <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/75 backdrop-blur-sm">
@@ -393,21 +418,41 @@ export default function DiceRollModal({
                       >
                         {settledResults[index] >= 5 ? "✓" : "—"}
                       </div>
-                      {selectedReroll && onReroll && !rerollAbilities.some((ability) => ability.id === selectedReroll && ability.rerollEachDieOnce && usedRerollDice[`${ability.id}:${index}`]) && (
+                      {selectedReroll && onReroll && !wasDieAlreadyRerolledInCurrentUse(index) && (
                         <button
                           type="button"
                           className="mt-2 rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600"
                           onClick={() => {
-                            const ability = rerollAbilities.find((item) => item.id === selectedReroll);
+                            const ability = initialRerollAbilities.find((item) => item.id === selectedReroll);
                             if (!ability) return;
-                            setUsedRerolls((used) => ({ ...used, [ability.id]: (used[ability.id] ?? 0) + 1 }));
+                            const previousUses = usedRerolls[ability.id] ?? 0;
+                            const groupSize = ability.paymentGroupSize ?? 1;
+                            const currentGroup = Math.floor(previousUses / groupSize);
+                            const alreadyUsedThisDie = groupSize > 1 && !!usedRerollDice[
+                              `${ability.id}:${currentGroup}:${index}`
+                            ];
+                            const usageIndex = alreadyUsedThisDie
+                              ? (currentGroup + 1) * groupSize
+                              : previousUses;
+                            setUsedRerolls((used) => ({ ...used, [ability.id]: usageIndex + 1 }));
                             if (ability.rerollEachDieOnce) setUsedRerollDice((used) => ({ ...used, [`${ability.id}:${index}`]: true }));
+                            if ((ability.paymentGroupSize ?? 1) > 1) {
+                              const groupIndex = Math.floor(usageIndex / ability.paymentGroupSize!);
+                              setUsedRerollDice((used) => ({
+                                ...used,
+                                [`${ability.id}:${groupIndex}:${index}`]: true,
+                              }));
+                            }
                             setSelectedReroll(null);
-                            onReroll(index, ability.id);
+                            onReroll(
+                              index,
+                              ability.id,
+                              usageIndex % (ability.paymentGroupSize ?? 1) === 0,
+                            );
                           }}
                         >
-                          {rerollAbilities.find((item) => item.id === selectedReroll)?.resultModifier
-                            ? `Add ${rerollAbilities.find((item) => item.id === selectedReroll)?.resultModifier} to die`
+                          {initialRerollAbilities.find((item) => item.id === selectedReroll)?.resultModifier
+                            ? `Add ${initialRerollAbilities.find((item) => item.id === selectedReroll)?.resultModifier} to die`
                             : "Reroll die"}
                         </button>
                       )}

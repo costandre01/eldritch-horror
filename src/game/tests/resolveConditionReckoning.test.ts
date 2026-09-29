@@ -425,14 +425,14 @@ describe(
         ] = {
           id: "condition-1",
           definitionId:
-            "condition-blessed",
+            "condition-amnesia",
           instanceNumber: 1,
           frontImage:
-            "/cards/conditions/blessed/1/blessed.png",
+            "/cards/conditions/amnesia/1/amnesia.png",
           backImage:
-            "/cards/conditions/blessed/1/blessed-back-1.png",
+            "/cards/conditions/amnesia/1/amnesia-back-1.png",
           backId:
-            "blessed-back-1",
+            "amnesia-back-1",
           flipped: false,
         };
 
@@ -471,6 +471,266 @@ describe(
             result.pendingDecision
               .currentConditionIndex,
           ).toBe(1);
+        }
+      },
+    );
+
+    it(
+      "discards Blessed on a Reckoning roll of 1 or 2",
+      () => {
+        const game =
+          prepareGame();
+
+        game.conditions[
+          "condition-blessed-1"
+        ] = {
+          id: "condition-blessed-1",
+          definitionId:
+            "condition-blessed",
+          instanceNumber: 1,
+          frontImage:
+            "/cards/conditions/blessed/1/blessed.png",
+          backImage:
+            "/cards/conditions/blessed/1/blessed-back-1.png",
+          backId:
+            "blessed-back-1",
+          flipped: false,
+        };
+
+        game.investigators[
+          "investigator-1"
+        ].conditionIds = [
+          "condition-blessed-1",
+        ];
+
+        game.pendingDecision =
+          createDecision({
+            conditionIds: [
+              [
+                "condition-blessed-1",
+              ],
+            ],
+          });
+
+        vi.spyOn(
+          Math,
+          "random",
+        ).mockReturnValue(0);
+
+        try {
+          const result =
+            resolveConditionReckoning(
+              game,
+              createTestMap(),
+            );
+
+          expect(
+            result.investigators[
+              "investigator-1"
+            ].conditionIds,
+          ).not.toContain(
+            "condition-blessed-1",
+          );
+
+          expect(
+            result.board.conditionDeck,
+          ).toContain(
+            "condition-blessed-1",
+          );
+        } finally {
+          vi.restoreAllMocks();
+        }
+      },
+    );
+
+    it(
+      "keeps Blessed on a Reckoning roll of 3 to 6",
+      () => {
+        const game =
+          prepareGame();
+
+        game.conditions[
+          "condition-blessed-1"
+        ] = {
+          id: "condition-blessed-1",
+          definitionId:
+            "condition-blessed",
+          instanceNumber: 1,
+          frontImage:
+            "/cards/conditions/blessed/1/blessed.png",
+          backImage:
+            "/cards/conditions/blessed/1/blessed-back-1.png",
+          backId:
+            "blessed-back-1",
+          flipped: false,
+        };
+
+        game.investigators[
+          "investigator-1"
+        ].conditionIds = [
+          "condition-blessed-1",
+        ];
+
+        game.pendingDecision =
+          createDecision({
+            conditionIds: [
+              [
+                "condition-blessed-1",
+              ],
+            ],
+          });
+
+        vi.spyOn(
+          Math,
+          "random",
+        ).mockReturnValue(2 / 6);
+
+        try {
+          const result =
+            resolveConditionReckoning(
+              game,
+              createTestMap(),
+            );
+
+          expect(
+            result.investigators[
+              "investigator-1"
+            ].conditionIds,
+          ).toContain(
+            "condition-blessed-1",
+          );
+        } finally {
+          vi.restoreAllMocks();
+        }
+      },
+    );
+
+    it(
+      "discards Cursed on a Reckoning roll of 4 to 6",
+      () => {
+        const game =
+          prepareGame();
+
+        game.conditions[
+          "condition-cursed-1"
+        ] = {
+          id: "condition-cursed-1",
+          definitionId:
+            "condition-cursed",
+          instanceNumber: 1,
+          frontImage:
+            "/cards/conditions/cursed/1/cursed.png",
+          backImage:
+            "/cards/conditions/cursed/1/cursed-back-1.png",
+          backId:
+            "cursed-back-1",
+          flipped: false,
+        };
+
+        game.investigators[
+          "investigator-1"
+        ].conditionIds = [
+          "condition-cursed-1",
+        ];
+
+        game.pendingDecision =
+          createDecision({
+            conditionIds: [
+              [
+                "condition-cursed-1",
+              ],
+            ],
+          });
+
+        vi.spyOn(
+          Math,
+          "random",
+        ).mockReturnValue(3 / 6);
+
+        try {
+          const result =
+            resolveConditionReckoning(
+              game,
+              createTestMap(),
+            );
+
+          expect(
+            result.investigators[
+              "investigator-1"
+            ].conditionIds,
+          ).not.toContain(
+            "condition-cursed-1",
+          );
+
+          expect(
+            result.board.conditionDeck,
+          ).toContain(
+            "condition-cursed-1",
+          );
+        } finally {
+          vi.restoreAllMocks();
+        }
+      },
+    );
+
+    it(
+      "keeps Cursed on a Reckoning roll of 1 to 3",
+      () => {
+        const game =
+          prepareGame();
+
+        game.conditions[
+          "condition-cursed-1"
+        ] = {
+          id: "condition-cursed-1",
+          definitionId:
+            "condition-cursed",
+          instanceNumber: 1,
+          frontImage:
+            "/cards/conditions/cursed/1/cursed.png",
+          backImage:
+            "/cards/conditions/cursed/1/cursed-back-1.png",
+          backId:
+            "cursed-back-1",
+          flipped: false,
+        };
+
+        game.investigators[
+          "investigator-1"
+        ].conditionIds = [
+          "condition-cursed-1",
+        ];
+
+        game.pendingDecision =
+          createDecision({
+            conditionIds: [
+              [
+                "condition-cursed-1",
+              ],
+            ],
+          });
+
+        vi.spyOn(
+          Math,
+          "random",
+        ).mockReturnValue(2 / 6);
+
+        try {
+          const result =
+            resolveConditionReckoning(
+              game,
+              createTestMap(),
+            );
+
+          expect(
+            result.investigators[
+              "investigator-1"
+            ].conditionIds,
+          ).toContain(
+            "condition-cursed-1",
+          );
+        } finally {
+          vi.restoreAllMocks();
         }
       },
     );

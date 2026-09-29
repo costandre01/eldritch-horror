@@ -3,6 +3,7 @@ import type { GameState } from "../models/GameState";
 import { coreInvestigators } from "../../content/core/investigators";
 
 import { createInvestigator } from "./createInvestigator";
+import { drawClueToken } from "./clueEngine";
 
 export function replaceDefeatedInvestigator(
   game: GameState,
@@ -129,7 +130,7 @@ export function replaceDefeatedInvestigator(
         definition.id,
     ).length;
 
-  const newInvestigator =
+  let newInvestigator =
     createInvestigator({
       definition,
 
@@ -138,6 +139,20 @@ export function replaceDefeatedInvestigator(
 
       startingSpellIds,
     });
+
+  let gameAfterClues = game;
+  const clueTokens = [];
+  for (let index = 0; index < newInvestigator.clues; index++) {
+    const drawn = drawClueToken(gameAfterClues);
+    gameAfterClues = drawn.game;
+    if (!drawn.clue) break;
+    clueTokens.push(drawn.clue);
+  }
+  newInvestigator = {
+    ...newInvestigator,
+    clues: clueTokens.length,
+    clueTokens,
+  };
 
   /*
    * ==========================================================
@@ -151,7 +166,7 @@ export function replaceDefeatedInvestigator(
    */
 
   const investigators = {
-    ...game.investigators,
+    ...gameAfterClues.investigators,
 
     [newInvestigator.id]:
       newInvestigator,
@@ -173,14 +188,14 @@ export function replaceDefeatedInvestigator(
     );
 
   return {
-    ...game,
+    ...gameAfterClues,
 
     investigators,
 
     investigatorOrder,
 
     board: {
-      ...game.board,
+      ...gameAfterClues.board,
 
       spellDeck,
     },
@@ -191,5 +206,13 @@ export function replaceDefeatedInvestigator(
           investigatorId !==
           defeatedInvestigatorId,
       ),
+
+    startingImprovementQueue: [
+      ...(game.startingImprovementQueue ?? []),
+      ...Array.from(
+        { length: definition.startingImprovementCount },
+        () => newInvestigator.id,
+      ),
+    ],
   };
 }

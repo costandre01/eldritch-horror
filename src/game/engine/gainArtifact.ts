@@ -1,4 +1,5 @@
 import type { GameState } from "../models/GameState";
+import { gainInvestigatorClues } from "./clueEngine";
 import { drawArtifact } from "./drawArtifact";
 
 export function gainArtifact(
@@ -103,23 +104,23 @@ export function gainArtifact(
    * ==========================================================
    */
 
+  const gameAfterClues = result.artifact.name === "Grotesque Statue"
+    ? gainInvestigatorClues(result.game, investigatorId, 5)
+    : result.game;
   const updatedInvestigator = {
-    ...result.game.investigators[investigatorId],
+    ...gameAfterClues.investigators[investigatorId],
     artifactIds,
     // Grotesque Statue grants its clues only when it is drawn from the
     // Artifact deck. `gainArtifact` is the deck-draw path; trading an
     // existing Artifact does not pass through here.
-    clues:
-      (result.game.investigators[investigatorId]?.clues ?? investigator.clues) +
-      (result.artifact.name === "Grotesque Statue" ? 5 : 0),
   };
 
   return {
-    ...result.game,
+    ...gameAfterClues,
 
     ...(!artifactId ? {
       cardRevealQueue: [
-        ...(result.game.cardRevealQueue ?? []),
+        ...(gameAfterClues.cardRevealQueue ?? []),
         {
           id: result.artifact.id,
           kind: "Artifact" as const,
@@ -131,7 +132,7 @@ export function gainArtifact(
     } : {}),
 
     investigators: {
-      ...result.game.investigators,
+      ...gameAfterClues.investigators,
 
       [investigatorId]: {
         ...updatedInvestigator,

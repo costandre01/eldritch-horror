@@ -6,6 +6,7 @@ import type {
 } from "../models/SpellDefinition/frontEffects";
 
 import { gainCondition } from "./gainCondition";
+import { getImprovableSkills } from "./improvementEngine";
 
 export interface ResolveSpellFrontTriggeredEffectsResult {
   game: GameState;
@@ -167,6 +168,11 @@ export function resolveSpellFrontTriggeredEffects(
       effect.type ===
       "improve-skill"
     ) {
+      const targetId = effect.target === "caster"
+        ? investigatorId
+        : spell.pendingChosenInvestigatorId;
+      const target = targetId ? currentGame.investigators[targetId] : undefined;
+      if (!target || getImprovableSkills(target).length === 0) continue;
       pendingChoice = {
         type: "choose-skill",
 

@@ -119,6 +119,124 @@ export function drawClueToken(
   };
 }
 
+export function spendInvestigatorClues(
+  game: GameState,
+  investigatorId: string,
+  requestedAmount: number,
+): GameState {
+  const investigator = game.investigators[investigatorId];
+  if (!investigator) {
+    throw new Error(`Investigator "${investigatorId}" does not exist.`);
+  }
+
+  const amount = Math.min(
+    investigator.clues,
+    Math.max(0, requestedAmount),
+  );
+  if (amount === 0) return game;
+
+  const trackedTokens = investigator.clueTokens ?? [];
+  const eligibleIds = new Set(game.encounterClueTokenIdsGained ?? []);
+  const discardOrder = [
+    ...trackedTokens.filter((token) => !eligibleIds.has(token.id)),
+    ...trackedTokens.filter((token) => eligibleIds.has(token.id)),
+  ];
+  const trackedAmount = Math.max(
+    0,
+    amount - Math.max(0, investigator.clues - trackedTokens.length),
+  );
+  const discardedTokens = discardOrder.slice(0, trackedAmount);
+  const discardedIds = new Set(discardedTokens.map((token) => token.id));
+  const remainingTokens = trackedTokens.filter((token) => !discardedIds.has(token.id));
+  const remainingClues = investigator.clues - amount;
+
+  return {
+    ...game,
+    investigators: {
+      ...game.investigators,
+      [investigatorId]: {
+        ...investigator,
+        clues: remainingClues,
+        clueTokens: remainingTokens,
+      },
+    },
+    board: {
+      ...game.board,
+      clueDiscard: [...(game.board.clueDiscard ?? []), ...discardedTokens],
+    },
+    encounterCluesGained: game.currentEncounterIsResearch
+      ? Math.min(game.encounterCluesGained ?? 0, remainingClues)
+      : game.encounterCluesGained,
+    encounterClueTokenIdsGained: (game.encounterClueTokenIdsGained ?? [])
+      .filter((id) => remainingTokens.some((token) => token.id === id)),
+  };
+}
+
+export function gainInvestigatorClues(
+  game: GameState,
+  investigatorId: string,
+  requestedAmount: number,
+): GameState {
+  const investigator = game.investigators[investigatorId];
+  if (!investigator) {
+    throw new Error(`Investigator "${investigatorId}" does not exist.`);
+  }
+
+  let currentGame = game;
+  const gainedTokens: ClueToken[] = [];
+  const amount = Math.max(0, requestedAmount);
+  while (gainedTokens.length < amount) {
+    const drawn = drawClueToken(currentGame);
+    currentGame = drawn.game;
+    if (!drawn.clue) break;
+    gainedTokens.push(drawn.clue);
+  }
+
+  const currentInvestigator = currentGame.investigators[investigatorId] ?? investigator;
+  return {
+    ...currentGame,
+    investigators: {
+      ...currentGame.investigators,
+      [investigatorId]: {
+        ...currentInvestigator,
+        clues: currentInvestigator.clues + gainedTokens.length,
+        clueTokens: [...(currentInvestigator.clueTokens ?? []), ...gainedTokens],
+      },
+    },
+  };
+}
+
+export function spawnCluesAtSpace(
+  game: GameState,
+  spaceId: string,
+  requestedAmount: number,
+): GameState {
+  let currentGame = game;
+  const amount = Math.max(0, requestedAmount);
+  for (let index = 0; index < amount; index++) {
+    const drawn = drawClueToken(currentGame);
+    currentGame = drawn.game;
+    if (!drawn.clue) break;
+    const space = currentGame.board.spaces[spaceId];
+    if (!space) throw new Error(`Space "${spaceId}" does not exist.`);
+    currentGame = {
+      ...currentGame,
+      board: {
+        ...currentGame.board,
+        spaces: {
+          ...currentGame.board.spaces,
+          [spaceId]: {
+            ...space,
+            clues: space.clues + 1,
+            clueTokenIds: [...space.clueTokenIds, drawn.clue.id],
+          },
+        },
+      },
+    };
+  }
+  return currentGame;
+}
+
 /*
  * ============================================================
  * SPAWN ONE CLUE

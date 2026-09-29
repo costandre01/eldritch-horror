@@ -6,6 +6,9 @@ import { gainCondition } from "./gainCondition";
 import { eldritchBaseMap } from "../../content/core/maps/eldritchBaseMap";
 import { defeatInvestigator } from "./defeatInvestigator";
 import { discardSpell } from "./discardSpell";
+import { CORE_CLUES } from "../../content/core/coreClues";
+import { gainInvestigatorClues, spendInvestigatorClues } from "./clueEngine";
+import { getImprovableSkills } from "./improvementEngine";
 
 export interface ResolveSpellBackEffectsOptions {
   game: GameState;
@@ -547,11 +550,17 @@ export function resolveSpellBackEffects(
          */
 
         case "improve-skill": {
+          const targetId = effect.target === "caster"
+            ? investigatorId
+            : currentGame.spells[spellId]?.pendingChosenInvestigatorId;
+          const target = targetId ? currentGame.investigators[targetId] : undefined;
+          const improvableSkills = target ? getImprovableSkills(target) : [];
+          if (improvableSkills.length === 0) break;
           pauseForChoice(
             { type: "improve-skill", effect },
             [...effects.slice(effectIndex + 1), ...trailingEffects],
             "Choose a skill to improve",
-            ["lore", "influence", "observation", "strength", "will"].map((skill) => ({
+            improvableSkills.map((skill) => ({
               id: skill,
               title: skill[0].toUpperCase() + skill.slice(1),
             })),
@@ -741,7 +750,13 @@ export function resolveSpellBackEffects(
                   clueTokenIds: space.clueTokenIds.filter((id) => id !== clueId),
                 },
               },
-              clueDiscard: [...currentGame.board.clueDiscard, { id: clueId, spaceId: space.spaceId }],
+              clueDiscard: [
+                ...currentGame.board.clueDiscard,
+                CORE_CLUES.find((token) => token.id === clueId) ?? {
+                  id: clueId,
+                  spaceId: space.spaceId,
+                },
+              ],
             },
           };
           break;
@@ -1072,11 +1087,24 @@ export function resolveSpellBackEffects(
 
         health,
         sanity,
-        clues,
         assetIds,
       },
     },
   };
+  currentGame = clues > updatedCaster.clues
+    ? gainInvestigatorClues(currentGame, investigatorId, clues - updatedCaster.clues)
+    : spendInvestigatorClues(currentGame, investigatorId, updatedCaster.clues - clues);
+  clues = currentGame.investigators[investigatorId]?.clues ?? clues;
+
+  if (currentGame.pendingSpellBackResolution) {
+    currentGame = {
+      ...currentGame,
+      pendingSpellBackResolution: {
+        ...currentGame.pendingSpellBackResolution,
+        clues,
+      },
+    };
+  }
 
   if (paused) return currentGame;
 

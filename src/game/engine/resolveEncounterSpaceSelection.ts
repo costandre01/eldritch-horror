@@ -7,6 +7,7 @@ import { moveInvestigator } from "./moveInvestigator";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
 import { resumeDeepOnesAttack, resumeMysteryNearestClue } from "./resolveMysteryEnterPlay";
 import { getMythosById } from "./resolveMythos";
+import { movePhysicalClue } from "./moveClue";
 
 export function resolveEncounterSpaceSelection(
   game: GameState,
@@ -370,6 +371,26 @@ export function resolveEncounterSpaceSelection(
       mysteryId,
       remainingClues,
     );
+  }
+
+  if (decision.resume?.type === "encounter-nearest-clue") {
+    const investigatorId = game.activeInvestigatorId;
+    if (!investigatorId) throw new Error("There is no active investigator.");
+    let updatedGame = movePhysicalClue(
+      { ...game, pendingDecision: null },
+      decision.resume.clueTokenId,
+      decision.resume.sourceSpaceId,
+      spaceId,
+    );
+    if (decision.onComplete?.length) {
+      updatedGame = resolveEncounterEffects(
+        updatedGame,
+        investigatorId,
+        decision.onComplete,
+        map,
+      );
+    }
+    return updatedGame;
   }
 
   /*

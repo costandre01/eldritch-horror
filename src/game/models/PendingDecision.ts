@@ -251,6 +251,13 @@ export type PendingDecision =
             investigatorIds: string[];
 
             currentInvestigatorIndex: number;
+          }
+        | {
+            type: "encounter-nearest-clue";
+
+            clueTokenId: string;
+
+            sourceSpaceId: string;
           };
     }
 

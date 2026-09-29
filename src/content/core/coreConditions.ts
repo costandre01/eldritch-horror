@@ -259,7 +259,7 @@ export const coreConditionDefinitions: ConditionDefinition[] = [
       },
 
       {
-        type: "on-gain-condition",
+        type: "replace-gain-condition",
         conditionDefinitionId: "condition-blessed",
 
         effects: [
@@ -270,7 +270,7 @@ export const coreConditionDefinitions: ConditionDefinition[] = [
       },
 
       {
-        type: "on-gain-condition",
+        type: "replace-gain-condition",
         conditionDefinitionId: "condition-cursed",
 
         effects: [
@@ -281,7 +281,7 @@ export const coreConditionDefinitions: ConditionDefinition[] = [
       },
 
       {
-        type: "on-encounter",
+        type: "on-reckoning",
 
         dice: 1,
         successResults: [1, 2],
@@ -402,7 +402,7 @@ export const coreConditionDefinitions: ConditionDefinition[] = [
       },
 
       {
-        type: "on-encounter",
+        type: "on-reckoning",
 
         dice: 1,
         successResults: [4, 5, 6],

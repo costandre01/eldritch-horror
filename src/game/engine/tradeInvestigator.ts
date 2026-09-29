@@ -458,6 +458,11 @@ export function tradeInvestigator(
     throw new Error("An investigator cannot gain a copy of a Spell they already have.");
   }
 
+  const investigatorClueTokens = investigator.clueTokens ?? [];
+  const targetClueTokens = targetInvestigator.clueTokens ?? [];
+  const cluesGiven = investigatorClueTokens.slice(0, clues);
+  const targetCluesGiven = targetClueTokens.slice(0, targetClues);
+
   /*
    * ==========================================================
    * RETURN UPDATED GAME
@@ -483,6 +488,11 @@ export function tradeInvestigator(
           investigator.clues -
           clues +
           targetClues,
+
+        clueTokens: [
+          ...investigatorClueTokens.slice(cluesGiven.length),
+          ...targetCluesGiven,
+        ],
 
         trainTickets:
           investigator.trainTickets -
@@ -522,6 +532,11 @@ export function tradeInvestigator(
           targetInvestigator.clues -
           targetClues +
           clues,
+
+        clueTokens: [
+          ...targetClueTokens.slice(targetCluesGiven.length),
+          ...cluesGiven,
+        ],
 
         trainTickets:
           targetInvestigator.trainTickets -

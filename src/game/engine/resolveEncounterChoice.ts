@@ -27,6 +27,7 @@ export function resolveEncounterChoice(
   game: GameState,
   choiceIndex: number,
   map: MapDefinition,
+  useSilverKey?: boolean,
 ): GameState {
   const investigatorId =
     game.activeInvestigatorId;
@@ -77,7 +78,39 @@ export function resolveEncounterChoice(
       );
     }
 
-    const discount = getSilverKeyDiscount(game, investigatorId, originalChoice);
+    const availableDiscount = getSilverKeyDiscount(game, investigatorId, originalChoice);
+
+    if (availableDiscount && useSilverKey === undefined) {
+      return {
+        ...game,
+        pendingDecision: {
+          type: "choice",
+          title: "The Silver Key",
+          message: "Do you want to use The Silver Key to spend 1 less Clue for this effect?",
+          image: game.artifacts[availableDiscount.artifactId]?.image,
+          options: [
+            {
+              id: "use",
+              title: "Use The Silver Key",
+              description: "Spend 1 less Clue and mark this once-per-round ability as used.",
+            },
+            {
+              id: "decline",
+              title: "Do not use it",
+              description: "Pay the original Clue cost.",
+              requirement: originalChoice.requirement,
+            },
+          ],
+          onComplete:
+            game.pendingDecision?.type === "choice"
+              ? game.pendingDecision.onComplete
+              : undefined,
+          source: `silver-key-clue-discount:${choiceIndex}`,
+        },
+      };
+    }
+
+    const discount = useSilverKey ? availableDiscount : null;
     const choice = discount?.choice ?? originalChoice;
 
     /*
@@ -408,7 +441,35 @@ export function resolveEncounterChoice(
     );
   }
 
-  const discount = getSilverKeyDiscount(game, investigatorId, originalChoice);
+  const availableDiscount = getSilverKeyDiscount(game, investigatorId, originalChoice);
+
+  if (availableDiscount && useSilverKey === undefined) {
+    return {
+      ...game,
+      pendingDecision: {
+        type: "choice",
+        title: "The Silver Key",
+        message: "Do you want to use The Silver Key to spend 1 less Clue for this effect?",
+        image: game.artifacts[availableDiscount.artifactId]?.image,
+        options: [
+          {
+            id: "use",
+            title: "Use The Silver Key",
+            description: "Spend 1 less Clue and mark this once-per-round ability as used.",
+          },
+          {
+            id: "decline",
+            title: "Do not use it",
+            description: "Pay the original Clue cost.",
+            requirement: originalChoice.requirement,
+          },
+        ],
+        source: `silver-key-clue-discount:${choiceIndex}`,
+      },
+    };
+  }
+
+  const discount = useSilverKey ? availableDiscount : null;
   const choice = discount?.choice ?? originalChoice;
 
   /*

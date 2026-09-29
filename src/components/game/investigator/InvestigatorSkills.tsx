@@ -13,11 +13,20 @@ export default function InvestigatorSkills({
   const skills: SkillValues = investigator.skills;
 
   function renderValue(skill: keyof SkillValues) {
-    const modifier = effectiveSkills[skill] - skills[skill];
+    const improvement = investigator.improvementTokens?.[skill] ?? 0;
+    const modifier = effectiveSkills[skill] - skills[skill] - improvement;
 
     return (
-      <span className="mt-1 inline-flex items-baseline gap-1 text-sm font-black">
+      <span className="mt-1 inline-flex items-center gap-1 text-sm font-black">
         <span>{skills[skill]}</span>
+        {improvement > 0 && (
+          <span
+            title={`+${improvement} Improvement token`}
+            className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-amber-200 bg-amber-500 px-1 text-[10px] font-black text-black shadow"
+          >
+            +{improvement}
+          </span>
+        )}
         {modifier !== 0 && (
           <span className={modifier > 0 ? "text-green-400" : "text-red-400"}>
             {modifier > 0 ? `+${modifier}` : modifier}

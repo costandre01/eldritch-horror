@@ -1,5 +1,6 @@
 import type { GameState } from "../models/GameState";
 import type { Skill } from "../models/Investigator";
+import { getImprovedSkillValue } from "./improvementEngine";
 
 export function getEffectiveSkill(
   game: GameState,
@@ -56,5 +57,5 @@ export function getEffectiveSkill(
 
   // Tests use the single highest applicable "gain +N" bonus. Additional
   // dice are handled separately by getPassiveTestModifiers.
-  return investigator.skills[skill] + Math.max(0, ...bonuses);
+  return getImprovedSkillValue(investigator, skill) + Math.max(0, ...bonuses);
 }

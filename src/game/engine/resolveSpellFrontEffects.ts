@@ -79,9 +79,36 @@ export function resolveSpellFrontEffects(
     };
   }
 
-  if (effect.type === "action-test") assertNormalActionAllowed(game, investigatorId);
-  if (effect.type === "action-test" && (game.phase !== "action" || !canPerformAction(investigator, "component"))) {
-    throw new Error("This Spell action can only be used during the Action Phase when the investigator can perform an action.");
+  if (effect.type === "action-test") {
+    assertNormalActionAllowed(
+      game,
+      investigatorId,
+    );
+
+    const componentActionKey =
+      `spell:${spellId}:action`;
+
+    if (
+      investigator.componentActionsUsedThisRound?.includes(
+        componentActionKey,
+      )
+    ) {
+      throw new Error(
+        "This Component Action was already used this round.",
+      );
+    }
+
+    if (
+      game.phase !== "action" ||
+      !canPerformAction(
+        investigator,
+        "component",
+      )
+    ) {
+      throw new Error(
+        "This Spell action can only be used during the Action Phase when the investigator can perform an action.",
+      );
+    }
   }
   if (effect.type === "on-encounter-phase" && !options.testResultOverride &&
       !getEncounterSpellOptions(game).some((option) => option.spellId === spellId)) {
@@ -93,7 +120,41 @@ export function resolveSpellFrontEffects(
   }
 
   let currentGame = game;
-  if (effect.type === "on-encounter-phase" && !options.testResultOverride) {
+
+  if (
+    effect.type === "action-test" &&
+    !options.testResultOverride
+  ) {
+    const componentActionKey =
+      `spell:${spellId}:action`;
+
+    currentGame = {
+      ...currentGame,
+
+      investigators: {
+        ...currentGame.investigators,
+
+        [investigatorId]: {
+          ...investigator,
+
+          actionsPerformed: [
+            ...investigator.actionsPerformed,
+            "component",
+          ],
+
+          componentActionsUsedThisRound: [
+            ...(investigator.componentActionsUsedThisRound ?? []),
+            componentActionKey,
+          ],
+        },
+      },
+    };
+  }
+
+  if (
+    effect.type === "on-encounter-phase" &&
+    !options.testResultOverride
+  ) {
     currentGame = { ...game, encounterSpellUsedRound: { ...game.encounterSpellUsedRound, [spellId]: game.round } };
   }
 

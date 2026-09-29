@@ -333,7 +333,7 @@ describe(
               selectedMysteryIds: [],
 
               activeMysteryId:
-                "mystery-1",
+                "azathoth-occult-research",
 
               solvedMysteryIds: [],
 
@@ -397,7 +397,7 @@ describe(
           ],
 
           source:
-            "mystery:occult-research",
+            "mystery:azathoth-occult-research",
         });
       },
     );
@@ -420,7 +420,7 @@ describe(
               selectedMysteryIds: [],
 
               activeMysteryId:
-                "mystery-1",
+                "azathoth-occult-research",
 
               solvedMysteryIds: [],
 
@@ -466,7 +466,7 @@ describe(
               selectedMysteryIds: [],
 
               activeMysteryId:
-                "mystery-1",
+                "azathoth-occult-research",
 
               solvedMysteryIds: [],
 
@@ -801,7 +801,7 @@ describe(
               selectedMysteryIds: [],
 
               activeMysteryId:
-                "mystery-1",
+                "azathoth-occult-research",
 
               solvedMysteryIds: [],
 

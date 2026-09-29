@@ -108,6 +108,17 @@ export function startEncounter(
   const possibleDeckTypes:
     EncounterDeckType[] = [];
 
+  /* A Clue on the investigator's space can be encountered. */
+  const boardSpace =
+    result.game.board.spaces[currentSpace.id];
+
+  if (
+    (boardSpace?.clueTokenIds.length ?? 0) > 0 &&
+    result.game.board.encounterDecks.research.length > 0
+  ) {
+    possibleDeckTypes.push("research");
+  }
+
   /*
    * ============================================================
    * EXPEDITION

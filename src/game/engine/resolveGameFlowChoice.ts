@@ -31,13 +31,20 @@ import { advanceDoom } from "./doomEngine";
 import { defeatInvestigator } from "./defeatInvestigator";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 import { startMythosCardReckoning } from "./startMythosCardReckoning";
-import { drawClueToken } from "./clueEngine";
+import {
+  drawClueToken,
+  gainInvestigatorClues,
+  spendInvestigatorClues,
+} from "./clueEngine";
 import { discardCondition } from "./discardCondition";
 import { coreSpells } from "../../content/core/coreSpell";
 import { continueAcquireAssetEffects } from "./continueAcquireAssetEffects";
 import { resolveCombatTest } from "./combat/resolveCombatTest";
 import { devourInvestigator } from "./devourInvestigator";
 import { getGainableSpellIds } from "./getGainableSpellIds";
+import { continueDarkPower } from "./continueDarkPower";
+import { getImprovableSkills, improveInvestigatorSkill, startNextStartingImprovement } from "./improvementEngine";
+import { startInvestigatorActions } from "./startInvestigatorActions";
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -52,6 +59,96 @@ export function resolveGameFlowChoice(
     decision.type !== "choice"
   ) {
     return game;
+  }
+
+  if (
+    decision.source?.startsWith(
+      "starting-improvement:",
+    )
+  ) {
+    const investigatorId =
+      decision.source.split(":")[1];
+
+    const investigator =
+      investigatorId
+        ? game.investigators[
+            investigatorId
+          ]
+        : undefined;
+
+    const skill =
+      choiceId as import("../models/Investigator").Skill;
+
+    if (
+      !investigator ||
+      !getImprovableSkills(
+        investigator,
+      ).includes(skill)
+    ) {
+      return game;
+    }
+
+    const improvedGame =
+      improveInvestigatorSkill(
+        game,
+        investigator.id,
+        skill,
+      );
+
+    const gameAfterChoice: GameState = {
+      ...improvedGame,
+
+      pendingDecision:
+        null,
+
+      startingImprovementQueue:
+        (
+          game.startingImprovementQueue ??
+          []
+        ).slice(1),
+    };
+
+    /*
+    * There are still starting Improvements
+    * waiting to be chosen.
+    */
+    if (
+      (
+        gameAfterChoice
+          .startingImprovementQueue
+          ?.length ?? 0
+      ) > 0
+    ) {
+      return startNextStartingImprovement(
+        gameAfterChoice,
+      );
+    }
+
+    /*
+    * Initial game setup:
+    *
+    * After the final starting Improvement
+    * has been chosen, start the Lead
+    * Investigator's first Action Phase.
+    *
+    * Replacement investigators can also
+    * receive starting Improvements during
+    * the game. In that case we must NOT
+    * restart the Action Phase.
+    */
+    if (
+      gameAfterChoice.round === 1 &&
+      gameAfterChoice.phase === "action" &&
+      gameAfterChoice.investigatorTurnIndex === 0 &&
+      gameAfterChoice.activeInvestigatorId ===
+        gameAfterChoice.leadInvestigatorId
+    ) {
+      return startInvestigatorActions(
+        gameAfterChoice,
+      );
+    }
+
+    return gameAfterChoice;
   }
 
   if (
@@ -107,6 +204,39 @@ export function resolveGameFlowChoice(
     */
     if (defeatedGame.pendingDecision) {
       return defeatedGame;
+    }
+
+    /*
+    * ============================================================
+    * RESUME A DARK POWER
+    * ============================================================
+    *
+    * The Investigator was defeated after choosing
+    * Crippled or Insane.
+    *
+    * The defeat is now completely resolved, so continue
+    * A Dark Power with the next applicable Investigator.
+    */
+
+    if (
+      decision.resume?.type ===
+      "mythos-dark-power"
+    ) {
+      return continueDarkPower(
+        {
+          ...defeatedGame,
+
+          activeInvestigatorId:
+            null,
+
+          pendingDecision:
+            null,
+
+          combatOrder:
+            null,
+        },
+        decision.resume,
+      );
     }
 
     /*
@@ -250,11 +380,11 @@ export function resolveGameFlowChoice(
       if (!target || !statueId || target.clues < 1 || pending.stat !== "sanity") {
         return resumeCombat({ ...game, pendingDecision: null, pendingCombatLoss: null });
       }
+      const spentGame = spendInvestigatorClues(game, targetId, 1);
       return resumeCombat({
-        ...game,
+        ...spentGame,
         pendingDecision: null,
         pendingCombatLoss: null,
-        investigators: { ...game.investigators, [targetId]: { ...target, clues: target.clues - 1 } },
         cardRerollUsedRound: { ...game.cardRerollUsedRound, [`${targetId}:grotesque-statue`]: game.round },
       }, 0, Number.MAX_SAFE_INTEGER);
     }
@@ -424,13 +554,22 @@ export function resolveGameFlowChoice(
     if (!giver || !target || target.id === giver.id || !Number.isInteger(amount) || amount < 0 || amount > giver.clues) {
       throw new Error("Invalid Wireless Report choice.");
     }
+    const givenTokens = (giver.clueTokens ?? []).slice(0, amount);
     return continueAcquireAssetEffects({
       ...game,
       pendingDecision: null,
       investigators: {
         ...game.investigators,
-        [giver.id]: { ...giver, clues: giver.clues - amount },
-        [target.id]: { ...target, clues: target.clues + amount },
+        [giver.id]: {
+          ...giver,
+          clues: giver.clues - amount,
+          clueTokens: (giver.clueTokens ?? []).slice(givenTokens.length),
+        },
+        [target.id]: {
+          ...target,
+          clues: target.clues + amount,
+          clueTokens: [...(target.clueTokens ?? []), ...givenTokens],
+        },
       },
     });
   }
@@ -615,19 +754,7 @@ export function resolveGameFlowChoice(
       }
 
       const updatedGame = {
-        ...game,
-
-        investigators: {
-          ...game.investigators,
-
-          [investigatorId]: {
-            ...investigator,
-
-            clues:
-              investigator.clues -
-              clueCost,
-          },
-        },
+        ...spendInvestigatorClues(game, investigatorId, clueCost),
 
         pendingDecision:
           null,
@@ -815,6 +942,7 @@ export function resolveGameFlowChoice(
           false,
 
         encounterCluesGained: 0,
+        encounterClueTokenIdsGained: [],
       });
     }
 
@@ -851,6 +979,7 @@ export function resolveGameFlowChoice(
           false,
 
         encounterCluesGained: 0,
+        encounterClueTokenIdsGained: [],
       });
     }
 
@@ -865,13 +994,16 @@ export function resolveGameFlowChoice(
       );
     }
 
-    /*
-    * Draw a physical Clue token from the pool.
-    */
-    const {
-      game: gameAfterDraw,
-      clue,
-    } = drawClueToken(game);
+    /* Place the physical Clue that was gained from this encounter. */
+    const eligibleTokenId = game.encounterClueTokenIdsGained?.[0];
+    const heldClue = investigator.clueTokens?.find(
+      (token) => token.id === eligibleTokenId,
+    );
+    const drawn = heldClue
+      ? { game, clue: heldClue }
+      : drawClueToken(game); // Compatibility with old saves without token ownership.
+    const gameAfterDraw = drawn.game;
+    const clue = drawn.clue;
 
     if (!clue) {
       throw new Error(
@@ -893,11 +1025,16 @@ export function resolveGameFlowChoice(
 
           clues:
             investigator.clues - 1,
+          clueTokens: heldClue
+            ? (investigator.clueTokens ?? []).filter((token) => token.id !== heldClue.id)
+            : investigator.clueTokens,
         },
       },
 
       encounterCluesGained:
         (gameAfterDraw.encounterCluesGained ?? 0) - 1,
+
+      encounterClueTokenIdsGained: [],
 
       mysteries: {
         ...gameAfterDraw.mysteries,
@@ -1122,23 +1259,13 @@ export function resolveGameFlowChoice(
       monsterIds,
     };
 
+    const gameAfterClue = spendInvestigatorClues(game, investigatorId, 1);
     const gameWithMonster =
       {
-        ...game,
-
-        investigators: {
-          ...game.investigators,
-
-          [investigatorId]: {
-            ...investigator,
-
-            clues:
-              investigator.clues - 1,
-          },
-        },
+        ...gameAfterClue,
 
         board: {
-          ...game.board,
+          ...gameAfterClue.board,
 
           mythosInPlay:
             updatedMythosInPlay,
@@ -1608,9 +1735,7 @@ export function resolveGameFlowChoice(
           let remainingClues =
               clueCost;
 
-          const updatedInvestigators = {
-              ...game.investigators,
-          };
+          let updatedGame = game;
 
           /*
           * Spend the required Clues from the group.
@@ -1628,7 +1753,7 @@ export function resolveGameFlowChoice(
               }
 
               const investigator =
-                  updatedInvestigators[
+                  updatedGame.investigators[
                       investigatorId
                   ];
 
@@ -1648,15 +1773,7 @@ export function resolveGameFlowChoice(
                   continue;
               }
 
-              updatedInvestigators[
-                  investigatorId
-              ] = {
-                  ...investigator,
-
-                  clues:
-                      investigator.clues -
-                      spent,
-              };
+              updatedGame = spendInvestigatorClues(updatedGame, investigatorId, spent);
 
               remainingClues -=
                   spent;
@@ -1667,10 +1784,7 @@ export function resolveGameFlowChoice(
           */
 
           return {
-              ...game,
-
-              investigators:
-                  updatedInvestigators,
+              ...updatedGame,
 
               currentMythosId:
                   null,
@@ -2306,18 +2420,7 @@ export function resolveGameFlowChoice(
       `silver-twilight-aid:clue:${investigatorIndex}`
     ) {
       const updatedGame: GameState = {
-        ...game,
-
-        investigators: {
-          ...game.investigators,
-
-          [investigatorId]: {
-            ...investigator,
-
-            clues:
-              investigator.clues + 1,
-          },
-        },
+        ...gainInvestigatorClues(game, investigatorId, 1),
 
         pendingDecision: null,
       };
@@ -2568,18 +2671,7 @@ export function resolveGameFlowChoice(
       }
 
       const updatedGame: GameState = {
-        ...game,
-
-        investigators: {
-          ...game.investigators,
-
-          [investigatorId]: {
-            ...investigator,
-
-            clues:
-              investigator.clues - 1,
-          },
-        },
+        ...spendInvestigatorClues(game, investigatorId, 1),
 
         pendingDecision:
           null,
@@ -3961,9 +4053,7 @@ export function resolveGameFlowChoice(
       let remainingClues =
         clueCost;
 
-      const updatedInvestigators = {
-        ...game.investigators,
-      };
+      let updatedGame = game;
 
       for (
         const investigatorId of
@@ -3977,7 +4067,7 @@ export function resolveGameFlowChoice(
         }
 
         const investigator =
-          updatedInvestigators[
+          updatedGame.investigators[
             investigatorId
           ];
 
@@ -3991,15 +4081,7 @@ export function resolveGameFlowChoice(
             remainingClues,
           );
 
-        updatedInvestigators[
-          investigatorId
-        ] = {
-          ...investigator,
-
-          clues:
-            investigator.clues -
-            spent,
-        };
+        updatedGame = spendInvestigatorClues(updatedGame, investigatorId, spent);
 
         remainingClues -=
           spent;
@@ -4021,16 +4103,13 @@ export function resolveGameFlowChoice(
       }
 
       return {
-        ...game,
-
-        investigators:
-          updatedInvestigators,
+        ...updatedGame,
 
         board: {
-          ...game.board,
+          ...updatedGame.board,
 
           mythosDiscard: [
-            ...game.board.mythosDiscard,
+            ...updatedGame.board.mythosDiscard,
             fromBeyond,
           ],
         },
@@ -4192,9 +4271,7 @@ export function resolveGameFlowChoice(
       let remainingClues =
         clueCost;
 
-      const updatedInvestigators = {
-        ...game.investigators,
-      };
+      let updatedGame = game;
 
       /*
       * Spend the Clues as a group.
@@ -4212,7 +4289,7 @@ export function resolveGameFlowChoice(
         }
 
         const investigator =
-          updatedInvestigators[
+          updatedGame.investigators[
             investigatorId
           ];
 
@@ -4232,15 +4309,7 @@ export function resolveGameFlowChoice(
           continue;
         }
 
-        updatedInvestigators[
-          investigatorId
-        ] = {
-          ...investigator,
-
-          clues:
-            investigator.clues -
-            spent,
-        };
+        updatedGame = spendInvestigatorClues(updatedGame, investigatorId, spent);
 
         remainingClues -=
           spent;
@@ -4252,10 +4321,7 @@ export function resolveGameFlowChoice(
       */
 
       return {
-        ...game,
-
-        investigators:
-          updatedInvestigators,
+        ...updatedGame,
 
         pendingDecision: {
           ...reckoningDecision,
@@ -4966,8 +5032,8 @@ export function resolveGameFlowChoice(
       return game;
     }
 
-    const investigatorId =
-      game.activeInvestigatorId;
+    const sourceParts = decision.source.split(":");
+    const investigatorId = sourceParts[1];
 
     if (!investigatorId) {
       return game;
@@ -4988,9 +5054,6 @@ export function resolveGameFlowChoice(
      * improve-skill:investigatorId:amount
      */
 
-    const sourceParts =
-      decision.source.split(":");
-
     const amount =
       Number(
         sourceParts[2] ?? "1",
@@ -4998,7 +5061,10 @@ export function resolveGameFlowChoice(
 
     if (
       !Number.isFinite(amount) ||
-      amount <= 0
+      amount <= 0 ||
+      !getImprovableSkills(investigator).includes(
+        choiceId as (typeof validSkills)[number],
+      )
     ) {
       return game;
     }
@@ -5009,29 +5075,13 @@ export function resolveGameFlowChoice(
      * ==========================================================
      */
 
-    let currentGame: GameState = {
-      ...game,
-
-      investigators: {
-        ...game.investigators,
-
-        [investigatorId]: {
-          ...investigator,
-
-          skills: {
-            ...investigator.skills,
-
-            [choiceId]:
-              investigator.skills[
-                choiceId as keyof typeof investigator.skills
-              ] + amount,
-          },
-        },
-      },
-
-      pendingDecision:
-        null,
-    };
+    let currentGame: GameState = improveInvestigatorSkill(
+      game,
+      investigatorId,
+      choiceId as (typeof validSkills)[number],
+      amount,
+    );
+    currentGame = { ...currentGame, pendingDecision: null };
 
     /*
      * ==========================================================
@@ -5053,6 +5103,27 @@ export function resolveGameFlowChoice(
     }
 
     return currentGame;
+  }
+
+  /*
+   * ============================================================
+   * SILVER KEY CLUE DISCOUNT
+   * ============================================================
+   */
+
+  if (decision.source?.startsWith("silver-key-clue-discount:")) {
+    const choiceIndex = Number(decision.source.split(":")[1]);
+
+    if (!Number.isInteger(choiceIndex) || (choiceId !== "use" && choiceId !== "decline")) {
+      return game;
+    }
+
+    return resolveEncounterChoice(
+      game,
+      choiceIndex,
+      map,
+      choiceId === "use",
+    );
   }
 
   /*

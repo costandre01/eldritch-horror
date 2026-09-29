@@ -3,6 +3,7 @@ import { coreInvestigators } from "../../content/core/investigators";
 
 import { setLeadInvestigator } from "./setLeadInvestigator";
 import { startInvestigatorActions } from "./startInvestigatorActions";
+import { startNextStartingImprovement } from "./improvementEngine";
 
 export function startNextRoundAfterMythos(
   game: GameState,
@@ -73,6 +74,7 @@ export function startNextRoundAfterMythos(
         {
           ...investigator,
           actionsPerformed: [],
+          componentActionsUsedThisRound: [],
           additionalActionsThisRound: 0,
         },
       ],
@@ -105,6 +107,10 @@ export function startNextRoundAfterMythos(
     startedGame.pendingDecision
   ) {
     return startedGame;
+  }
+
+  if ((startedGame.startingImprovementQueue?.length ?? 0) > 0) {
+    return startNextStartingImprovement(startedGame);
   }
 
   const lead =

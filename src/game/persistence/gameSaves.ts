@@ -1,4 +1,6 @@
 import type { GameState } from "../models/GameState";
+import type { Skill } from "../models/Investigator";
+import { coreInvestigators } from "../../content/core/investigators";
 
 const STORAGE_KEY =
   "eldritch-horror-saves";
@@ -6,7 +8,7 @@ const STORAGE_KEY =
 const SESSION_KEY =
   "eldritch-horror-active-session";
 
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 3;
 
 export interface SavedGame {
   id: string;
@@ -333,13 +335,58 @@ export function loadSavedGame(
     return null;
   }
 
-  return {
+  let game: GameState = {
     ...save.game,
 
     epicMonstersDefeated:
       save.game.epicMonstersDefeated ??
       [],
   };
+
+  /* Version 1 stored only a numeric Clue count on investigators. */
+  let cluePool = [...(game.board.cluePool ?? [])];
+  const investigators = { ...game.investigators };
+  let migratedClues = false;
+  for (const [investigatorId, investigator] of Object.entries(investigators)) {
+    if (Object.prototype.hasOwnProperty.call(investigator, "clueTokens")) continue;
+    const clueTokens = cluePool.slice(0, investigator.clues);
+    cluePool = cluePool.slice(clueTokens.length);
+    investigators[investigatorId] = { ...investigator, clueTokens };
+    migratedClues = true;
+  }
+  let migratedImprovements = false;
+  const skills: Skill[] = ["lore", "influence", "observation", "strength", "will"];
+  for (const [investigatorId, investigator] of Object.entries(investigators)) {
+    if (Object.prototype.hasOwnProperty.call(investigator, "improvementTokens")) continue;
+    const definition = coreInvestigators.find((candidate) => candidate.id === investigator.definitionId);
+    const improvementTokens: NonNullable<typeof investigator.improvementTokens> = {};
+    const baseSkills = { ...investigator.skills };
+    if (definition) {
+      for (const skill of skills) {
+        const gained = Math.max(0, investigator.skills[skill] - definition.skills[skill]);
+        if (gained > 0) {
+          improvementTokens[skill] = Math.min(2, gained) as 1 | 2;
+          baseSkills[skill] = definition.skills[skill];
+        }
+      }
+    }
+    investigators[investigatorId] = {
+      ...investigator,
+      skills: baseSkills,
+      improvementTokens,
+    };
+    migratedImprovements = true;
+  }
+
+  if (migratedClues || migratedImprovements) {
+    game = {
+      ...game,
+      investigators,
+      board: migratedClues ? { ...game.board, cluePool } : game.board,
+    };
+  }
+
+  return game;
 }
 
 /*

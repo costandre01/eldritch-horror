@@ -1,5 +1,6 @@
 import type { InvestigatorAction } from "../types/InvestigatorAction";
 import type { TravelMove } from "./TravelMove";
+import type { ClueToken } from "./ClueToken";
 
 /*
  * ============================================================
@@ -26,6 +27,9 @@ export interface InvestigatorSkills {
   strength: number;
   will: number;
 }
+
+export type ImprovementTokenValue = 1 | 2;
+export type ImprovementTokens = Partial<Record<Skill, ImprovementTokenValue>>;
 
 /*
  * ============================================================
@@ -54,9 +58,15 @@ export interface Investigator {
 
   skills: InvestigatorSkills;
 
+  /** +1/+2 Improvement token currently placed beside each skill. */
+  improvementTokens?: ImprovementTokens;
+
   resources: number;
 
   clues: number;
+
+  /** Physical Clue tokens currently held by this investigator. */
+  clueTokens?: ClueToken[];
 
   spaceId: string | null;
 
@@ -89,6 +99,8 @@ export interface Investigator {
   conditionIds: string[];
 
   actionsPerformed: InvestigatorAction[];
+
+  componentActionsUsedThisRound?: string[];
 
   additionalActionsThisRound?: number;
 

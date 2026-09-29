@@ -1,6 +1,7 @@
 import type { GameState } from "../models/GameState";
 
 import { resolveSpellFrontTriggeredEffects } from "./resolveSpellFrontTriggeredEffects";
+import { getImprovableSkills, improveInvestigatorSkill } from "./improvementEngine";
 
 export function resolveSpellChoice(
   game: GameState,
@@ -264,11 +265,9 @@ export function resolveSpellChoice(
     const targetId = effect.target === "caster" ? choice.investigatorId : spell.pendingChosenInvestigatorId;
     const target = targetId ? game.investigators[targetId] : undefined;
     if (!target) throw new Error("Spell has no valid investigator selected for the skill improvement.");
-    const currentGame: GameState = {
-      ...game,
-      pendingSpellChoice: null,
-      investigators: { ...game.investigators, [target.id]: { ...target, skills: { ...target.skills, [skill]: target.skills[skill] + effect.amount } } },
-    };
+    if (!getImprovableSkills(target).includes(skill)) throw new Error("That skill already has a +2 Improvement token.");
+    const improvedGame = improveInvestigatorSkill(game, target.id, skill, effect.amount);
+    const currentGame: GameState = { ...improvedGame, pendingSpellChoice: null };
     return resolveSpellFrontTriggeredEffects(currentGame, choice.investigatorId, choice.spellId, choice.remainingEffects).game;
   }
 

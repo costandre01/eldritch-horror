@@ -698,7 +698,7 @@ const selectedSpecialEncounters =
    * ============================================================
    */
 
-  const updatedBoard = {
+  let updatedBoard = {
     ...board,
 
     encounterDecks,
@@ -815,6 +815,23 @@ const selectedSpecialEncounters =
       investigator.id
     ] = investigator;
   }
+
+  /* Starting Clues are physical tokens and must leave the pool. */
+  let availableStartingClues = [...updatedBoard.cluePool];
+  for (const investigatorId of Object.keys(investigators)) {
+    const investigator = investigators[investigatorId];
+    const clueTokens = availableStartingClues.slice(0, investigator.clues);
+    availableStartingClues = availableStartingClues.slice(clueTokens.length);
+    investigators[investigatorId] = {
+      ...investigator,
+      clues: clueTokens.length,
+      clueTokens,
+    };
+  }
+  updatedBoard = {
+    ...updatedBoard,
+    cluePool: availableStartingClues,
+  };
 
   /*
    * ============================================================
@@ -945,6 +962,16 @@ const selectedSpecialEncounters =
 
     pendingInvestigatorReplacements:
       [],
+
+    startingImprovementQueue: Object.values(investigators).flatMap((investigator) => {
+      const definition = options.investigatorDefinitions.find(
+        (candidate) => candidate.id === investigator.definitionId,
+      );
+      return Array.from(
+        { length: definition?.startingImprovementCount ?? 0 },
+        () => investigator.id,
+      );
+    }),
 
     lastTest:
       null,

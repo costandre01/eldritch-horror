@@ -463,6 +463,27 @@ describe(
     );
 
     it(
+      "offers a Research Encounter when the space contains a Clue",
+      () => {
+        const game = prepareGame();
+        addDeck(game, "general");
+        addDeck(game, "research");
+        game.board.spaces.arkham.clues = 1;
+        game.board.spaces.arkham.clueTokenIds = ["clue-arkham"];
+
+        const result = startEncounter(game, createTestMap());
+
+        expect(result.pendingDecision?.type).toBe("choice");
+        if (result.pendingDecision?.type === "choice") {
+          expect(result.pendingDecision.options.map((option) => option.id)).toEqual([
+            "research",
+            "general",
+          ]);
+        }
+      },
+    );
+
+    it(
       "supports Europe as the regional deck",
       () => {
         const game =

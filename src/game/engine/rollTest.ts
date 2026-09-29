@@ -5,15 +5,40 @@ import type {
 
 import type { TestResult } from "../models/TestResult";
 
+import {
+  getImprovedSkillValue,
+} from "./improvementEngine";
+
+export interface RollTestOptions {
+  sixCountsAsTwo?: boolean;
+
+  /*
+   * Dice results that count as successes.
+   *
+   * Normal:
+   *   5, 6
+   *
+   * Blessed:
+   *   4, 5, 6
+   *
+   * Cursed:
+   *   6
+   */
+  successfulResults?: number[];
+}
+
 export function rollTest(
   investigator: Investigator,
   skill: Skill,
   modifier = 0,
   difficulty = 1,
-  options: { sixCountsAsTwo?: boolean } = {},
+  options: RollTestOptions = {},
 ): TestResult {
   const skillValue =
-    investigator.skills[skill];
+    getImprovedSkillValue(
+      investigator,
+      skill,
+    );
 
   const diceRolled = Math.max(
     1,
@@ -23,6 +48,10 @@ export function rollTest(
   const results: number[] = [];
 
   let successes = 0;
+
+  const successfulResults =
+    options.successfulResults ??
+    [5, 6];
 
   for (
     let index = 0;
@@ -36,8 +65,29 @@ export function rollTest(
 
     results.push(roll);
 
-    if (roll >= 5) successes++;
-    if (roll === 6 && options.sixCountsAsTwo) successes++;
+    if (
+      successfulResults.includes(
+        roll,
+      )
+    ) {
+      successes++;
+    }
+
+    /*
+     * Some effects make a 6 count as
+     * two successes.
+     *
+     * The first success has already
+     * been counted above, so add only
+     * the additional success here.
+     */
+    if (
+      roll === 6 &&
+      options.sixCountsAsTwo &&
+      successfulResults.includes(6)
+    ) {
+      successes++;
+    }
   }
 
   return {
@@ -49,6 +99,7 @@ export function rollTest(
     successes,
     passed:
       successes >= difficulty,
-    sixCountsAsTwo: options.sixCountsAsTwo,
+    sixCountsAsTwo:
+      options.sixCountsAsTwo,
   };
 }

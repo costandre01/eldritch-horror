@@ -2,6 +2,7 @@ import type { GameState } from "../../models/GameState";
 import type { PendingDecision } from "../../models/PendingDecision";
 
 import { startCombatTest } from "../startCombatTest";
+import { spendInvestigatorClues } from "../clueEngine";
 
 export type MonsterAbilityAction =
   | "resolve"
@@ -150,22 +151,8 @@ export function resolveMonsterAbility(
         return game;
       }
 
-      const updatedInvestigator = {
-        ...investigator,
-
-        clues:
-          investigator.clues - 1,
-      };
-
       const gameWithoutAbility: GameState = {
-        ...game,
-
-        investigators: {
-          ...game.investigators,
-
-          [investigatorId]:
-            updatedInvestigator,
-        },
+        ...spendInvestigatorClues(game, investigatorId, 1),
 
         pendingDecision:
           null,

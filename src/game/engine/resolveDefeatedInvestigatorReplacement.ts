@@ -3,6 +3,7 @@ import { coreInvestigators } from "../../content/core/investigators";
 import type { GameState } from "../models/GameState";
 
 import { createInvestigator } from "./createInvestigator";
+import { drawClueToken } from "./clueEngine";
 
 function getAvailableInvestigatorIds(
   game: GameState,
@@ -424,8 +425,21 @@ export function resolveDefeatedInvestigatorReplacement(
    * physical possessions actually obtained.
    */
 
+  let gameAfterClues = game;
+  const clueTokens = [];
+  for (let index = 0; index < newInvestigator.clues; index++) {
+    const drawn = drawClueToken(gameAfterClues);
+    gameAfterClues = drawn.game;
+    if (!drawn.clue) break;
+    clueTokens.push(drawn.clue);
+  }
+
   const investigator = {
     ...newInvestigator,
+
+    clues: clueTokens.length,
+
+    clueTokens,
 
     assetIds:
       startingAssetIds,
@@ -441,7 +455,7 @@ export function resolveDefeatedInvestigatorReplacement(
    */
 
   const investigators = {
-    ...game.investigators,
+    ...gameAfterClues.investigators,
 
     [investigator.id]:
       investigator,
@@ -499,7 +513,7 @@ export function resolveDefeatedInvestigatorReplacement(
     );
 
   const updatedGame: GameState = {
-    ...game,
+    ...gameAfterClues,
 
     investigators,
 
@@ -507,8 +521,16 @@ export function resolveDefeatedInvestigatorReplacement(
 
     pendingInvestigatorReplacements,
 
+    startingImprovementQueue: [
+      ...(game.startingImprovementQueue ?? []),
+      ...Array.from(
+        { length: definition.startingImprovementCount },
+        () => investigator.id,
+      ),
+    ],
+
     board: {
-      ...game.board,
+      ...gameAfterClues.board,
 
       assetReserve,
 

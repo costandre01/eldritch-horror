@@ -204,6 +204,8 @@ export function defeatInvestigator(
         isDefeated: true,
 
         defeatType,
+
+        improvementTokens: {},
       },
     },
 

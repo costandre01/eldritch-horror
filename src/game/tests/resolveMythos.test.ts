@@ -86,57 +86,61 @@ describe("resolveMythos", () => {
     );
 
     expect(result.phase).toBe("mythos");
-    expect(result.currentMythosId).toBe(
-      "a-proposition",
-    );
 
-    expect(result.pendingDecision).not.toBeNull();
+    expect(
+      result.currentMythosId,
+    ).toBe("a-proposition");
+
+    expect(
+      result.pendingDecision,
+    ).not.toBeNull();
   });
 
-    it("does not add a persistent Mythos again when resuming from a later icon", () => {
-        const game = createTestGame();
+  it("does not add a persistent Mythos again when resuming from a later icon", () => {
+    const game = createTestGame();
 
-        game.phase = "mythos";
+    game.phase = "mythos";
 
-        game.currentMythosId =
-            "strange-sightings";
+    game.currentMythosId =
+      "strange-sightings";
 
-        game.board.mythosInPlay = [];
+    game.board.mythosInPlay = [];
 
-        game.board.spaces = {
-            arkham: {
-            spaceId: "arkham",
-            clues: 0,
-            clueTokenIds: [],
-            monsterIds: [],
-            gates: [],
-            expedition: false,
-            rumor: false,
-            eldritchTokenCount: 0,
-            },
-        };
+    game.board.spaces = {
+      arkham: {
+        spaceId: "arkham",
+        clues: 0,
+        clueTokenIds: [],
+        monsterIds: [],
+        gates: [],
+        expedition: false,
+        rumor: false,
+        eldritchTokenCount: 0,
+      },
+    };
 
-        game.board.gateStack = [];
-        game.board.gateDiscard = [];
+    game.board.gateStack = [];
+    game.board.gateDiscard = [];
 
-        const before =
-            game.board.mythosInPlay.length;
+    const before =
+      game.board.mythosInPlay.length;
 
-        const result = resolveMythos(
-            game,
-            eldritchBaseMap,
-            1,
-        );
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      1,
+    );
 
-        expect(
-            result.board.mythosInPlay.length,
-        ).toBe(before);
-    });
+    expect(
+      result.board.mythosInPlay.length,
+    ).toBe(before);
+  });
 
   it("creates a pending decision for a Mythos test effect", () => {
     const game = createTestGame();
 
     game.phase = "mythos";
+
     game.currentMythosId =
       "buying-information";
 
@@ -146,35 +150,39 @@ describe("resolveMythos", () => {
       3,
     );
 
-    expect(result.pendingDecision).not.toBeNull();
+    expect(
+      result.pendingDecision,
+    ).not.toBeNull();
 
-    expect(result.pendingDecision?.type).toBe(
-      "test",
-    );
+    expect(
+      result.pendingDecision?.type,
+    ).toBe("test");
   });
 
-    it("creates a pending decision for a Mythos single-die roll", () => {
-        const game = createTestGame();
+  it("creates a pending decision for a Mythos single-die roll", () => {
+    const game = createTestGame();
 
-        game.phase = "mythos";
+    game.phase = "mythos";
 
-        game.currentMythosId =
-            "heart-of-corruption";
+    game.currentMythosId =
+      "heart-of-corruption";
 
-        game.board.artifactDeck = [];
+    game.board.artifactDeck = [];
 
-        const result = resolveMythos(
-            game,
-            eldritchBaseMap,
-            3,
-        );
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      3,
+    );
 
-        expect(result.pendingDecision).not.toBeNull();
+    expect(
+      result.pendingDecision,
+    ).not.toBeNull();
 
-        expect(
-            result.pendingDecision?.type,
-        ).toBe("single-die-roll");
-    });
+    expect(
+      result.pendingDecision?.type,
+    ).toBe("single-die-roll");
+  });
 
   it("creates a pending decision for selecting a Gate", () => {
     const game = createTestGame();
@@ -185,22 +193,22 @@ describe("resolveMythos", () => {
       "that-which-consumes";
 
     game.board.spaces = {
-        arkham: {
+      arkham: {
+        spaceId: "arkham",
+        clues: 0,
+        clueTokenIds: [],
+        monsterIds: [],
+        gates: [
+          {
+            id: "gate-test-1",
             spaceId: "arkham",
-            clues: 0,
-            clueTokenIds: [],
-            monsterIds: [],
-            gates: [
-                {
-                    id: "gate-test-1",
-                    spaceId: "arkham",
-                    omen: "green",
-                },
-            ],
-            expedition: false,
-            rumor: false,
-            eldritchTokenCount: 0,
-        },
+            omen: "green",
+          },
+        ],
+        expedition: false,
+        rumor: false,
+        eldritchTokenCount: 0,
+      },
     };
 
     const result = resolveMythos(
@@ -209,7 +217,9 @@ describe("resolveMythos", () => {
       3,
     );
 
-    expect(result.pendingDecision).not.toBeNull();
+    expect(
+      result.pendingDecision,
+    ).not.toBeNull();
 
     expect(
       result.pendingDecision?.type,
@@ -238,7 +248,9 @@ describe("resolveMythos", () => {
       3,
     );
 
-    expect(result.pendingDecision).not.toBeNull();
+    expect(
+      result.pendingDecision,
+    ).not.toBeNull();
 
     expect(
       result.pendingDecision?.type,
@@ -259,10 +271,159 @@ describe("resolveMythos", () => {
       3,
     );
 
-    expect(result.pendingDecision).not.toBeNull();
+    expect(
+      result.pendingDecision,
+    ).not.toBeNull();
 
     expect(
       result.pendingDecision?.type,
     ).toBe("choice");
+  });
+
+  it("includes the current Lead Investigator when choosing the Lead for the next round", () => {
+    const game = createTestGame();
+
+    game.phase = "mythos";
+
+    /*
+     * Secrets of the Past has one Mythos
+     * icon and no card-specific effects.
+     *
+     * Starting at icon index 1 skips the
+     * only icon and lets this test reach
+     * the end of the Mythos Phase.
+     */
+    game.currentMythosId =
+      "secrets-of-the-past";
+
+    game.leadInvestigatorId =
+      "investigator-1";
+
+    game.investigatorOrder = [
+      "investigator-1",
+      "investigator-2",
+      "investigator-3",
+    ];
+
+    game.board.mythosInPlay = [];
+
+    /*
+     * Isolate the Lead Investigator logic.
+     *
+     * Mystery resolution and any decisions
+     * already present in createTestGame()
+     * must not interrupt the end of the
+     * Mythos Phase.
+     */
+    game.mysteries.activeMysteryId = null;
+
+    game.pendingDecision = null;
+
+    game.pendingEncounterChoice = null;
+
+    game.pendingInvestigatorReplacements = [];
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      1,
+    );
+
+    expect(
+      result.pendingDecision?.type,
+    ).toBe("select-investigator");
+
+    if (
+      result.pendingDecision?.type !==
+      "select-investigator"
+    ) {
+      throw new Error(
+        "Expected a Lead Investigator selection.",
+      );
+    }
+
+    expect(
+      result.pendingDecision.source,
+    ).toBe("mythos:end-lead");
+
+    expect(
+      result.pendingDecision.investigatorIds,
+    ).toEqual([
+      "investigator-1",
+      "investigator-2",
+      "investigator-3",
+    ]);
+
+    /*
+     * The current Lead must remain one of
+     * the available choices.
+     */
+    expect(
+      result.pendingDecision.investigatorIds,
+    ).toContain(
+      "investigator-1",
+    );
+  });
+
+  it("keeps the current Lead automatically in a solo game", () => {
+    const game = createTestGame();
+
+    game.phase = "mythos";
+
+    game.currentMythosId =
+      "secrets-of-the-past";
+
+    game.leadInvestigatorId =
+      "investigator-1";
+
+    game.investigatorOrder = [
+      "investigator-1",
+    ];
+
+    game.investigators = {
+      "investigator-1":
+        game.investigators[
+          "investigator-1"
+        ],
+    };
+
+    game.board.mythosInPlay = [];
+
+    /*
+     * Isolate the end-of-Mythos transition
+     * from unrelated Mystery or pending
+     * decision state.
+     */
+    game.mysteries.activeMysteryId = null;
+
+    game.pendingDecision = null;
+
+    game.pendingEncounterChoice = null;
+
+    game.pendingInvestigatorReplacements = [];
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      1,
+    );
+
+    expect(
+      result.leadInvestigatorId,
+    ).toBe("investigator-1");
+
+    expect(
+      result.round,
+    ).toBe(
+      game.round + 1,
+    );
+
+    expect(
+      result.phase,
+    ).toBe("action");
+
+    expect(
+      result.activeInvestigatorId,
+    ).toBe("investigator-1");
   });
 });

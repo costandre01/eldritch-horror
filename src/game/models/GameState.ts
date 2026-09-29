@@ -161,6 +161,9 @@ export interface GameState {
   */
   encounterCluesGained?: number;
 
+  /** Physical Clues gained during the current Research Encounter. */
+  encounterClueTokenIdsGained?: string[];
+
   /*
    * Physical Encounter deck from which the
    * current Encounter was drawn.
@@ -195,6 +198,9 @@ export interface GameState {
 
   pendingInvestigatorReplacements:
     string[];
+
+  /** Investigator IDs repeated once for each starting Improvement still to choose. */
+  startingImprovementQueue?: string[];
 
   /*
    * ============================================================

@@ -123,6 +123,11 @@ export function devourInvestigator(
     board: {
       ...currentGame.board,
 
+      clueDiscard: [
+        ...(currentGame.board.clueDiscard ?? []),
+        ...(currentGame.investigators[investigatorId].clueTokens ?? []),
+      ],
+
       assetDiscard: [
         ...currentGame.board.assetDiscard,
         ...assetsToDiscard,
@@ -197,6 +202,10 @@ export function devourInvestigator(
 
         clues:
           0,
+
+        clueTokens: [],
+
+        improvementTokens: {},
 
         trainTickets:
           0,

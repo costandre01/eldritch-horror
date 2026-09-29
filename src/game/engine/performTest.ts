@@ -7,6 +7,7 @@ import { getEffectiveSkill } from "./getEffectiveSkill";
 import { getPassiveTestModifiers, type PassiveTestContext } from "./getPassiveTestModifiers";
 import { resolveTestConditions } from "./resolveTestConditions";
 import type { MapDefinition } from "../models/MapDefinition";
+import { getSuccessfulTestResults } from "./getSuccessfulTestResults";
 
 export interface PerformTestResult {
   game: GameState;
@@ -77,11 +78,27 @@ export function performTest(
 
         [skill]: effectiveSkill,
       },
+
+      improvementTokens: {},
     },
+
     skill,
-    modifier + passiveModifiers.bonusDice,
+
+    modifier +
+      passiveModifiers.bonusDice,
+
     difficulty,
-    { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
+
+    {
+      sixCountsAsTwo:
+        passiveModifiers.sixCountsAsTwo,
+
+      successfulResults:
+        getSuccessfulTestResults(
+          game,
+          investigatorId,
+        ),
+    },
   );
 
   /*

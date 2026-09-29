@@ -31,6 +31,28 @@ export function restInvestigator(
 
   assertNormalActionAllowed(game, investigatorId);
 
+  /*
+   * ============================================================
+   * STRANGE SIGHTINGS
+   * ============================================================
+   *
+   * While Strange Sightings is in play,
+   * investigators cannot perform Rest actions.
+   */
+
+  const strangeSightingsInPlay =
+    game.board.mythosInPlay?.some(
+      (mythos) =>
+        mythos.definitionId ===
+        "strange-sightings",
+    ) ?? false;
+
+  if (strangeSightingsInPlay) {
+    throw new Error(
+      "Investigators cannot perform Rest while Strange Sightings is in play.",
+    );
+  }
+
   if (
     !canPerformAction(
       investigator,
@@ -118,38 +140,168 @@ export function restInvestigator(
   currentGame =
     triggerResult.game;
 
-  const restedInvestigator = currentGame.investigators[investigatorId];
-  const witchDoctorOwner = restedInvestigator?.spaceId
-    ? Object.values(currentGame.investigators).find((owner) =>
-        !owner.isDefeated && owner.spaceId === restedInvestigator.spaceId &&
-        owner.assetIds.some((assetId) => currentGame.assets[assetId]?.name === "Witch Doctor"),
-      )
-    : undefined;
-  const arcaneTomeIds = restedInvestigator?.assetIds.filter((assetId) => currentGame.assets[assetId]?.name === "Arcane Tome") ?? [];
-  const puzzleBoxIds = restedInvestigator?.assetIds.filter((assetId) => currentGame.assets[assetId]?.name === "Puzzle Box") ?? [];
-  if ((witchDoctorOwner || arcaneTomeIds.length || puzzleBoxIds.length) && !currentGame.pendingDecision && restedInvestigator) {
-    const cursedConditionIds = restedInvestigator.conditionIds.filter((conditionId) => {
-      const condition = currentGame.conditions[conditionId];
-      const definition = condition && coreConditionDefinitions.find((item) => item.id === condition.definitionId);
-      return definition?.id === "condition-cursed";
-    });
-    const options = [
-      ...(restedInvestigator.health < restedInvestigator.maxHealth
-        ? [{ id: "recover-health", title: "Recover 1 additional Health" }]
-        : []),
-      ...cursedConditionIds.map((conditionId) => ({ id: `discard-condition:${conditionId}`, title: "Discard Cursed Condition" })),
-      ...arcaneTomeIds.map((assetId) => ({ id: `use-arcane-tome:${assetId}`, title: "Use Arcane Tome: test Lore to gain a Spell" })),
-      ...puzzleBoxIds.map((assetId) => ({ id: `use-puzzle-box:${assetId}`, title: "Try to open Puzzle Box" })),
-      { id: "skip", title: "Skip optional abilities" },
+  const restedInvestigator =
+    currentGame.investigators[
+      investigatorId
     ];
+
+  const witchDoctorOwner =
+    restedInvestigator?.spaceId
+      ? Object.values(
+          currentGame.investigators,
+        ).find(
+          (owner) =>
+            !owner.isDefeated &&
+            owner.spaceId ===
+              restedInvestigator.spaceId &&
+            owner.assetIds.some(
+              (assetId) =>
+                currentGame.assets[
+                  assetId
+                ]?.name ===
+                "Witch Doctor",
+            ),
+        )
+      : undefined;
+
+  const arcaneTomeIds =
+    restedInvestigator?.assetIds.filter(
+      (assetId) =>
+        currentGame.assets[
+          assetId
+        ]?.name ===
+        "Arcane Tome",
+    ) ?? [];
+
+  const puzzleBoxIds =
+    restedInvestigator?.assetIds.filter(
+      (assetId) =>
+        currentGame.assets[
+          assetId
+        ]?.name ===
+        "Puzzle Box",
+    ) ?? [];
+
+  if (
+    (
+      witchDoctorOwner ||
+      arcaneTomeIds.length > 0 ||
+      puzzleBoxIds.length > 0
+    ) &&
+    !currentGame.pendingDecision &&
+    restedInvestigator
+  ) {
+    const cursedConditionIds =
+      restedInvestigator.conditionIds.filter(
+        (conditionId) => {
+          const condition =
+            currentGame.conditions[
+              conditionId
+            ];
+
+          const definition =
+            condition &&
+            coreConditionDefinitions.find(
+              (item) =>
+                item.id ===
+                condition.definitionId,
+            );
+
+          return (
+            definition?.id ===
+            "condition-cursed"
+          );
+        },
+      );
+
+    const options = [
+      /*
+       * ========================================================
+       * WITCH DOCTOR
+       * ========================================================
+       *
+       * These options are available only if an investigator
+       * on this space actually has the Witch Doctor Asset.
+       */
+
+      ...(witchDoctorOwner &&
+      restedInvestigator.health <
+        restedInvestigator.maxHealth
+        ? [
+            {
+              id: "recover-health",
+              title:
+                "Recover 1 additional Health",
+            },
+          ]
+        : []),
+
+      ...(witchDoctorOwner
+        ? cursedConditionIds.map(
+            (conditionId) => ({
+              id:
+                `discard-condition:${conditionId}`,
+              title:
+                "Discard Cursed Condition",
+            }),
+          )
+        : []),
+
+      /*
+       * ========================================================
+       * ARCANE TOME
+       * ========================================================
+       */
+
+      ...arcaneTomeIds.map(
+        (assetId) => ({
+          id:
+            `use-arcane-tome:${assetId}`,
+          title:
+            "Use Arcane Tome: test Lore to gain a Spell",
+        }),
+      ),
+
+      /*
+       * ========================================================
+       * PUZZLE BOX
+       * ========================================================
+       */
+
+      ...puzzleBoxIds.map(
+        (assetId) => ({
+          id:
+            `use-puzzle-box:${assetId}`,
+          title:
+            "Try to open Puzzle Box",
+        }),
+      ),
+
+      {
+        id: "skip",
+        title:
+          "Skip optional abilities",
+      },
+    ];
+
     currentGame = {
       ...currentGame,
+
       pendingDecision: {
         type: "choice",
-        title: witchDoctorOwner ? "Rest effects" : "Rest abilities",
-        message: "Choose an optional ability or skip these effects.",
+
+        title:
+          witchDoctorOwner
+            ? "Rest effects"
+            : "Rest abilities",
+
+        message:
+          "Choose an optional ability or skip these effects.",
+
         options,
-        source: `asset:rest:${investigatorId}`,
+
+        source:
+          `asset:rest:${investigatorId}`,
       },
     };
   }

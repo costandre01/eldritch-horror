@@ -69,6 +69,19 @@ export function startConditionLocalAction(
   );
   if (!effect) throw new Error(`Condition "${conditionId}" has no Local Action test.`);
 
+  const componentActionKey =
+    `condition:${conditionId}:local-action`;
+
+  if (
+    investigator.componentActionsUsedThisRound?.includes(
+      componentActionKey,
+    )
+  ) {
+    throw new Error(
+      "This Component Action was already used this round.",
+    );
+  }
+
   const available = getConditionLocalActions(game, investigatorId);
   if (!available.some((entry) => entry.condition.id === conditionId)) {
     throw new Error("Detained restricts the Investigator to its own Local Action.");
@@ -81,9 +94,18 @@ export function startConditionLocalAction(
     ...game,
     investigators: {
       ...game.investigators,
-      [investigatorId]: {
+            [investigatorId]: {
         ...investigator,
-        actionsPerformed: [...investigator.actionsPerformed, "component"],
+
+        actionsPerformed: [
+          ...investigator.actionsPerformed,
+          "component",
+        ],
+
+        componentActionsUsedThisRound: [
+          ...(investigator.componentActionsUsedThisRound ?? []),
+          componentActionKey,
+        ],
       },
     },
   };

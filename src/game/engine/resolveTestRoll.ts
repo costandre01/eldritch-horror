@@ -5,6 +5,7 @@ import type { TestResult } from "../models/TestResult";
 import { rollTest } from "./rollTest";
 import { getEffectiveSkill } from "./getEffectiveSkill";
 import { getPassiveTestModifiers } from "./getPassiveTestModifiers";
+import { getSuccessfulTestResults } from "./getSuccessfulTestResults";
 
 export interface ResolveTestRollResult {
   game: GameState;
@@ -93,11 +94,21 @@ export function resolveTestRoll(
           [decision.skill]:
             effectiveSkill,
         },
+        improvementTokens: {},
       },
       decision.skill,
       decision.modifier + passiveModifiers.bonusDice,
       decision.minSuccesses ?? 1,
-      { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
+      {
+        sixCountsAsTwo:
+          passiveModifiers.sixCountsAsTwo,
+
+        successfulResults:
+          getSuccessfulTestResults(
+            game,
+            decision.investigatorId,
+          ),
+      },
     );
 
   /*

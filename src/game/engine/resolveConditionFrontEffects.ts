@@ -14,6 +14,7 @@ import { getEffectiveSkill } from "./getEffectiveSkill";
 import { getPassiveTestModifiers } from "./getPassiveTestModifiers";
 import type { TestResult } from "../models/TestResult";
 import { performTest } from "./performTest";
+import { getSuccessfulTestResults } from "./getSuccessfulTestResults";
 
 export interface ResolveConditionFrontEffectsResult {
   game: GameState;
@@ -169,11 +170,21 @@ export function resolveConditionFrontEffects(
                   [effect.otherwise.testType]:
                     effectiveSkill,
                 },
+                improvementTokens: {},
               },
               effect.otherwise.testType,
               passiveModifiers.bonusDice,
               1,
-              { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
+              {
+                sixCountsAsTwo:
+                  passiveModifiers.sixCountsAsTwo,
+
+                successfulResults:
+                  getSuccessfulTestResults(
+                    currentGame,
+                    investigatorId,
+                  ),
+              },
             );
 
           testResults.push(test);
@@ -516,11 +527,21 @@ export function resolveConditionFrontEffects(
                 [effect.testType]:
                   effectiveSkill,
               },
+              improvementTokens: {},
             },
             effect.testType,
             passiveModifiers.bonusDice,
             1,
-            { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
+            {
+              sixCountsAsTwo:
+                passiveModifiers.sixCountsAsTwo,
+
+              successfulResults:
+                getSuccessfulTestResults(
+                  currentGame,
+                  investigatorId,
+                ),
+            },
           );
 
         testResults.push(test);
@@ -714,11 +735,25 @@ export function resolveConditionFrontEffects(
                 [effect.testType]:
                   effectiveSkill,
               },
+              improvementTokens: {},
             },
             effect.testType,
-            (effect.modifier ?? 0) + passiveModifiers.bonusDice,
+
+            (effect.modifier ?? 0) +
+              passiveModifiers.bonusDice,
+
             1,
-            { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
+
+            {
+              sixCountsAsTwo:
+                passiveModifiers.sixCountsAsTwo,
+
+              successfulResults:
+                getSuccessfulTestResults(
+                  currentGame,
+                  investigatorId,
+                ),
+            },
           );
 
         testResults.push(test);

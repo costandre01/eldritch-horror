@@ -10,6 +10,7 @@ import { coreSpells } from "../../../content/core/coreSpell";
 
 import { resolveMonsterTest } from "../resolveMonsterTest";
 import { resolveMonsterToughness } from "../resolveMonsterToughness";
+import { gainInvestigatorClues } from "../clueEngine";
 
 import {
   getMonsterHorrorResultAbilities,
@@ -93,16 +94,24 @@ function removeMonsterFromSpace(
   monsterId: string,
   spaceId: string | null,
 ): GameState {
-  if (!spaceId) {
+  const monster =
+    game.monsters[monsterId];
+
+  if (!monster) {
     return game;
   }
 
   const space =
-    game.board.spaces[spaceId];
+    spaceId
+      ? game.board.spaces[spaceId]
+      : undefined;
 
-  if (!space) {
-    return game;
-  }
+  const shouldReturnToCup =
+    !monster.isEpic &&
+    !game.board.monsterCup.some(
+      (cupMonster) =>
+        cupMonster.id === monsterId,
+    );
 
   return {
     ...game,
@@ -110,19 +119,30 @@ function removeMonsterFromSpace(
     board: {
       ...game.board,
 
-      spaces: {
-        ...game.board.spaces,
+      monsterCup:
+        shouldReturnToCup
+          ? [
+              ...game.board.monsterCup,
+              monster,
+            ]
+          : game.board.monsterCup,
 
-        [spaceId]: {
-          ...space,
+      spaces:
+        space
+          ? {
+              ...game.board.spaces,
 
-          monsterIds:
-            space.monsterIds.filter(
-              (id) =>
-                id !== monsterId,
-            ),
-        },
-      },
+              [spaceId!]: {
+                ...space,
+
+                monsterIds:
+                  space.monsterIds.filter(
+                    (id) =>
+                      id !== monsterId,
+                  ),
+              },
+            }
+          : game.board.spaces,
     },
   };
 }
@@ -1199,7 +1219,7 @@ export function resolveCombatTest(
         carriedArtifacts.filter((card) => card.name === "Sword of Saint Jerome").length;
       const rewardClues = carriedAssets.filter((card) => card.name === "Lodge Researcher").length;
 
-      if (rewardsSanity > 0 || rewardClues > 0) {
+      if (rewardsSanity > 0) {
         combatGame = {
           ...combatGame,
           investigators: {
@@ -1207,10 +1227,12 @@ export function resolveCombatTest(
             [investigator.id]: {
               ...defeatedInvestigator,
               sanity: Math.min(defeatedInvestigator.maxSanity, defeatedInvestigator.sanity + rewardsSanity),
-              clues: defeatedInvestigator.clues + rewardClues,
             },
           },
         };
+      }
+      if (rewardClues > 0) {
+        combatGame = gainInvestigatorClues(combatGame, investigator.id, rewardClues);
       }
     }
   }

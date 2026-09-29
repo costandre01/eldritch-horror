@@ -538,6 +538,258 @@ describe("gainCondition", () => {
       result.board.conditionDeck,
     ).toEqual([]);
   });
+
+  it("flips Blessed instead of gaining a second Blessed Condition", () => {
+    const game =
+      createTestGame();
+
+    game.conditions = {
+      "condition-blessed-1": {
+        id: "condition-blessed-1",
+        definitionId: "condition-blessed",
+        instanceNumber: 1,
+        frontImage: "/blessed.png",
+        backImage: "/blessed-back.png",
+        backId: "blessed-back-1",
+        flipped: false,
+      },
+
+      "condition-blessed-2": {
+        id: "condition-blessed-2",
+        definitionId: "condition-blessed",
+        instanceNumber: 2,
+        frontImage: "/blessed.png",
+        backImage: "/blessed-back.png",
+        backId: "blessed-back-2",
+        flipped: false,
+      },
+    };
+
+    game.investigators[
+      "investigator-1"
+    ].conditionIds = [
+      "condition-blessed-1",
+    ];
+
+    game.board.conditionDeck = [
+      "condition-blessed-2",
+    ];
+
+    const result =
+      gainCondition(
+        game,
+        "investigator-1",
+        "condition-blessed",
+      );
+
+    expect(
+      result.conditions[
+        "condition-blessed-1"
+      ].flipped,
+    ).toBe(true);
+
+    expect(
+      result.investigators[
+        "investigator-1"
+      ].conditionIds,
+    ).toEqual([
+      "condition-blessed-1",
+    ]);
+
+    expect(
+      result.board.conditionDeck,
+    ).toEqual([
+      "condition-blessed-2",
+    ]);
+  });
+
+  it("discards Blessed instead of gaining Cursed", () => {
+    const game =
+      createTestGame();
+
+    game.conditions = {
+      "condition-blessed-1": {
+        id: "condition-blessed-1",
+        definitionId: "condition-blessed",
+        instanceNumber: 1,
+        frontImage: "/blessed.png",
+        backImage: "/blessed-back.png",
+        backId: "blessed-back-1",
+        flipped: false,
+      },
+
+      "condition-cursed-1": {
+        id: "condition-cursed-1",
+        definitionId: "condition-cursed",
+        instanceNumber: 1,
+        frontImage: "/cursed.png",
+        backImage: "/cursed-back.png",
+        backId: "cursed-back-1",
+        flipped: false,
+      },
+    };
+
+    game.investigators[
+      "investigator-1"
+    ].conditionIds = [
+      "condition-blessed-1",
+    ];
+
+    game.board.conditionDeck = [
+      "condition-cursed-1",
+    ];
+
+    const result =
+      gainCondition(
+        game,
+        "investigator-1",
+        "condition-cursed",
+      );
+
+    expect(
+      result.investigators[
+        "investigator-1"
+      ].conditionIds,
+    ).toEqual([]);
+
+    expect(
+      result.board.conditionDeck,
+    ).toContain(
+      "condition-blessed-1",
+    );
+
+    expect(
+      result.board.conditionDeck,
+    ).toContain(
+      "condition-cursed-1",
+    );
+  });
+
+  it("flips Cursed instead of gaining a second Cursed Condition", () => {
+    const game =
+      createTestGame();
+
+    game.conditions = {
+      "condition-cursed-1": {
+        id: "condition-cursed-1",
+        definitionId: "condition-cursed",
+        instanceNumber: 1,
+        frontImage: "/cursed.png",
+        backImage: "/cursed-back.png",
+        backId: "cursed-back-1",
+        flipped: false,
+      },
+
+      "condition-cursed-2": {
+        id: "condition-cursed-2",
+        definitionId: "condition-cursed",
+        instanceNumber: 2,
+        frontImage: "/cursed.png",
+        backImage: "/cursed-back.png",
+        backId: "cursed-back-2",
+        flipped: false,
+      },
+    };
+
+    game.investigators[
+      "investigator-1"
+    ].conditionIds = [
+      "condition-cursed-1",
+    ];
+
+    game.board.conditionDeck = [
+      "condition-cursed-2",
+    ];
+
+    const result =
+      gainCondition(
+        game,
+        "investigator-1",
+        "condition-cursed",
+      );
+
+    expect(
+      result.conditions[
+        "condition-cursed-1"
+      ].flipped,
+    ).toBe(true);
+
+    expect(
+      result.investigators[
+        "investigator-1"
+      ].conditionIds,
+    ).toEqual([
+      "condition-cursed-1",
+    ]);
+
+    expect(
+      result.board.conditionDeck,
+    ).toEqual([
+      "condition-cursed-2",
+    ]);
+  });
+
+  it("discards Cursed instead of gaining Blessed", () => {
+    const game =
+      createTestGame();
+
+    game.conditions = {
+      "condition-cursed-1": {
+        id: "condition-cursed-1",
+        definitionId: "condition-cursed",
+        instanceNumber: 1,
+        frontImage: "/cursed.png",
+        backImage: "/cursed-back.png",
+        backId: "cursed-back-1",
+        flipped: false,
+      },
+
+      "condition-blessed-1": {
+        id: "condition-blessed-1",
+        definitionId: "condition-blessed",
+        instanceNumber: 1,
+        frontImage: "/blessed.png",
+        backImage: "/blessed-back.png",
+        backId: "blessed-back-1",
+        flipped: false,
+      },
+    };
+
+    game.investigators[
+      "investigator-1"
+    ].conditionIds = [
+      "condition-cursed-1",
+    ];
+
+    game.board.conditionDeck = [
+      "condition-blessed-1",
+    ];
+
+    const result =
+      gainCondition(
+        game,
+        "investigator-1",
+        "condition-blessed",
+      );
+
+    expect(
+      result.investigators[
+        "investigator-1"
+      ].conditionIds,
+    ).toEqual([]);
+
+    expect(
+      result.board.conditionDeck,
+    ).toContain(
+      "condition-cursed-1",
+    );
+
+    expect(
+      result.board.conditionDeck,
+    ).toContain(
+      "condition-blessed-1",
+    );
+  });
 });
 
 describe("gainConditionByCategory", () => {

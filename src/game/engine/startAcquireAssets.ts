@@ -8,6 +8,7 @@ import { getPassiveTestModifiers } from "./getPassiveTestModifiers";
 import { assertNormalActionAllowed } from "./conditionRestrictions";
 
 import type { AcquireAssetsResult } from "../models/AcquireAssetsResult";
+import { getSuccessfulTestResults } from "./getSuccessfulTestResults";
 
 export function startAcquireAssets(
   game: GameState,
@@ -128,11 +129,21 @@ export function startAcquireAssets(
         influence:
           effectiveInfluence,
       },
+      improvementTokens: {},
     },
     "influence",
     passiveModifiers.bonusDice,
     1,
-    { sixCountsAsTwo: passiveModifiers.sixCountsAsTwo },
+    {
+      sixCountsAsTwo:
+        passiveModifiers.sixCountsAsTwo,
+
+      successfulResults:
+        getSuccessfulTestResults(
+          game,
+          investigatorId,
+        ),
+    },
   );
 
   return {
