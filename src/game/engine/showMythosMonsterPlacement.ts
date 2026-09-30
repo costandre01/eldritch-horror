@@ -17,7 +17,7 @@ export function showMythosMonsterPlacement(
     ...after,
     pendingDecision: {
       type: "mythos-monsters",
-      title: "Spawn Monsters",
+      title: "Monster Surge",
       message: "New Monsters are placed on the map.",
       monsterIds: monsters.map((monster) => monster.id),
       spaceIds: monsters.map((monster) => monster.spaceId!),

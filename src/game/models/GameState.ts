@@ -279,6 +279,8 @@ export interface GameState {
   pendingAcquireAssetEffects?: {
     investigatorId: string;
     assetIds: string[];
+    charlieAssetIds?: string[];
+    assetRecipientIds?: Record<string, string>;
   } | null;
 
   pendingCombatLoss?: {

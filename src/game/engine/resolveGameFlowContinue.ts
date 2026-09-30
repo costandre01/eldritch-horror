@@ -2,7 +2,7 @@ import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 
 import { advanceOmen } from "./omenEngine";
-import { resolveMythos } from "./resolveMythos";
+import { finishMythosPhase, resolveMythos } from "./resolveMythos";
 import { startInvestigatorActions } from "./startInvestigatorActions";
 import { startInvestigatorEncounter } from "./startInvestigatorEncounter";
 import { revealEncounter } from "./revealEncounter";
@@ -610,6 +610,18 @@ export function resolveGameFlowContinue(
 
                           currentInvestigatorIndex:
                               nextIndex,
+
+                          mythosIds:
+                              resume.mythosIds,
+
+                          resolvedMythosIds:
+                              resume.resolvedMythosIds,
+
+                          nextIconIndex:
+                              resume.nextIconIndex,
+
+                          remainingPasses:
+                              resume.remainingPasses,
                       },
                   },
               },
@@ -650,14 +662,19 @@ export function resolveGameFlowContinue(
                   ],
               },
 
-              currentMythosId:
-                  null,
-
               activeInvestigatorId:
                   null,
 
-              pendingDecision:
-                  null,
+              pendingDecision: {
+                  type: "mythos-card-reckoning",
+                  title: "MYTHOS — RECKONING",
+                  message: "Resolve the Reckoning effects of the Mythos cards in play.",
+                  mythosIds: resume.mythosIds ?? ["patrolling-the-border"],
+                  resolvedMythosIds: resume.resolvedMythosIds ?? ["patrolling-the-border"],
+                  source: "mythos:card-reckoning",
+                  nextIconIndex: resume.nextIconIndex ?? 0,
+                  remainingPasses: resume.remainingPasses ?? 1,
+              },
           },
 
           resetEncounterStartedForTurn:
@@ -710,19 +727,20 @@ export function resolveGameFlowContinue(
     if (
       result === "pass"
     ) {
-      return {
-        game:
-          startArrestsMade(
-            {
-              ...game,
+      const resumedGame = startArrestsMade(
+        {
+          ...game,
+          pendingDecision: null,
+        },
+        map,
+        resume.investigatorIds,
+        resume.currentInvestigatorIndex + 1,
+      );
 
-              pendingDecision:
-                null,
-            },
-            map,
-            resume.investigatorIds,
-            resume.currentInvestigatorIndex + 1,
-          ),
+      return {
+        game: resumedGame.pendingDecision
+          ? resumedGame
+          : finishMythosPhase(resumedGame, map),
 
         resetEncounterStartedForTurn:
           false,
@@ -1815,45 +1833,15 @@ export function resolveGameFlowContinue(
       * ----------------------------------------------------------
       */
 
-      const eyesEverywhere =
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-            "eyes-everywhere",
-        );
-
-      if (!eyesEverywhere) {
-        throw new Error(
-          'Mythos "eyes-everywhere" does not exist.',
-        );
-      }
-
       return {
-        game: {
-          ...gameAfterDefeat,
-
-          board: {
-            ...gameAfterDefeat.board,
-
-            mythosDiscard: [
-              ...gameAfterDefeat.board.mythosDiscard,
-              eyesEverywhere,
-            ],
+        game: finishMythosPhase(
+          {
+            ...gameAfterDefeat,
+            activeInvestigatorId: null,
+            pendingDecision: null,
           },
-
-          currentMythosId:
-            null,
-
-          activeInvestigatorId:
-            null,
-
-          pendingDecision:
-            null,
-        },
+          map,
+        ),
 
         resetEncounterStartedForTurn:
           false,
@@ -2717,45 +2705,15 @@ export function resolveGameFlowContinue(
       * Only now is Eyes Everywhere discarded.
       */
 
-      const eyesEverywhere =
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-            "eyes-everywhere",
-        );
-
-      if (!eyesEverywhere) {
-        throw new Error(
-          'Mythos "eyes-everywhere" does not exist.',
-        );
-      }
-
       return {
-        game: {
-          ...finishedGame,
-
-          board: {
-            ...finishedGame.board,
-
-            mythosDiscard: [
-              ...finishedGame.board.mythosDiscard,
-              eyesEverywhere,
-            ],
+        game: finishMythosPhase(
+          {
+            ...finishedGame,
+            activeInvestigatorId: null,
+            pendingDecision: null,
           },
-
-          currentMythosId:
-            null,
-
-          activeInvestigatorId:
-            null,
-
-          pendingDecision:
-            null,
-        },
+          map,
+        ),
 
         resetEncounterStartedForTurn:
           false,

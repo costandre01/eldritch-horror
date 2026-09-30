@@ -119,6 +119,54 @@ export function drawClueToken(
   };
 }
 
+/*
+ * ============================================================
+ * DRAW RANDOM SPACE
+ * ============================================================
+ *
+ * A "random space" in Eldritch Horror is determined by
+ * drawing a random Clue token from the Clue Pool and using
+ * the space printed on that token.
+ *
+ * The drawn Clue is then discarded.
+ */
+
+export function drawRandomSpace(
+  game: GameState,
+): {
+  game: GameState;
+  spaceId: string | null;
+} {
+  const {
+    game: gameAfterDraw,
+    clue,
+  } = drawClueToken(game);
+
+  if (!clue) {
+    return {
+      game: gameAfterDraw,
+      spaceId: null,
+    };
+  }
+
+  return {
+    game: {
+      ...gameAfterDraw,
+
+      board: {
+        ...gameAfterDraw.board,
+
+        clueDiscard: [
+          ...gameAfterDraw.board.clueDiscard,
+          clue,
+        ],
+      },
+    },
+
+    spaceId: clue.spaceId,
+  };
+}
+
 export function spendInvestigatorClues(
   game: GameState,
   investigatorId: string,

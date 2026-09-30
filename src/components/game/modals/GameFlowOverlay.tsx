@@ -1089,10 +1089,12 @@ export default function GameFlowOverlay({
       curvedPosition.top;
 
     return (
-      <div className="fixed inset-0 z-200 overflow-y-auto bg-black/75 p-2 backdrop-blur-sm">
+      <div className="fixed inset-0 z-200 flex items-center justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-sm">
 
         <div
           className="
+            mx-auto
+            my-auto
             flex
             max-h-[calc(100dvh-16px)]
             w-[min(96vw,1200px)]

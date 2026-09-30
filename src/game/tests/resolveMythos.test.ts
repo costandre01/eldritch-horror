@@ -27,6 +27,91 @@ describe("getMythosById", () => {
 });
 
 describe("resolveMythos", () => {
+  function prepareCard(cardId: string) {
+    const game = createTestGame();
+    game.phase = "mythos";
+    game.status = "playing";
+    game.currentMythosId = cardId;
+    game.leadInvestigatorId = "investigator-1";
+    game.investigatorOrder = ["investigator-1"];
+    game.activeInvestigatorId = "investigator-1";
+    game.board = {
+      ...game.board,
+      spaces: {},
+      mythosInPlay: [],
+      mythosDiscard: [],
+      assetReserve: [],
+      assetDeck: [],
+      assetDiscard: [],
+    };
+    game.mysteries = {
+      ...game.mysteries,
+      activeMysteryId: null,
+    };
+    game.pendingEncounterChoice = null;
+    game.pendingDecision = null;
+    game.pendingInvestigatorReplacements = [];
+    return game;
+  }
+
+  it("keeps a Mythos special choice active and finishes it into the next round", () => {
+    const game = prepareCard("heat-wave-singes-the-globe");
+
+    const choiceGame = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("heat-wave-singes-the-globe").icons.length,
+    );
+
+    expect(choiceGame.pendingDecision).toMatchObject({
+      type: "choice",
+      source: "mythos:heat-wave-singes-the-globe:0",
+    });
+
+    const result = resolveGameFlowChoice(
+      choiceGame,
+      "heat-wave-singes-the-globe:delayed:0",
+      eldritchBaseMap,
+    );
+
+    expect(result.phase).not.toBe("mythos");
+    expect(result.currentMythosId).toBeNull();
+    expect(result.round).toBe(2);
+  });
+
+  it("finishes synchronous specials that used to clear the current card early", () => {
+    const game = prepareCard("calling-the-elder-things");
+
+    expect(() =>
+      resolveMythos(
+        game,
+        eldritchBaseMap,
+        getMythosById("calling-the-elder-things").icons.length,
+      ),
+    ).not.toThrow();
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("calling-the-elder-things").icons.length,
+    );
+
+    expect(result.phase).toBe("action");
+    expect(result.currentMythosId).toBeNull();
+  });
+
+  it("implements Driven to Bankruptcy entering play", () => {
+    const game = prepareCard("driven-to-bankruptcy");
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("driven-to-bankruptcy").icons.length,
+    );
+
+    expect(result.board.assetReserve).toEqual([]);
+    expect(result.phase).toBe("action");
+  });
+
   it("throws when called outside the Mythos phase", () => {
     const game = createTestGame();
 

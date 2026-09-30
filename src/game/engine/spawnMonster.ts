@@ -6,6 +6,7 @@ import { createMonster } from "./createMonster";
 import { getSetAsideMonsterCounts } from "./monsterSetup";
 import { resolveMonsterToughness } from "./resolveMonsterToughness";
 import { resolveMonsterSpawnAbilities } from "./resolveMonsterSpawnAbilities";
+import { drawRandomSpace } from "./clueEngine";
 
 
 export function spawnMonster(
@@ -66,28 +67,42 @@ export function spawnMonster(
 
   /*
    * ============================================================
-   * CHOOSE RANDOM SPACE
+   * DETERMINE RANDOM SPACE
    * ============================================================
+   *
+   * A "random space" in Eldritch Horror is determined by
+   * drawing a random Clue token from the Clue Pool and using
+   * the space printed on that token.
+   *
+   * The Clue used to determine the random space is discarded.
    */
 
-  if (map.spaces.length === 0) {
+  const {
+    game: gameAfterRandomSpace,
+    spaceId: randomSpaceId,
+  } = drawRandomSpace(game);
+
+  if (!randomSpaceId) {
+    /*
+     * Officially, if no Clue is available, the Lead Investigator
+     * chooses the space.
+     *
+     * That exceptional choice will be handled by the caller/UI.
+     */
     throw new Error(
-      "The map contains no spaces.",
+      "A random space could not be determined because there are no Clues available.",
     );
   }
 
-  const randomSpaceIndex =
-    Math.floor(
-      Math.random() *
-        map.spaces.length,
-    );
-
   const randomSpace =
-    map.spaces[randomSpaceIndex];
+    map.spaces.find(
+      (space) =>
+        space.id === randomSpaceId,
+    );
 
   if (!randomSpace) {
     throw new Error(
-      "Failed to select a random space.",
+      `Random-space Clue references unknown map space "${randomSpaceId}".`,
     );
   }
 
@@ -99,7 +114,7 @@ export function spawnMonster(
 
   const toughness =
     resolveMonsterToughness(
-      game,
+      gameAfterRandomSpace,
       definition,
     );
 
@@ -133,7 +148,7 @@ export function spawnMonster(
    */
 
   const monsterCup =
-    game.board.monsterCup.filter(
+    gameAfterRandomSpace.board.monsterCup.filter(
       (_, index) =>
         index !== randomMonsterIndex,
     );
@@ -145,7 +160,7 @@ export function spawnMonster(
    */
 
   const boardSpace =
-    game.board.spaces[
+    gameAfterRandomSpace.board.spaces[
       randomSpace.id
     ];
 
@@ -167,19 +182,26 @@ export function spawnMonster(
    */
 
   const gameAfterSpawn: GameState = {
-    ...game,
+    ...gameAfterRandomSpace,
+
     monsters: {
-      ...game.monsters,
+      ...gameAfterRandomSpace.monsters,
+
       [spawnedMonster.id]:
         spawnedMonster,
     },
+
     board: {
-      ...game.board,
+      ...gameAfterRandomSpace.board,
+
       monsterCup,
+
       spaces: {
-        ...game.board.spaces,
+        ...gameAfterRandomSpace.board.spaces,
+
         [randomSpace.id]: {
           ...boardSpace,
+
           monsterIds,
         },
       },
@@ -216,46 +238,86 @@ export function spawnMonsterAtSpace(
         game.ancientOne.id,
       );
       const representedIds = new Set([
-        ...game.board.monsterCup.map((monster) => monster.id),
-        ...(game.board.monsterDiscard ?? []).map((monster) => monster.id),
+        ...game.board.monsterCup.map(
+          (monster) => monster.id,
+        ),
+        ...(
+          game.board.monsterDiscard ??
+          []
+        ).map(
+          (monster) => monster.id,
+        ),
         ...Object.keys(game.monsters),
       ]);
 
-      return Object.entries(counts).flatMap(
-        ([definitionId, setAsideCount]) => {
-          const definition = CORE_MONSTERS.find(
-            (candidate) => candidate.id === definitionId,
-          );
-          if (!definition) return [];
+      return Object.entries(
+        counts,
+      ).flatMap(
+        ([
+          definitionId,
+          setAsideCount,
+        ]) => {
+          const definition =
+            CORE_MONSTERS.find(
+              (candidate) =>
+                candidate.id ===
+                definitionId,
+            );
+
+          if (!definition) {
+            return [];
+          }
 
           const cupCount = Math.max(
             0,
-            definition.quantity - setAsideCount,
-          );
-          const actualSetAsideCount = Math.min(
-            definition.quantity,
-            setAsideCount,
+            definition.quantity -
+              setAsideCount,
           );
 
+          const actualSetAsideCount =
+            Math.min(
+              definition.quantity,
+              setAsideCount,
+            );
+
           return Array.from(
-            { length: actualSetAsideCount },
-            (_, offset) => createMonster(
-              definition,
-              cupCount + offset + 1,
-            ),
-          ).filter((monster) => !representedIds.has(monster.id));
+            {
+              length:
+                actualSetAsideCount,
+            },
+            (_, offset) =>
+              createMonster(
+                definition,
+                cupCount +
+                  offset +
+                  1,
+              ),
+          ).filter(
+            (monster) =>
+              !representedIds.has(
+                monster.id,
+              ),
+          );
         },
       );
     })();
 
-  const setAsideMatches = monsterDefinitionId
-    ? monsterSetAside.filter(
-        (monster) => monster.definitionId === monsterDefinitionId,
+  const setAsideMatches =
+    monsterDefinitionId
+      ? monsterSetAside.filter(
+          (monster) =>
+            monster.definitionId ===
+            monsterDefinitionId,
+        )
+      : [];
+
+  const selectedSetAside =
+    setAsideMatches[
+      Math.floor(
+        Math.random() *
+          setAsideMatches.length,
       )
-    : [];
-  const selectedSetAside = setAsideMatches[
-    Math.floor(Math.random() * setAsideMatches.length)
-  ];
+    ];
 
   const eligibleIndexes =
     game.board.monsterCup
@@ -275,36 +337,56 @@ export function spawnMonsterAtSpace(
             monsterDefinitionId,
       );
 
-  if (!selectedSetAside && eligibleIndexes.length === 0) {
-    // A named spawn with no remaining matching token has no effect.
-    // In particular, do not leave the Mythos Reckoning stuck.
-    if (monsterDefinitionId) return game;
+  if (
+    !selectedSetAside &&
+    eligibleIndexes.length === 0
+  ) {
+    /*
+     * A named spawn with no remaining matching token
+     * has no effect.
+     *
+     * In particular, do not leave the Mythos
+     * Reckoning stuck.
+     */
+    if (monsterDefinitionId) {
+      return game;
+    }
 
     throw new Error(
-      monsterDefinitionId
-        ? `No Monster with definition "${monsterDefinitionId}" is available in the Monster Cup.`
-        : "There are no eligible Monsters available in the Monster Cup.",
+      "There are no eligible Monsters available in the Monster Cup.",
     );
   }
 
-  const selected = selectedSetAside
-    ? undefined
-    : eligibleIndexes[
-        Math.floor(
-          Math.random() * eligibleIndexes.length,
-        )
-      ];
+  const selected =
+    selectedSetAside
+      ? undefined
+      : eligibleIndexes[
+          Math.floor(
+            Math.random() *
+              eligibleIndexes.length,
+          )
+        ];
 
-  if (!selectedSetAside && !selected) {
+  if (
+    !selectedSetAside &&
+    !selected
+  ) {
     throw new Error(
       "Failed to retrieve a Monster from the Monster Cup.",
     );
   }
 
-  const randomMonsterIndex = selected?.index;
-  const monster = selectedSetAside ?? selected?.monster;
+  const randomMonsterIndex =
+    selected?.index;
+
+  const monster =
+    selectedSetAside ??
+    selected?.monster;
+
   if (!monster) {
-    throw new Error("Failed to retrieve a Monster from its pool.");
+    throw new Error(
+      "Failed to retrieve a Monster from its pool.",
+    );
   }
 
   const definition =
@@ -341,14 +423,19 @@ export function spawnMonsterAtSpace(
     randomMonsterIndex === undefined
       ? game.board.monsterCup
       : game.board.monsterCup.filter(
-          (_, index) => index !== randomMonsterIndex,
+          (_, index) =>
+            index !==
+            randomMonsterIndex,
         );
 
-  const remainingSetAside = selectedSetAside
-    ? monsterSetAside.filter(
-        (candidate) => candidate.id !== selectedSetAside.id,
-      )
-    : monsterSetAside;
+  const remainingSetAside =
+    selectedSetAside
+      ? monsterSetAside.filter(
+          (candidate) =>
+            candidate.id !==
+            selectedSetAside.id,
+        )
+      : monsterSetAside;
 
   const monsterIds = [
     ...boardSpace.monsterIds,
@@ -370,7 +457,8 @@ export function spawnMonsterAtSpace(
 
       monsterCup,
 
-      monsterSetAside: remainingSetAside,
+      monsterSetAside:
+        remainingSetAside,
 
       spaces: {
         ...game.board.spaces,

@@ -10,12 +10,8 @@ import { startMythosCardReckoning } from "./startMythosCardReckoning";
 import { advanceDoom } from "./doomEngine";
 import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
 
-function getAncientOneDefinition(
-  ancientOneId: string,
-) {
-  return CORE_ANCIENT_ONES.find(
-    (ancientOne) => ancientOne.id === ancientOneId,
-  );
+function getAncientOneDefinition(ancientOneId: string) {
+  return CORE_ANCIENT_ONES.find((ancientOne) => ancientOne.id === ancientOneId);
 }
 
 function continueAncientOneReckoning(
@@ -31,8 +27,7 @@ function continueAncientOneReckoning(
     ...game,
     pendingDecision: {
       ...decision,
-      abilityIndex:
-        decision.abilityIndex + 1,
+      abilityIndex: decision.abilityIndex + 1,
     },
   };
 }
@@ -43,23 +38,14 @@ export function resolveAncientOneReckoning(
 ): GameState {
   const decision = game.pendingDecision;
 
-  if (
-    !decision ||
-    decision.type !== "mythos-ancient-one-reckoning"
-  ) {
-    throw new Error(
-      "There is no active Ancient One Reckoning decision.",
-    );
+  if (!decision || decision.type !== "mythos-ancient-one-reckoning") {
+    throw new Error("There is no active Ancient One Reckoning decision.");
   }
 
-  const ancientOne = getAncientOneDefinition(
-    decision.ancientOneId,
-  );
+  const ancientOne = getAncientOneDefinition(decision.ancientOneId);
 
   if (!ancientOne) {
-    throw new Error(
-      `Ancient One "${decision.ancientOneId}" does not exist.`,
-    );
+    throw new Error(`Ancient One "${decision.ancientOneId}" does not exist.`);
   }
 
   const abilities =
@@ -99,13 +85,9 @@ export function resolveAncientOneReckoning(
      */
 
     case "place-eldritch-token-on-sea": {
-      const investigators = Object.values(
-        game.investigators,
-      );
+      const investigators = Object.values(game.investigators);
 
-      const tokenSpaceIds = [
-        ...game.ancientOne.eldritchTokenSpaceIds,
-      ];
+      const tokenSpaceIds = [...game.ancientOne.eldritchTokenSpaceIds];
 
       let tokensPlaced = 0;
 
@@ -115,25 +97,18 @@ export function resolveAncientOneReckoning(
         }
 
         const space = map.spaces.find(
-          (candidate) =>
-            candidate.id === investigator.spaceId,
+          (candidate) => candidate.id === investigator.spaceId,
         );
 
         if (!space || space.type !== "sea") {
           continue;
         }
 
-        if (
-          tokenSpaceIds.includes(
-            investigator.spaceId,
-          )
-        ) {
+        if (tokenSpaceIds.includes(investigator.spaceId)) {
           continue;
         }
 
-        tokenSpaceIds.push(
-          investigator.spaceId,
-        );
+        tokenSpaceIds.push(investigator.spaceId);
 
         tokensPlaced += 1;
       }
@@ -144,19 +119,13 @@ export function resolveAncientOneReckoning(
         ancientOne: {
           ...game.ancientOne,
 
-          eldritchTokens:
-            game.ancientOne.eldritchTokens +
-            tokensPlaced,
+          eldritchTokens: game.ancientOne.eldritchTokens + tokensPlaced,
 
-          eldritchTokenSpaceIds:
-            tokenSpaceIds,
+          eldritchTokenSpaceIds: tokenSpaceIds,
         },
       };
 
-      return continueAncientOneReckoning(
-        gameAfterEffect,
-        decision,
-      );
+      return continueAncientOneReckoning(gameAfterEffect, decision);
     }
 
     /*
@@ -171,62 +140,88 @@ export function resolveAncientOneReckoning(
      */
 
     case "spawn-monster-and-advance-doom": {
-      const gameAfterSpawn =
-        spawnMonster(
-          game,
-          map,
-        );
+      /*
+       * A random space is normally determined by
+       * drawing a Clue from the Clue Pool.
+       *
+       * If there are no Clues available at all,
+       * the Lead Investigator chooses the space.
+       *
+       * Do not call spawnMonster() in that case,
+       * because spawnMonster() cannot determine
+       * the random space.
+       */
+      const hasRandomSpaceClue =
+        game.board.cluePool.length > 0 || game.board.clueDiscard.length > 0;
 
-      const monstersOnBoard =
-        Object.values(
-          gameAfterSpawn.monsters,
-        ).filter(
-          (monster) =>
-            monster.spaceId !== null &&
-            monster.health > 0,
-        ).length;
+      if (!hasRandomSpaceClue) {
+        return {
+          ...game,
 
-      const wasAwakened =
-        gameAfterSpawn.ancientOne.awakened;
+          pendingDecision: {
+            type: "select-space",
+
+            title: "Choose a Space",
+
+            message:
+              "There are no Clues available to determine a random space. The Lead Investigator chooses a space.",
+
+            spaceIds: map.spaces.map((space) => space.id),
+
+            source: "ancient-one:shub-niggurath-random-space",
+
+            onSpaceSelected: [],
+
+            resume: {
+              type: "ancient-one-shub-random-space",
+
+              nextIconIndex: decision.nextIconIndex,
+
+              ancientOneAbilityIndex: decision.abilityIndex,
+
+              ancientOneId: decision.ancientOneId,
+
+              ancientOneReckoningStage: decision.reckoningStage,
+            },
+          },
+        };
+      }
+
+      const gameAfterSpawn = spawnMonster(game, map);
+
+      const monstersOnBoard = Object.values(gameAfterSpawn.monsters).filter(
+        (monster) => monster.spaceId !== null && monster.health > 0,
+      ).length;
+
+      const wasAwakened = gameAfterSpawn.ancientOne.awakened;
 
       const gameAfterDoom =
-        monstersOnBoard >= 10
-          ? advanceDoom(
-              gameAfterSpawn,
-              2,
-            )
-          : gameAfterSpawn;
+        monstersOnBoard >= 10 ? advanceDoom(gameAfterSpawn, 2) : gameAfterSpawn;
 
       /*
-      * If the Ancient One awakened because
-      * of this Doom advance, resolve its
-      * Awakening immediately.
-      */
+       * If the Ancient One awakened because
+       * of this Doom advance, resolve its
+       * Awakening immediately.
+       */
 
-      if (
-        !wasAwakened &&
-        gameAfterDoom.ancientOne.awakened
-      ) {
+      if (!wasAwakened && gameAfterDoom.ancientOne.awakened) {
         return resolveAncientOneAwakening(
           gameAfterDoom,
           map,
           decision.nextIconIndex,
           {
             type: "ancient-one-reckoning",
-            abilityIndex:
-              decision.abilityIndex,
-            ancientOneId:
-              decision.ancientOneId,
-            ancientOneReckoningStage:
-              decision.reckoningStage,
+
+            abilityIndex: decision.abilityIndex,
+
+            ancientOneId: decision.ancientOneId,
+
+            ancientOneReckoningStage: decision.reckoningStage,
           },
         );
       }
 
-      return continueAncientOneReckoning(
-        gameAfterDoom,
-        decision,
-      );
+      return continueAncientOneReckoning(gameAfterDoom, decision);
     }
 
     /*
@@ -259,10 +254,7 @@ export function resolveAncientOneReckoning(
     }
 
     case "each-investigator-lose-sanity": {
-      const investigators =
-        Object.values(
-          game.investigators,
-        );
+      const investigators = Object.values(game.investigators);
 
       const updatedInvestigators = {
         ...game.investigators,
@@ -272,15 +264,10 @@ export function resolveAncientOneReckoning(
         updatedInvestigators[investigator.id] = {
           ...investigator,
 
-          sanity: Math.max(
-            0,
-            investigator.sanity -
-              ability.amount,
-          ),
+          sanity: Math.max(0, investigator.sanity - ability.amount),
 
           isDefeated:
-            investigator.sanity -
-              ability.amount <= 0 ||
+            investigator.sanity - ability.amount <= 0 ||
             investigator.health <= 0,
         };
       }
@@ -288,31 +275,20 @@ export function resolveAncientOneReckoning(
       const gameAfterEffect: GameState = {
         ...game,
 
-        investigators:
-          updatedInvestigators,
+        investigators: updatedInvestigators,
       };
 
-      return continueAncientOneReckoning(
-        gameAfterEffect,
-        decision,
-      );
+      return continueAncientOneReckoning(gameAfterEffect, decision);
     }
 
     case "lose-sanity-per-sanity-token": {
-      const sanityLoss =
-        game.ancientOne.sanityTokens;
+      const sanityLoss = game.ancientOne.sanityTokens;
 
       if (sanityLoss <= 0) {
-        return continueAncientOneReckoning(
-          game,
-          decision,
-        );
+        return continueAncientOneReckoning(game, decision);
       }
 
-      const investigators =
-        Object.values(
-          game.investigators,
-        );
+      const investigators = Object.values(game.investigators);
 
       const updatedInvestigators = {
         ...game.investigators,
@@ -322,30 +298,20 @@ export function resolveAncientOneReckoning(
         updatedInvestigators[investigator.id] = {
           ...investigator,
 
-          sanity: Math.max(
-            0,
-            investigator.sanity -
-              sanityLoss,
-          ),
+          sanity: Math.max(0, investigator.sanity - sanityLoss),
 
           isDefeated:
-            investigator.sanity -
-              sanityLoss <= 0 ||
-            investigator.health <= 0,
+            investigator.sanity - sanityLoss <= 0 || investigator.health <= 0,
         };
       }
 
       const gameAfterEffect: GameState = {
         ...game,
 
-        investigators:
-          updatedInvestigators,
+        investigators: updatedInvestigators,
       };
 
-      return continueAncientOneReckoning(
-        gameAfterEffect,
-        decision,
-      );
+      return continueAncientOneReckoning(gameAfterEffect, decision);
     }
 
     case "investigators-on-ancient-one-space-combat": {
@@ -359,15 +325,10 @@ export function resolveAncientOneReckoning(
        * resolve a Combat Encounter against it.
        */
 
-      const shubNiggurath =
-        Object.values(
-          game.monsters,
-        ).find(
-          (monster) =>
-            monster.definitionId ===
-              "shub-niggurath" &&
-            monster.spaceId !== null,
-        );
+      const shubNiggurath = Object.values(game.monsters).find(
+        (monster) =>
+          monster.definitionId === "shub-niggurath" && monster.spaceId !== null,
+      );
 
       /*
        * Shub-Niggurath is not currently on the board.
@@ -391,28 +352,21 @@ export function resolveAncientOneReckoning(
        * Use the normal investigator order.
        */
 
-      const investigatorIds =
-        game.investigatorOrder.filter(
-          (investigatorId) => {
-            const investigator =
-              game.investigators[
-                investigatorId
-              ];
+      const investigatorIds = game.investigatorOrder.filter(
+        (investigatorId) => {
+          const investigator = game.investigators[investigatorId];
 
-            if (
-              !investigator ||
-              investigator.isDefeated ||
-              !investigator.spaceId
-            ) {
-              return false;
-            }
+          if (
+            !investigator ||
+            investigator.isDefeated ||
+            !investigator.spaceId
+          ) {
+            return false;
+          }
 
-            return (
-              investigator.spaceId ===
-              shubNiggurath.spaceId
-            );
-          },
-        );
+          return investigator.spaceId === shubNiggurath.spaceId;
+        },
+      );
 
       /*
        * No investigators are on the space.
@@ -462,10 +416,7 @@ export function resolveAncientOneReckoning(
         pendingDecision: null,
       };
 
-      return showMythosContinue(
-        gameWithoutDecision,
-        decision.nextIconIndex,
-      );
+      return showMythosContinue(gameWithoutDecision, decision.nextIconIndex);
     }
   }
 }

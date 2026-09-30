@@ -19,6 +19,16 @@ import { continueAcquireAssetEffects } from "./continueAcquireAssetEffects";
 import { findNearestCity } from "./findNearestCity";
 import { discardSpell } from "./discardSpell";
 import { syncActiveExpedition } from "./syncActiveExpedition";
+import { finishMythosPhase } from "./resolveMythos";
+
+function finishMythosSpecialIfComplete(
+  game: GameState,
+  map: MapDefinition,
+): GameState {
+  return game.pendingDecision || game.pendingEncounterChoice
+    ? game
+    : finishMythosPhase(game, map);
+}
 
 export type CardSelectionResult =
   | {
@@ -480,12 +490,14 @@ export function resolveCardSelection(
       return {
         type: "state",
 
-        game:
+        game: finishMythosSpecialIfComplete(
           resumeSilverTwilightAid(
             currentGame,
             map,
             currentIndex + 1,
           ),
+          map,
+        ),
       };
     }
 
@@ -1225,6 +1237,11 @@ export function resolveCardSelection(
                 investigatorIndex + 1,
             );
 
+        currentGame = finishMythosSpecialIfComplete(
+            currentGame,
+            map,
+        );
+
         return {
             type: "state",
             game: currentGame,
@@ -1544,6 +1561,11 @@ export function resolveCardSelection(
           resume.investigatorIds,
           resume.currentInvestigatorIndex + 1,
         );
+
+      currentGame = finishMythosSpecialIfComplete(
+        currentGame,
+        map,
+      );
     }
 
     /*
@@ -1699,11 +1721,13 @@ export function resolveCardSelection(
 
       return {
         type: "state",
-        game:
+        game: finishMythosSpecialIfComplete(
           startBurdenOfGreed(
             currentGame,
             currentIndex + 1,
           ),
+          map,
+        ),
       };
     }
 
@@ -1862,11 +1886,13 @@ export function resolveCardSelection(
       return {
         type: "state",
 
-        game:
+        game: finishMythosSpecialIfComplete(
           startTreacherousMagic(
             currentGame,
             currentIndex + 1,
           ),
+          map,
+        ),
       };
     }
 

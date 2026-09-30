@@ -102,6 +102,7 @@ import {
   startEyesEverywhere,
 } from "./game/engine/resolveMythosSpecial";
 import { startNextRoundAfterMythos } from "./game/engine/startNextRoundAfterMythos";
+import { finishMythosPhase } from "./game/engine/resolveMythos";
 import GameEndModal from "./components/game/modals/GameEndModal";
 import { resolveDefeatedInvestigatorReplacement } from "./game/engine/resolveDefeatedInvestigatorReplacement.ts";
 import { getConditionLocalActions, hasDetainedActionRestriction, resolveConditionLocalActionTest, startConditionLocalAction } from "./game/engine/conditionLocalAction";
@@ -992,6 +993,7 @@ function App() {
 
   function handleChooseTravelTicket(
     ticketType: "train" | "ship",
+    discardTicketType?: "train" | "ship",
   ) {
     if (!game) {
       return;
@@ -1003,6 +1005,7 @@ function App() {
           game,
           eldritchBaseMap,
           ticketType,
+          discardTicketType,
         );
 
       setGame(updatedGame);
@@ -2426,27 +2429,13 @@ function App() {
         investigatorId,
         cluesGained,
       );
-      const resolvedGame: GameState = {
+      const resolvedGame = finishMythosPhase({
         ...gameAfterClues,
-
-        board: {
-          ...gameAfterClues.board,
-
-          mythosDiscard: [
-            ...gameAfterClues.board.mythosDiscard,
-            mythos,
-          ],
-        },
-
-        currentMythosId:
-          null,
-
         pendingDecision:
           null,
-
         lastTest:
           diceTest,
-      };
+      }, eldritchBaseMap);
 
       setGame(
         resolvedGame,
@@ -2759,46 +2748,14 @@ function App() {
           nextIndex >=
           investigatorIds.length
         ) {
-          const mythosId =
-            updatedGame.currentMythosId;
-
-          if (mythosId) {
-            const mythos =
-              [
-                ...easyMythos,
-                ...normalMythos,
-                ...hardMythos,
-              ].find(
-                (definition) =>
-                  definition.id ===
-                  mythosId,
-              );
-
-            if (mythos) {
-              updatedGame = {
-                ...updatedGame,
-
-                board: {
-                  ...updatedGame.board,
-
-                  mythosDiscard: [
-                    ...updatedGame.board
-                      .mythosDiscard,
-                    mythos,
-                  ],
-                },
-
-                currentMythosId:
-                  null,
-
-                activeInvestigatorId:
-                  null,
-
-                pendingDecision:
-                  null,
-              };
-            }
-          }
+          updatedGame = finishMythosPhase(
+            {
+              ...updatedGame,
+              activeInvestigatorId: null,
+              pendingDecision: null,
+            },
+            eldritchBaseMap,
+          );
 
           setGame(updatedGame);
           setSingleDieRoll(null);
@@ -2987,53 +2944,23 @@ function App() {
               investigatorIndex + 1,
             );
 
+          if (!updatedGame.pendingDecision) {
+            updatedGame = finishMythosPhase(
+              updatedGame,
+              eldritchBaseMap,
+            );
+          }
+
           setGame(updatedGame);
           setSingleDieRoll(null);
 
           return;
         }
 
-        /*
-        * Heart of Corruption is an Event Mythos.
-        *
-        * Its effects are now completely resolved,
-        * so discard the current Mythos card.
-        */
-
-        const mythosId =
-          updatedGame.currentMythosId;
-
-        if (mythosId) {
-          const mythos =
-            [
-              ...easyMythos,
-              ...normalMythos,
-              ...hardMythos,
-            ].find(
-              (definition) =>
-                definition.id ===
-                mythosId,
-            );
-
-          if (mythos) {
-            updatedGame = {
-              ...updatedGame,
-
-              board: {
-                ...updatedGame.board,
-
-                mythosDiscard: [
-                  ...updatedGame.board
-                    .mythosDiscard,
-                  mythos,
-                ],
-              },
-
-              currentMythosId:
-                null,
-            };
-          }
-        }
+        updatedGame = finishMythosPhase(
+          updatedGame,
+          eldritchBaseMap,
+        );
 
         setGame(updatedGame);
         setSingleDieRoll(null);
@@ -4674,25 +4601,35 @@ function App() {
         {/* PREPARE FOR TRAVEL */}
         {/* ================================================== */}
 
-        {prepareForTravelChoice && (
-          <PrepareForTravelModal
-            onChooseTrain={() =>
-              handleChooseTravelTicket(
-                "train",
-              )
-            }
-            onChooseShip={() =>
-              handleChooseTravelTicket(
-                "ship",
-              )
-            }
-            onCancel={() =>
-              setPrepareForTravelChoice(
-                false,
-              )
-            }
-          />
-        )}
+        {prepareForTravelChoice &&
+          game.activeInvestigatorId && (
+            <PrepareForTravelModal
+              trainTickets={
+                game.investigators[
+                  game.activeInvestigatorId
+                ]?.trainTickets ?? 0
+              }
+              shipTickets={
+                game.investigators[
+                  game.activeInvestigatorId
+                ]?.shipTickets ?? 0
+              }
+              onConfirm={(
+                ticketType,
+                discardTicketType,
+              ) =>
+                handleChooseTravelTicket(
+                  ticketType,
+                  discardTicketType,
+                )
+              }
+              onCancel={() =>
+                setPrepareForTravelChoice(
+                  false,
+                )
+              }
+            />
+          )}
 
         {/* ================================================== */}
         {/* SPELL CHOICE */}

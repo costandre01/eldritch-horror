@@ -1,5 +1,6 @@
 import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
+import { drawRandomSpace } from "./clueEngine";
 
 import { spawnEpicMonsterAtSpace } from "./spawnEpicMonsterAtSpace";
 
@@ -48,6 +49,36 @@ function placeRandomEldritchTokens(
   map: MapDefinition,
   mysteryId: string,
 ): GameState {
+  const investigatorCount =
+    game.investigatorOrder.length;
+
+  const tokenCount = Math.ceil(
+    investigatorCount / 2,
+  );
+
+  return continueRandomEldritchTokens(
+    game,
+    map,
+    mysteryId,
+    tokenCount,
+  );
+}
+
+function continueRandomEldritchTokens(
+  game: GameState,
+  map: MapDefinition,
+  mysteryId: string,
+  remainingTokenCount: number,
+): GameState {
+  /*
+   * All required Eldritch Tokens
+   * have been placed.
+   */
+
+  if (remainingTokenCount <= 0) {
+    return game;
+  }
+
   const progress =
     game.mysteries.progress[mysteryId];
 
@@ -57,90 +88,198 @@ function placeRandomEldritchTokens(
     );
   }
 
-  const investigatorCount =
-    game.investigatorOrder.length;
-
-  const tokenCount = Math.ceil(
-    investigatorCount / 2,
-  );
-
   /*
-   * The True Name:
-   * place Eldritch tokens on random spaces.
+   * A random space is determined by
+   * drawing a Clue and using the space
+   * printed on that Clue.
    *
-   * Each selected space receives one token.
+   * drawRandomSpace also discards the
+   * Clue that was used.
    */
-  const availableSpaceIds =
-    map.spaces.map(
-      (space) => space.id,
-    );
+
+  const {
+    game: gameAfterRandomSpace,
+    spaceId,
+  } = drawRandomSpace(game);
 
   /*
-   * Shuffle spaces randomly.
+   * If there are no Clues available,
+   * the Lead Investigator chooses
+   * the random space.
    */
-  for (
-    let i = availableSpaceIds.length - 1;
-    i > 0;
-    i--
-  ) {
-    const j = Math.floor(
-      Math.random() * (i + 1),
-    );
 
-    [
-      availableSpaceIds[i],
-      availableSpaceIds[j],
-    ] = [
-      availableSpaceIds[j],
-      availableSpaceIds[i],
-    ];
+  if (!spaceId) {
+    return {
+      ...gameAfterRandomSpace,
+
+      pendingDecision: {
+        type: "select-space",
+
+        title: "Choose a Space",
+
+        message:
+          "There are no Clues available to determine a random space. The Lead Investigator chooses a space.",
+
+        spaceIds:
+          map.spaces.map(
+            (space) => space.id,
+          ),
+
+        source:
+          "mystery:the-true-name-random-space",
+
+        onSpaceSelected: [],
+
+        resume: {
+          type:
+            "mystery-true-name-random-space",
+
+          mysteryId,
+
+          remainingTokenCount,
+        },
+      },
+    };
   }
 
   /*
-   * Select the required number of random spaces.
+   * Validate the space referenced by
+   * the drawn Clue.
    */
-  const selectedSpaceIds =
-    availableSpaceIds.slice(
-      0,
-      Math.min(
-        tokenCount,
-        availableSpaceIds.length,
-      ),
+
+  const mapSpace =
+    map.spaces.find(
+      (space) =>
+        space.id === spaceId,
     );
 
-  const updatedSpaces = {
-    ...game.board.spaces,
+  if (!mapSpace) {
+    throw new Error(
+      `Random-space Clue references unknown map space "${spaceId}".`,
+    );
+  }
+
+  const boardSpace =
+    gameAfterRandomSpace.board.spaces[
+      spaceId
+    ];
+
+  if (!boardSpace) {
+    throw new Error(
+      `Space "${spaceId}" does not exist on the board.`,
+    );
+  }
+
+  /*
+   * Place the Eldritch Token and record
+   * it immediately in Mystery progress.
+   *
+   * Recording each token immediately is
+   * important because the process may
+   * pause for a Lead Investigator choice.
+   */
+
+  const updatedGame: GameState = {
+    ...gameAfterRandomSpace,
+
+    board: {
+      ...gameAfterRandomSpace.board,
+
+      spaces: {
+        ...gameAfterRandomSpace.board
+          .spaces,
+
+        [spaceId]: {
+          ...boardSpace,
+
+          eldritchTokenCount:
+            boardSpace.eldritchTokenCount +
+            1,
+        },
+      },
+    },
+
+    mysteries: {
+      ...gameAfterRandomSpace.mysteries,
+
+      progress: {
+        ...gameAfterRandomSpace.mysteries
+          .progress,
+
+        [mysteryId]: {
+          ...progress,
+
+          eldritchTokenSpaceIds: [
+            ...progress.eldritchTokenSpaceIds,
+            spaceId,
+          ],
+        },
+      },
+    },
   };
 
-  const placedTokenSpaceIds: string[] = [];
+  /*
+   * Determine the next random space.
+   */
 
-  for (const spaceId of selectedSpaceIds) {
-    const space =
-      updatedSpaces[spaceId];
+  return continueRandomEldritchTokens(
+    updatedGame,
+    map,
+    mysteryId,
+    remainingTokenCount - 1,
+  );
+}
 
-    if (!space) {
-      continue;
-    }
+export function resumeTrueNameRandomSpace(
+  game: GameState,
+  map: MapDefinition,
+  mysteryId: string,
+  spaceId: string,
+  remainingTokenCount: number,
+): GameState {
+  const boardSpace =
+    game.board.spaces[spaceId];
 
-    updatedSpaces[spaceId] = {
-      ...space,
-
-      eldritchTokenCount:
-        space.eldritchTokenCount + 1,
-    };
-
-    placedTokenSpaceIds.push(
-      spaceId,
+  if (!boardSpace) {
+    throw new Error(
+      `Space "${spaceId}" does not exist on the board.`,
     );
   }
 
-  return {
+  const progress =
+    game.mysteries.progress[mysteryId];
+
+  if (!progress) {
+    throw new Error(
+      `Mystery progress "${mysteryId}" does not exist.`,
+    );
+  }
+
+  /*
+   * The Lead Investigator selected the
+   * random space because no Clues were
+   * available.
+   */
+
+  const updatedGame: GameState = {
     ...game,
+
+    pendingDecision: null,
 
     board: {
       ...game.board,
 
-      spaces: updatedSpaces,
+      spaces: {
+        ...game.board.spaces,
+
+        [spaceId]: {
+          ...boardSpace,
+
+          eldritchTokenCount:
+            boardSpace.eldritchTokenCount +
+            1,
+        },
+      },
     },
 
     mysteries: {
@@ -152,17 +291,26 @@ function placeRandomEldritchTokens(
         [mysteryId]: {
           ...progress,
 
-          eldritchTokenCount:
-            progress.eldritchTokenCount,
-
           eldritchTokenSpaceIds: [
             ...progress.eldritchTokenSpaceIds,
-            ...placedTokenSpaceIds,
+            spaceId,
           ],
         },
       },
     },
   };
+
+  /*
+   * The chosen space satisfies one of
+   * the remaining random-space results.
+   */
+
+  return continueRandomEldritchTokens(
+    updatedGame,
+    map,
+    mysteryId,
+    remainingTokenCount - 1,
+  );
 }
 
 function placeDeepOnesAttackTokens(

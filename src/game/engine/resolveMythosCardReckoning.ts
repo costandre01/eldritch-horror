@@ -1039,6 +1039,20 @@ export function resolveMythosCardReckoning(
 
                   currentInvestigatorIndex:
                       0,
+
+                  mythosIds:
+                      decision.mythosIds,
+
+                  resolvedMythosIds: [
+                      ...decision.resolvedMythosIds,
+                      mythosId,
+                  ],
+
+                  nextIconIndex:
+                      decision.nextIconIndex,
+
+                  remainingPasses:
+                      decision.remainingPasses ?? 1,
               },
           },
       };

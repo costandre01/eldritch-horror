@@ -70,33 +70,35 @@ export default function MythosPlacementModal({ game, decision, onContinue }: {
   const names = decision.spaceNames ?? decision.spaceIds.map((id) => eldritchBaseMap.spaces.find((space) => space.id === id)?.name ?? id);
 
   return (
-    <div className="fixed inset-0 z-200 flex items-center justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm">
-      <section inert={!!preview} className="mx-auto my-auto flex max-h-[calc(100dvh-24px)] w-[min(94vw,1200px)] flex-col items-center overflow-y-auto rounded-3xl border border-gray-700 bg-[#172033] p-5 text-white shadow-2xl sm:p-7">
+    <div className="fixed inset-0 z-200 flex items-center justify-center overflow-auto bg-black/75 p-3 backdrop-blur-sm">
+      <section inert={!!preview} className="mx-auto my-auto flex max-h-[calc(100dvh-24px)] w-[min(96vw,1240px)] flex-col items-center overflow-y-auto overscroll-contain rounded-3xl border border-gray-700 bg-[#172033] p-5 text-white shadow-2xl sm:p-7">
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-300">MYTHOS PHASE</p>
         <h2 className="mt-2 text-3xl font-black">{decision.title}</h2>
         <p className="mt-2 text-center text-gray-300">{decision.message}</p>
-        <div className="relative mt-5 aspect-3/2 w-full max-w-[1000px] overflow-hidden rounded-xl border-2 border-slate-600 bg-black shadow-2xl">
-          <div inert className="pointer-events-none">
-            <EldritchMap game={mapDisplayGame} investigators={game.investigators} doom={game.ancientOne.doom} omenPosition={game.ancientOne.omenPosition} assetReserve={game.board.assetReserve} />
+        <div className="mt-5 w-full max-w-[1120px] overflow-auto overscroll-contain rounded-xl border-2 border-slate-600 bg-black p-7 shadow-2xl">
+          <div className="relative aspect-3/2 w-full min-w-[1000px] overflow-visible">
+            <div inert className="pointer-events-none">
+              <EldritchMap game={mapDisplayGame} investigators={game.investigators} doom={game.ancientOne.doom} omenPosition={game.ancientOne.omenPosition} assetReserve={game.board.assetReserve} />
+            </div>
+            {placements.map((placement, index) => {
+              const position = eldritchMapPositions[placement.spaceId];
+              if (!position) return null;
+              const offset = placements.slice(0, index).filter((entry) => entry.spaceId === placement.spaceId).length;
+              const marker = <>
+                <span className="pointer-events-none absolute -inset-[28%] rounded-full border-[3px] border-yellow-300 shadow-[0_0_16px_rgba(250,204,21,0.95)]" />
+                <img src={placement.image} alt={placement.name} className="relative h-full w-full rounded-full border-2 border-yellow-200 bg-amber-400 p-[2px] object-contain" />
+                <span className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 rounded bg-yellow-300 px-1.5 py-0.5 text-[9px] font-black text-slate-950">NEW</span>
+              </>;
+              const style = { left: `${position.x + offset * 4.5}%`, top: `${position.y}%`, animation: `mythosPlacementDrop 700ms cubic-bezier(.2,.8,.3,1) ${index * 320}ms both` };
+              const className = "absolute z-120 h-[5.5%] w-[3.8%] -translate-x-1/2 -translate-y-1/2";
+              return placement.monsterId ? (
+                <button key={placement.id} type="button" aria-label={`View ${placement.name}`} className={`${className} cursor-pointer rounded-full focus-visible:outline-4 focus-visible:outline-white`} style={style}
+                  onClick={(event) => { triggerButton.current = event.currentTarget; setFlipped(false); setPreviewId(placement.monsterId); }}>
+                  {marker}
+                </button>
+              ) : <div key={placement.id} className={`${className} pointer-events-none`} style={style}>{marker}</div>;
+            })}
           </div>
-          {placements.map((placement, index) => {
-            const position = eldritchMapPositions[placement.spaceId];
-            if (!position) return null;
-            const offset = placements.slice(0, index).filter((entry) => entry.spaceId === placement.spaceId).length;
-            const marker = <>
-              <span className="pointer-events-none absolute -inset-[28%] rounded-full border-[3px] border-yellow-300 shadow-[0_0_16px_rgba(250,204,21,0.95)]" />
-              <img src={placement.image} alt={placement.name} className="relative h-full w-full rounded-full border-2 border-yellow-200 bg-amber-400 p-[2px] object-contain" />
-              <span className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 rounded bg-yellow-300 px-1.5 py-0.5 text-[9px] font-black text-slate-950">NEW</span>
-            </>;
-            const style = { left: `${position.x + offset * 4.5}%`, top: `${position.y}%`, animation: `mythosPlacementDrop 700ms cubic-bezier(.2,.8,.3,1) ${index * 320}ms both` };
-            const className = "absolute z-120 h-[5.5%] w-[3.8%] -translate-x-1/2 -translate-y-1/2";
-            return placement.monsterId ? (
-              <button key={placement.id} type="button" aria-label={`View ${placement.name}`} className={`${className} cursor-pointer rounded-full focus-visible:outline-4 focus-visible:outline-white`} style={style}
-                onClick={(event) => { triggerButton.current = event.currentTarget; setFlipped(false); setPreviewId(placement.monsterId); }}>
-                {marker}
-              </button>
-            ) : <div key={placement.id} className={`${className} pointer-events-none`} style={style}>{marker}</div>;
-          })}
         </div>
         <p className="mt-4 text-center text-sm font-semibold text-slate-400">{`${decision.spaceIds.length} ${label}${decision.spaceIds.length === 1 ? "" : "s"} placed on the map`}</p>
         <p className="mt-1 text-center text-sm font-bold text-yellow-200">{names.join(", ")}</p>

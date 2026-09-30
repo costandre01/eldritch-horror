@@ -10,11 +10,19 @@ export type EyesEverywhereResume = {
 };
 
 export type PatrollingTheBorderResume = {
-    type: "mythos-patrolling-the-border";
+  type: "mythos-patrolling-the-border";
 
-    investigatorIds: string[];
+  investigatorIds: string[];
 
-    currentInvestigatorIndex: number;
+  currentInvestigatorIndex: number;
+
+  mythosIds?: string[];
+
+  resolvedMythosIds?: string[];
+
+  nextIconIndex?: number;
+
+  remainingPasses?: number;
 };
 
 export type ArrestsMadeResume = {
@@ -39,9 +47,7 @@ export type MonsterReckoningResume =
 
       ancientOneId: string;
 
-      ancientOneReckoningStage:
-        | "front"
-        | "awakened";
+      ancientOneReckoningStage: "front" | "awakened";
     }
   | {
       type: "monster-reckoning";
@@ -60,7 +66,7 @@ export type MonsterReckoningResume =
 export type AncientOneAwakeningResume =
   | {
       type: "mythos";
-      
+
       nextIconIndex: number;
 
       mythosIds: string[];
@@ -114,9 +120,7 @@ export type PendingDecision =
 
       source?: string;
 
-      effectResult?:
-        | "pass"
-        | "fail";
+      effectResult?: "pass" | "fail";
 
       onComplete?: EncounterEffect[];
 
@@ -127,7 +131,6 @@ export type PendingDecision =
         | PatrollingTheBorderResume
         | EyesEverywhereResume;
     }
-
   | {
       type: "choice";
 
@@ -143,10 +146,8 @@ export type PendingDecision =
 
       onComplete?: EncounterEffect[];
 
-      resume?:
-        InvestigatorDefeatResume;
+      resume?: InvestigatorDefeatResume;
     }
-
   | {
       type: "test";
 
@@ -154,12 +155,7 @@ export type PendingDecision =
 
       message?: string;
 
-      skill:
-        | "lore"
-        | "influence"
-        | "observation"
-        | "strength"
-        | "will";
+      skill: "lore" | "influence" | "observation" | "strength" | "will";
 
       modifier: number;
 
@@ -184,7 +180,6 @@ export type PendingDecision =
         | PatrollingTheBorderResume
         | EyesEverywhereResume;
     }
-
   | {
       type: "single-die-roll";
 
@@ -208,7 +203,6 @@ export type PendingDecision =
 
       source?: string;
     }
-
   | {
       type: "select-space";
 
@@ -228,8 +222,7 @@ export type PendingDecision =
 
       resume?:
         | {
-            type:
-              "mystery-nearest-clue";
+            type: "mystery-nearest-clue";
 
             mysteryId: string;
 
@@ -243,8 +236,7 @@ export type PendingDecision =
             }[];
           }
         | {
-            type:
-              "mystery-deep-ones-attack";
+            type: "mystery-deep-ones-attack";
 
             mysteryId: string;
 
@@ -258,9 +250,26 @@ export type PendingDecision =
             clueTokenId: string;
 
             sourceSpaceId: string;
+          }
+        | {
+            type: "ancient-one-shub-random-space";
+
+            nextIconIndex: number;
+
+            ancientOneAbilityIndex: number;
+
+            ancientOneId: string;
+
+            ancientOneReckoningStage: "front" | "awakened";
+          }
+        | {
+            type: "mystery-true-name-random-space";
+
+            mysteryId: string;
+
+            remainingTokenCount: number;
           };
     }
-
   | {
       type: "select-investigator";
 
@@ -274,21 +283,16 @@ export type PendingDecision =
 
       source?: string;
 
-      resume?:
-        | {
-            type: "defeat-lead";
+      resume?: {
+        type: "defeat-lead";
 
-            phase:
-              | "action"
-              | "mythos";
+        phase: "action" | "mythos";
 
-            pendingDecision?: PendingDecision;
+        pendingDecision?: PendingDecision;
 
-            defeatResume?:
-              InvestigatorDefeatResume;
-          };
+        defeatResume?: InvestigatorDefeatResume;
+      };
     }
-
   | {
       type: "select-card";
 
@@ -321,7 +325,6 @@ export type PendingDecision =
         | PatrollingTheBorderResume
         | EyesEverywhereResume;
     }
-
   | {
       type: "reveal-encounter";
 
@@ -333,7 +336,6 @@ export type PendingDecision =
 
       source?: string;
     }
-
   | {
       type: "combat";
 
@@ -345,11 +347,7 @@ export type PendingDecision =
 
       monsterId: string;
 
-      stage?:
-        | "start"
-        | "horror"
-        | "strength"
-        | "resolved";
+      stage?: "start" | "horror" | "strength" | "resolved";
 
       onDefeat?: EncounterEffect[];
 
@@ -364,7 +362,6 @@ export type PendingDecision =
         | PatrollingTheBorderResume
         | EyesEverywhereResume;
     }
-
   | {
       type: "investigator-turn";
 
@@ -382,7 +379,6 @@ export type PendingDecision =
 
       image?: string;
     }
-
   | {
       type: "select-monster";
 
@@ -395,14 +391,13 @@ export type PendingDecision =
       monsterIds: string[];
 
       source?: string;
-      
+
       investigatorId?: string;
 
       onMonsterSelected: EncounterEffect[];
 
       onComplete?: EncounterEffect[];
     }
-
   | {
       type: "mythos-omen";
 
@@ -420,9 +415,12 @@ export type PendingDecision =
 
       source?: string;
     }
-
   | {
-      type: "mythos-clues" | "mythos-rumor" | "mythos-monsters" | "mythos-gates";
+      type:
+        | "mythos-clues"
+        | "mythos-rumor"
+        | "mythos-monsters"
+        | "mythos-gates";
       title: string;
       message?: string;
       spaceIds: string[];
@@ -431,9 +429,12 @@ export type PendingDecision =
       monsterIds?: string[];
       spaceNames?: string[];
       nextIconIndex: number;
-      source: "mythos:spawn-clues" | "mythos:spawn-rumor" | "mythos:spawn-monsters" | "mythos:spawn-gates";
+      source:
+        | "mythos:spawn-clues"
+        | "mythos:spawn-rumor"
+        | "mythos:spawn-monsters"
+        | "mythos:spawn-gates";
     }
-
   | {
       type: "mythos-ancient-one-awakening";
 
@@ -447,7 +448,6 @@ export type PendingDecision =
 
       source: "mythos:ancient-one-awakening";
     }
-
   | {
       type: "encounter-awakening-resume";
 
@@ -461,7 +461,6 @@ export type PendingDecision =
 
       source: "encounter:awakening-resume";
     }
-
   | {
       type: "monster-ability";
 
@@ -514,22 +513,18 @@ export type PendingDecision =
 
       source: "combat-order";
 
-      resume?:
-        | MonsterReckoningResume
-        | DarkPowerResume;
+      resume?: MonsterReckoningResume | DarkPowerResume;
     }
   | {
       type: "mythos-ancient-one-reckoning";
-      
+
       title: string;
 
       message?: string;
 
       ancientOneId: string;
 
-      reckoningStage:
-        | "front"
-        | "awakened";
+      reckoningStage: "front" | "awakened";
 
       abilityIndex: number;
 
@@ -594,9 +589,7 @@ export type PendingDecision =
 
       ancientOneId?: string;
 
-      ancientOneReckoningStage?:
-        | "front"
-        | "awakened";
+      ancientOneReckoningStage?: "front" | "awakened";
     }
   | {
       type: "mythos-yog-sothoth-reckoning-resume";
@@ -615,12 +608,9 @@ export type PendingDecision =
 
       ancientOneId: string;
 
-      ancientOneReckoningStage:
-        | "front"
-        | "awakened";
+      ancientOneReckoningStage: "front" | "awakened";
 
-      source:
-        "mythos:yog-sothoth-reckoning-resume";
+      source: "mythos:yog-sothoth-reckoning-resume";
     }
   | {
       type: "mythos-condition-reckoning";
@@ -666,11 +656,7 @@ export interface PendingChoiceOption {
   image?: string;
 
   requirement?: {
-    type:
-      | "clues"
-      | "resources"
-      | "items"
-      | "health";
+    type: "clues" | "resources" | "items" | "health";
 
     amount: number;
 

@@ -46,9 +46,6 @@ function createSilverTwilightAidChoice(
   if (!investigatorId) {
     return {
       ...game,
-
-      currentMythosId: null,
-
       pendingDecision: null,
     };
   }
@@ -151,9 +148,6 @@ export function resumeSilverTwilightAid(
   ) {
     return {
       ...game,
-
-      currentMythosId: null,
-
       pendingDecision: null,
     };
   }
@@ -220,10 +214,6 @@ export function startArrestsMade(
   ) {
     return {
       ...game,
-
-      currentMythosId:
-        null,
-
       pendingDecision:
         null,
 
@@ -425,10 +415,6 @@ export function startUnexpectedBetrayal(
      */
     return {
         ...game,
-
-        currentMythosId:
-            null,
-
         pendingDecision:
             null,
 
@@ -481,9 +467,6 @@ export function startBurdenOfGreed(
   if (!investigatorId) {
     return {
       ...game,
-
-      currentMythosId: null,
-
       pendingDecision: null,
 
       activeInvestigatorId: null,
@@ -591,9 +574,6 @@ export function startTreacherousMagic(
   if (!investigatorId) {
     return {
       ...game,
-
-      currentMythosId: null,
-
       pendingDecision: null,
 
       activeInvestigatorId: null,
@@ -681,7 +661,6 @@ export function startPatrollingTheBorder(
     if (investigatorIds.length === 0) {
         return {
             ...game,
-            currentMythosId: null,
             pendingDecision: null,
         };
     }
@@ -738,18 +717,6 @@ export function startEyesEverywhere(
   ) {
     return {
       ...game,
-
-      board: {
-        ...game.board,
-
-        mythosDiscard: [
-          ...game.board.mythosDiscard,
-          mythos,
-        ],
-      },
-
-      currentMythosId: null,
-
       pendingDecision: null,
 
       activeInvestigatorId: null,
@@ -851,6 +818,26 @@ export function resolveMythosSpecial(
   map: MapDefinition,
 ): GameState {
   switch (specialId) {
+
+    case "driven-to-bankruptcy": {
+      return {
+        ...game,
+        board: {
+          ...game.board,
+          assetReserve: [],
+          assetDiscard: [
+            ...game.board.assetDiscard,
+            ...game.board.assetReserve,
+          ],
+        },
+      };
+    }
+
+    /* These Rumors have no additional enters-play instruction. */
+    case "mysterious-lights":
+    case "spreading-sickness": {
+      return game;
+    }
 
     case "spreading-sickness-encounter": {
       if (
@@ -1084,7 +1071,7 @@ export function resolveMythosSpecial(
           return resolveAncientOneAwakening(
             result,
             map,
-            mythos.icons.length,
+            mythos.icons.length + 1,
           );
         }
 
@@ -1102,7 +1089,7 @@ export function resolveMythosSpecial(
       return startMonsterReckoning(
         game,
         map,
-        mythos.icons.length,
+        mythos.icons.length + 1,
         2,
       );
     }
@@ -1228,7 +1215,7 @@ export function resolveMythosSpecial(
               return resolveAncientOneAwakening(
                   currentGame,
                   map,
-                  mythos.icons.length,
+                  mythos.icons.length + 1,
               );
           }
       }
@@ -1433,11 +1420,11 @@ export function resolveMythosSpecial(
               return resolveAncientOneAwakening(
                   advancedGame,
                   map,
-                  mythos.icons.length,
+                  mythos.icons.length + 1,
                   {
                       type: "mythos",
                       nextIconIndex:
-                          mythos.icons.length,
+                          mythos.icons.length + 1,
                       mythosIds: [],
                       resolvedMythosIds: [],
                   },
@@ -1853,7 +1840,7 @@ export function resolveMythosSpecial(
                           mythos.id,
                   },
                   map,
-                  mythos.icons.length,
+                  mythos.icons.length + 1,
               );
           }
 
@@ -2973,7 +2960,7 @@ export function resolveMythosSpecial(
 
           map,
 
-          mythos.icons.length,
+          mythos.icons.length + 1,
         );
       }
 
@@ -3875,7 +3862,6 @@ export function resolveMythosSpecial(
       if (!investigatorId) {
         return {
           ...game,
-          currentMythosId: null,
           pendingDecision: null,
           activeInvestigatorId: null,
         };
@@ -4749,7 +4735,7 @@ export function resolveMythosSpecial(
       return startConditionReckoning(
         game,
         map,
-        0,
+        mythos.icons.length + 1,
         true,
       );
     }

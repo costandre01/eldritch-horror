@@ -21,6 +21,36 @@ function rumorGame() {
 }
 
 describe("Mythos placement flow", () => {
+  it("returns to the Mythos card after advancing the Omen", () => {
+    const game = rumorGame();
+    game.currentMythosId = "a-proposition";
+    game.ancientOne = {
+      id: "azathoth",
+      name: "Azathoth",
+      doom: 15,
+      omenPosition: 0,
+      eldritchTokens: 0,
+      eldritchTokenPositions: [],
+      eldritchTokenSpaceIds: [],
+      awakened: false,
+      sanityTokens: 0,
+      gateCount: 0,
+    };
+
+    const omen = resolveMythos(game, eldritchBaseMap, 0);
+    expect(omen.pendingDecision).toMatchObject({
+      type: "mythos-omen",
+      nextIconIndex: 1,
+    });
+
+    const continued = resolveGameFlowContinue(omen, eldritchBaseMap).game;
+    expect(continued.pendingDecision).toMatchObject({
+      type: "continue",
+      source: "mythos-card:1",
+    });
+    expect(continued.ancientOne.omenPosition).toBe(1);
+  });
+
   it("shows new Gates even with an empty Monster Cup and returns to the card without spawning again", () => {
     const game = rumorGame();
     game.board.gateStack = [{ id: "new-gate", spaceId: "arkham", omen: "blue" }];

@@ -145,6 +145,28 @@ export function confirmAcquireAssets(
    */
 
   const immediateUseAssets = selectedAssets.filter((asset) => ["Private Care", "Silver Twilight Ritual", "Sanctuary", "Agency Quarantine", "Delivery Service", "Wireless Report", "Charter Flight"].includes(asset.name));
+  const purchasedPossessions = selectedAssets.filter(
+    (asset) => !immediateUseAssets.includes(asset),
+  );
+  const charlieCanShare =
+    investigator.definitionId === "charlie-kane" &&
+    game.investigatorOrder.some(
+      (id) => {
+        const candidate = game.investigators[id];
+        return Boolean(
+          id !== investigatorId &&
+          candidate &&
+          !candidate.isDefeated,
+        );
+      },
+    );
+  const charlieShareableAssets = selectedAssets.filter(
+    (asset) =>
+      ![
+        "Agency Quarantine",
+        "Silver Twilight Ritual",
+      ].includes(asset.name),
+  );
   let updatedGame = game;
   for (const _ritual of selectedAssets.filter((asset) => asset.name === "Silver Twilight Ritual")) {
     updatedGame = retreatDoom(updatedGame, 1);
@@ -155,15 +177,17 @@ export function confirmAcquireAssets(
 
     assetIds: [
       ...investigator.assetIds,
-      ...selectedAssets.filter((asset) => !immediateUseAssets.includes(asset)).map(
+      ...purchasedPossessions.map(
         (asset) => asset.id,
       ),
     ],
 
-    health: selectedAssets.some((asset) => asset.name === "Private Care")
+    health: selectedAssets.some((asset) => asset.name === "Private Care") &&
+      !charlieCanShare
       ? investigator.maxHealth
       : investigator.health,
-    sanity: selectedAssets.some((asset) => asset.name === "Private Care")
+    sanity: selectedAssets.some((asset) => asset.name === "Private Care") &&
+      !charlieCanShare
       ? investigator.maxSanity
       : investigator.sanity,
 
@@ -263,6 +287,11 @@ export function confirmAcquireAssets(
       assetIds: selectedAssets
         .filter((asset) => ["Sanctuary", "Agency Quarantine", "Delivery Service", "Wireless Report", "Charter Flight"].includes(asset.name))
         .map((asset) => asset.id),
+      charlieAssetIds:
+        charlieCanShare
+          ? charlieShareableAssets.map((asset) => asset.id)
+          : [],
+      assetRecipientIds: {},
     },
   });
 

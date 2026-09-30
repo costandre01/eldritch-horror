@@ -290,6 +290,15 @@ export function resolveMythos(
     }
   }
 
+  /*
+   * Card text can start a nested Reckoning sequence. An index beyond the
+   * printed icons marks the return from that sequence, so the card text must
+   * not be executed a second time.
+   */
+  if (startIconIndex > mythos.icons.length) {
+    return finishMythosPhase(currentGame, map);
+  }
+
   // Ongoing and Rumor cards enter play while resolving their text, after
   // all icons. In particular, a newly drawn card must not resolve its own
   // Reckoning effect from the Reckoning icon printed above that text.
@@ -556,6 +565,33 @@ export function resolveMythos(
 
       case "mythos-special": {
         currentGame = resolveMythosSpecial(currentGame, mythos, effect.id, map);
+
+        /*
+         * A card-specific effect may pause Mythos resolution while the
+         * players make a choice, resolve a test, or complete combat.  That
+         * interaction owns the continuation and must remain visible instead
+         * of being overwritten by finishMythosPhase below.
+         */
+        if (
+          currentGame.pendingDecision ||
+          currentGame.pendingEncounterChoice ||
+          currentGame.status !== "playing"
+        ) {
+          return currentGame;
+        }
+
+        /*
+         * Older special handlers used a null currentMythosId to mean that
+         * their synchronous card text was complete.  Keep the drawn card as
+         * the active card so the common phase finisher can discard it and
+         * start the next round in one place.
+         */
+        if (!currentGame.currentMythosId) {
+          currentGame = {
+            ...currentGame,
+            currentMythosId: mythos.id,
+          };
+        }
 
         break;
       }

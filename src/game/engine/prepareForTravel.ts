@@ -8,6 +8,7 @@ export function prepareForTravel(
   game: GameState,
   map: MapDefinition,
   ticketType: "train" | "ship",
+  discardTicketType?: "train" | "ship",
 ): GameState {
   const investigatorId =
     game.activeInvestigatorId;
@@ -82,21 +83,47 @@ export function prepareForTravel(
     investigator.trainTickets +
     investigator.shipTickets;
 
+  let trainTickets =
+    investigator.trainTickets;
+
+  let shipTickets =
+    investigator.shipTickets;
+
+  /*
+  * If the investigator already has 2 Travel Tickets,
+  * 1 ticket must be discarded before gaining the new one.
+  */
   if (totalTickets >= 2) {
-    throw new Error(
-      "Investigator cannot have more than 2 Travel Tickets.",
-    );
+    if (!discardTicketType) {
+      throw new Error(
+        "Investigator must discard a Travel Ticket before gaining another one.",
+      );
+    }
+
+    if (discardTicketType === "train") {
+      if (trainTickets <= 0) {
+        throw new Error(
+          "Investigator has no Train Ticket to discard.",
+        );
+      }
+
+      trainTickets -= 1;
+    } else {
+      if (shipTickets <= 0) {
+        throw new Error(
+          "Investigator has no Ship Ticket to discard.",
+        );
+      }
+
+      shipTickets -= 1;
+    }
   }
 
-  const trainTickets =
-    ticketType === "train"
-      ? investigator.trainTickets + 1
-      : investigator.trainTickets;
-
-  const shipTickets =
-    ticketType === "ship"
-      ? investigator.shipTickets + 1
-      : investigator.shipTickets;
+  if (ticketType === "train") {
+    trainTickets += 1;
+  } else {
+    shipTickets += 1;
+  }
 
   return {
     ...game,

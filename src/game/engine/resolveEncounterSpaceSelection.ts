@@ -5,118 +5,206 @@ import { advanceDoom } from "./doomEngine";
 
 import { moveInvestigator } from "./moveInvestigator";
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
-import { resumeDeepOnesAttack, resumeMysteryNearestClue } from "./resolveMysteryEnterPlay";
-import { getMythosById } from "./resolveMythos";
+import {
+  resumeDeepOnesAttack,
+  resumeMysteryNearestClue,
+  resumeTrueNameRandomSpace,
+} from "./resolveMysteryEnterPlay";
+import { finishMythosPhase } from "./resolveMythos";
 import { movePhysicalClue } from "./moveClue";
+import { resolveAncientOneAwakening } from "./resolveAncientOneAwakening";
+import { spawnMonsterAtSpace } from "./spawnMonster";
 
 export function resolveEncounterSpaceSelection(
   game: GameState,
   spaceId: string,
   map: MapDefinition,
 ): GameState {
-  const decision =
-    game.pendingDecision;
+  const decision = game.pendingDecision;
 
-  if (
-    !decision ||
-    decision.type !== "select-space"
-  ) {
-    throw new Error(
-      "There is no pending space selection.",
-    );
+  if (!decision || decision.type !== "select-space") {
+    throw new Error("There is no pending space selection.");
   }
 
-  if (
-    !decision.spaceIds.includes(
+  if (!decision.spaceIds.includes(spaceId)) {
+    throw new Error(`Space "${spaceId}" cannot be selected.`);
+  }
+
+  /*
+   * ============================================================
+   * SHUB-NIGGURATH — RANDOM SPACE FALLBACK
+   * ============================================================
+   *
+   * If no Clue is available to determine a random space,
+   * the Lead Investigator chooses the space.
+   *
+   * After the choice, spawn the Monster there and finish
+   * Shub-Niggurath's Reckoning ability normally.
+   */
+
+  if (decision.resume?.type === "ancient-one-shub-random-space") {
+    const {
+      nextIconIndex,
+      ancientOneAbilityIndex,
+      ancientOneId,
+      ancientOneReckoningStage,
+    } = decision.resume;
+
+    /*
+     * The selected space has already been validated against
+     * decision.spaceIds above.
+     */
+
+    const gameAfterSpawn = spawnMonsterAtSpace(
+      {
+        ...game,
+        pendingDecision: null,
+      },
       spaceId,
-    )
-  ) {
-    throw new Error(
-      `Space "${spaceId}" cannot be selected.`,
+    );
+
+    /*
+     * Count Monsters currently on the board.
+     */
+
+    const monstersOnBoard = Object.values(gameAfterSpawn.monsters).filter(
+      (monster) => monster.spaceId !== null && monster.health > 0,
+    ).length;
+
+    const wasAwakened = gameAfterSpawn.ancientOne.awakened;
+
+    /*
+     * Shub-Niggurath:
+     * If there are 10 or more Monsters on the board,
+     * advance Doom by 2.
+     */
+
+    const gameAfterDoom =
+      monstersOnBoard >= 10 ? advanceDoom(gameAfterSpawn, 2) : gameAfterSpawn;
+
+    /*
+     * If this Doom advance awakened the Ancient One,
+     * resolve the Awakening before continuing the
+     * Reckoning.
+     */
+
+    if (!wasAwakened && gameAfterDoom.ancientOne.awakened) {
+      return resolveAncientOneAwakening(gameAfterDoom, map, nextIconIndex, {
+        type: "ancient-one-reckoning",
+
+        abilityIndex: ancientOneAbilityIndex,
+
+        ancientOneId,
+
+        ancientOneReckoningStage,
+      });
+    }
+
+    /*
+     * Otherwise recreate the Ancient One Reckoning
+     * decision at the NEXT ability.
+     */
+
+    return {
+      ...gameAfterDoom,
+
+      pendingDecision: {
+        type: "mythos-ancient-one-reckoning",
+
+        title: "ANCIENT ONE RECKONING",
+
+        message: "Continue resolving the Ancient One Reckoning.",
+
+        ancientOneId,
+
+        reckoningStage: ancientOneReckoningStage,
+
+        abilityIndex: ancientOneAbilityIndex + 1,
+
+        source: "mythos:ancient-one-reckoning",
+
+        nextIconIndex,
+      },
+    };
+  }
+
+  /*
+   * ============================================================
+   * MYSTERY — THE TRUE NAME — RANDOM SPACE FALLBACK
+   * ============================================================
+   *
+   * If no Clue is available to determine a random space,
+   * the Lead Investigator chooses the space.
+   */
+
+  if (decision.resume?.type === "mystery-true-name-random-space") {
+    const { mysteryId, remainingTokenCount } = decision.resume;
+
+    return resumeTrueNameRandomSpace(
+      game,
+      map,
+      mysteryId,
+      spaceId,
+      remainingTokenCount,
     );
   }
 
   /*
-  * ============================================================
-  * MYSTERY — THE DEEP ONES ATTACK
-  * ============================================================
-  *
-  * The Lead Investigator chooses between equally
-  * near Sea spaces without an Eldritch Token.
-  */
-  if (
-    decision.resume?.type ===
-    "mystery-deep-ones-attack"
-  ) {
-    const leadInvestigatorId =
-      game.investigatorOrder[0];
+   * ============================================================
+   * MYSTERY — THE DEEP ONES ATTACK
+   * ============================================================
+   *
+   * The Lead Investigator chooses between equally
+   * near Sea spaces without an Eldritch Token.
+   */
+  if (decision.resume?.type === "mystery-deep-ones-attack") {
+    const leadInvestigatorId = game.investigatorOrder[0];
 
     if (!leadInvestigatorId) {
-      throw new Error(
-        "There is no Lead Investigator.",
-      );
+      throw new Error("There is no Lead Investigator.");
     }
 
-    const {
-      mysteryId,
-      investigatorIds,
-      currentInvestigatorIndex,
-    } = decision.resume;
+    const { mysteryId, investigatorIds, currentInvestigatorIndex } =
+      decision.resume;
 
-    const selectedSpace =
-      game.board.spaces[spaceId];
+    const selectedSpace = game.board.spaces[spaceId];
 
     if (!selectedSpace) {
-      throw new Error(
-        `Selected space "${spaceId}" does not exist.`,
-      );
+      throw new Error(`Selected space "${spaceId}" does not exist.`);
     }
 
-    const mapSpace =
-      map.spaces.find(
-        (space) => space.id === spaceId,
-      );
+    const mapSpace = map.spaces.find((space) => space.id === spaceId);
 
     if (!mapSpace) {
-      throw new Error(
-        `Selected space "${spaceId}" does not exist on the map.`,
-      );
+      throw new Error(`Selected space "${spaceId}" does not exist on the map.`);
     }
 
     if (mapSpace.type !== "sea") {
-      throw new Error(
-        `Selected space "${spaceId}" is not a Sea space.`,
-      );
+      throw new Error(`Selected space "${spaceId}" is not a Sea space.`);
     }
 
     /*
-    * The selected space must be a Sea space
-    * and must not already contain an Eldritch Token.
-    *
-    * The candidate list stored in the decision
-    * is also checked above, so the player cannot
-    * select another space.
-    */
-    if (
-      selectedSpace.eldritchTokenCount >
-      0
-    ) {
+     * The selected space must be a Sea space
+     * and must not already contain an Eldritch Token.
+     *
+     * The candidate list stored in the decision
+     * is also checked above, so the player cannot
+     * select another space.
+     */
+    if (selectedSpace.eldritchTokenCount > 0) {
       throw new Error(
         `Sea space "${spaceId}" already contains an Eldritch Token.`,
       );
     }
 
     /*
-    * Place one Eldritch Token on the selected
-    * Sea space.
-    */
-    const progress =
-      game.mysteries.progress[mysteryId];
+     * Place one Eldritch Token on the selected
+     * Sea space.
+     */
+    const progress = game.mysteries.progress[mysteryId];
 
     if (!progress) {
-      throw new Error(
-        `Mystery progress "${mysteryId}" does not exist.`,
-      );
+      throw new Error(`Mystery progress "${mysteryId}" does not exist.`);
     }
 
     const updatedSpaces = {
@@ -126,8 +214,7 @@ export function resolveEncounterSpaceSelection(
     updatedSpaces[spaceId] = {
       ...selectedSpace,
 
-      eldritchTokenCount:
-        selectedSpace.eldritchTokenCount + 1,
+      eldritchTokenCount: selectedSpace.eldritchTokenCount + 1,
     };
 
     const updatedGame: GameState = {
@@ -148,10 +235,7 @@ export function resolveEncounterSpaceSelection(
           [mysteryId]: {
             ...progress,
 
-            eldritchTokenSpaceIds: [
-              ...progress.eldritchTokenSpaceIds,
-              spaceId,
-            ],
+            eldritchTokenSpaceIds: [...progress.eldritchTokenSpaceIds, spaceId],
           },
         },
       },
@@ -160,30 +244,26 @@ export function resolveEncounterSpaceSelection(
     };
 
     /*
-    * Continue with the next investigator.
-    *
-    * Tokens already placed remain on the board,
-    * therefore the next search will not consider
-    * this Sea space again.
-    */
-    const nextInvestigatorIndex =
-      currentInvestigatorIndex + 1;
+     * Continue with the next investigator.
+     *
+     * Tokens already placed remain on the board,
+     * therefore the next search will not consider
+     * this Sea space again.
+     */
+    const nextInvestigatorIndex = currentInvestigatorIndex + 1;
 
-    if (
-      nextInvestigatorIndex >=
-      investigatorIds.length
-    ) {
+    if (nextInvestigatorIndex >= investigatorIds.length) {
       return updatedGame;
     }
 
     /*
-    * We need to continue the Deep Ones Attack
-    * from the next investigator.
-    *
-    * Importing the helper here would create a
-    * circular dependency, so the continuation
-    * is exposed by resolveMysteryEnterPlay.
-    */
+     * We need to continue the Deep Ones Attack
+     * from the next investigator.
+     *
+     * Importing the helper here would create a
+     * circular dependency, so the continuation
+     * is exposed by resolveMysteryEnterPlay.
+     */
     return resumeDeepOnesAttack(
       updatedGame,
       map,
@@ -203,7 +283,11 @@ export function resolveEncounterSpaceSelection(
       const monster = monsters[monsterId];
       if (!monster) continue;
       const health = Math.max(0, monster.health - 4);
-      monsters[monsterId] = { ...monster, health, spaceId: health > 0 ? spaceId : null };
+      monsters[monsterId] = {
+        ...monster,
+        health,
+        spaceId: health > 0 ? spaceId : null,
+      };
       if (health === 0) {
         defeated.push(monsterId);
         defeatedMonsters.push(monsters[monsterId]);
@@ -216,15 +300,24 @@ export function resolveEncounterSpaceSelection(
       board: {
         ...game.board,
         monsterDiscard: [...game.board.monsterDiscard, ...defeatedMonsters],
-        spaces: { ...game.board.spaces, [spaceId]: { ...space, monsterIds: space.monsterIds.filter((id) => !defeated.includes(id)) } },
+        spaces: {
+          ...game.board.spaces,
+          [spaceId]: {
+            ...space,
+            monsterIds: space.monsterIds.filter((id) => !defeated.includes(id)),
+          },
+        },
       },
     });
   }
 
   if (decision.source?.startsWith("asset:charter-flight:")) {
-    const investigatorId = decision.source.slice("asset:charter-flight:".length);
+    const investigatorId = decision.source.slice(
+      "asset:charter-flight:".length,
+    );
     const investigator = game.investigators[investigatorId];
-    if (!investigator) throw new Error(`Investigator "${investigatorId}" does not exist.`);
+    if (!investigator)
+      throw new Error(`Investigator "${investigatorId}" does not exist.`);
     return continueAcquireAssetEffects({
       ...game,
       pendingDecision: null,
@@ -243,17 +336,11 @@ export function resolveEncounterSpaceSelection(
    * The Lead Investigator chooses between
    * equally near valid spaces.
    */
-  if (
-    decision.resume?.type ===
-    "mystery-nearest-clue"
-  ) {
-    const leadInvestigatorId =
-      game.investigatorOrder[0];
+  if (decision.resume?.type === "mystery-nearest-clue") {
+    const leadInvestigatorId = game.investigatorOrder[0];
 
     if (!leadInvestigatorId) {
-      throw new Error(
-        "There is no Lead Investigator.",
-      );
+      throw new Error("There is no Lead Investigator.");
     }
 
     /*
@@ -261,44 +348,26 @@ export function resolveEncounterSpaceSelection(
      * must be the active investigator.
      */
 
-    const {
-      mysteryId,
-      clueTokenId,
-      sourceSpaceId,
-      remainingClues,
-    } = decision.resume;
+    const { mysteryId, clueTokenId, sourceSpaceId, remainingClues } =
+      decision.resume;
 
-    const sourceSpace =
-      game.board.spaces[
-        sourceSpaceId
-      ];
+    const sourceSpace = game.board.spaces[sourceSpaceId];
 
-    const destinationSpace =
-      game.board.spaces[
-        spaceId
-      ];
+    const destinationSpace = game.board.spaces[spaceId];
 
     if (!sourceSpace) {
-      throw new Error(
-        `Source space "${sourceSpaceId}" does not exist.`,
-      );
+      throw new Error(`Source space "${sourceSpaceId}" does not exist.`);
     }
 
     if (!destinationSpace) {
-      throw new Error(
-        `Destination space "${spaceId}" does not exist.`,
-      );
+      throw new Error(`Destination space "${spaceId}" does not exist.`);
     }
 
     /*
      * Make sure the selected Clue is
      * actually still on its source space.
      */
-    if (
-      !sourceSpace.clueTokenIds.includes(
-        clueTokenId,
-      )
-    ) {
+    if (!sourceSpace.clueTokenIds.includes(clueTokenId)) {
       throw new Error(
         `Clue "${clueTokenId}" is not on source space "${sourceSpaceId}".`,
       );
@@ -314,17 +383,9 @@ export function resolveEncounterSpaceSelection(
     updatedSpaces[sourceSpaceId] = {
       ...sourceSpace,
 
-      clues:
-        Math.max(
-          0,
-          sourceSpace.clues - 1,
-        ),
+      clues: Math.max(0, sourceSpace.clues - 1),
 
-      clueTokenIds:
-        sourceSpace.clueTokenIds.filter(
-          (id) =>
-            id !== clueTokenId,
-        ),
+      clueTokenIds: sourceSpace.clueTokenIds.filter((id) => id !== clueTokenId),
     };
 
     /*
@@ -334,13 +395,9 @@ export function resolveEncounterSpaceSelection(
     updatedSpaces[spaceId] = {
       ...destinationSpace,
 
-      clues:
-        destinationSpace.clues + 1,
+      clues: destinationSpace.clues + 1,
 
-      clueTokenIds: [
-        ...destinationSpace.clueTokenIds,
-        clueTokenId,
-      ],
+      clueTokenIds: [...destinationSpace.clueTokenIds, clueTokenId],
     };
 
     /*
@@ -398,67 +455,44 @@ export function resolveEncounterSpaceSelection(
    * ENCOUNTER MOVE
    * ============================================================
    */
-  if (
-    decision.source?.startsWith(
-      "encounter:move:",
-    )
-  ) {
-    const investigatorId =
-      game.activeInvestigatorId;
+  if (decision.source?.startsWith("encounter:move:")) {
+    const investigatorId = game.activeInvestigatorId;
 
     if (!investigatorId) {
-      throw new Error(
-        "There is no active investigator.",
-      );
+      throw new Error("There is no active investigator.");
     }
 
-    let currentGame =
-      moveInvestigator(
-        {
-          ...game,
-          pendingDecision:
-            null,
-        },
-        map,
+    let currentGame = moveInvestigator(
+      {
+        ...game,
+        pendingDecision: null,
+      },
+      map,
+      investigatorId,
+      spaceId,
+    );
+
+    if (decision.onSpaceSelected && decision.onSpaceSelected.length > 0) {
+      const resolvedEffects = decision.onSpaceSelected.map((effect) => ({
+        ...effect,
+        spaceId: effect.spaceId ?? spaceId,
+      }));
+
+      currentGame = resolveEncounterEffects(
+        currentGame,
         investigatorId,
-        spaceId,
+        resolvedEffects,
+        map,
       );
-
-    if (
-      decision.onSpaceSelected &&
-      decision.onSpaceSelected.length >
-        0
-    ) {
-      const resolvedEffects =
-        decision.onSpaceSelected.map(
-          (effect) => ({
-            ...effect,
-            spaceId:
-              effect.spaceId ??
-              spaceId,
-          }),
-        );
-
-      currentGame =
-        resolveEncounterEffects(
-          currentGame,
-          investigatorId,
-          resolvedEffects,
-          map,
-        );
     }
 
-    if (
-      decision.onComplete &&
-      decision.onComplete.length > 0
-    ) {
-      currentGame =
-        resolveEncounterEffects(
-          currentGame,
-          investigatorId,
-          decision.onComplete,
-          map,
-        );
+    if (decision.onComplete && decision.onComplete.length > 0) {
+      currentGame = resolveEncounterEffects(
+        currentGame,
+        investigatorId,
+        decision.onComplete,
+        map,
+      );
     }
 
     return currentGame;
@@ -469,35 +503,20 @@ export function resolveEncounterSpaceSelection(
    * BYAKHEE MOVEMENT
    * ============================================================
    */
-  if (
-    decision.source ===
-    "byakhee-move"
-  ) {
-    const investigatorId =
-      game.activeInvestigatorId;
+  if (decision.source === "byakhee-move") {
+    const investigatorId = game.activeInvestigatorId;
 
     if (!investigatorId) {
-      throw new Error(
-        "There is no active investigator.",
-      );
+      throw new Error("There is no active investigator.");
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
-      throw new Error(
-        `Investigator "${investigatorId}" does not exist.`,
-      );
+      throw new Error(`Investigator "${investigatorId}" does not exist.`);
     }
 
-    if (
-      !decision.spaceIds.includes(
-        spaceId,
-      )
-    ) {
+    if (!decision.spaceIds.includes(spaceId)) {
       throw new Error(
         `Space "${spaceId}" cannot be selected for Byakhee movement.`,
       );
@@ -521,41 +540,29 @@ export function resolveEncounterSpaceSelection(
   }
 
   /*
-  * ============================================================
-  * THAT WHICH CONSUMES
-  * ============================================================
-  */
+   * ============================================================
+   * THAT WHICH CONSUMES
+   * ============================================================
+   */
 
-  if (
-    decision.source ===
-    "mythos:that-which-consumes"
-  ) {
-    const space =
-      game.board.spaces[spaceId];
+  if (decision.source === "mythos:that-which-consumes") {
+    const space = game.board.spaces[spaceId];
 
     if (!space) {
-      throw new Error(
-        `Space "${spaceId}" does not exist.`,
-      );
+      throw new Error(`Space "${spaceId}" does not exist.`);
     }
 
     if (space.gates.length === 0) {
-      throw new Error(
-        `Space "${spaceId}" has no Gate.`,
-      );
+      throw new Error(`Space "${spaceId}" has no Gate.`);
     }
 
-    const discardedGate =
-      space.gates[0];
+    const discardedGate = space.gates[0];
 
     if (!discardedGate) {
-      throw new Error(
-        `No Gate found at space "${spaceId}".`,
-      );
+      throw new Error(`No Gate found at space "${spaceId}".`);
     }
 
-    const currentOmenPosition =
-      game.ancientOne.omenPosition;
+    const currentOmenPosition = game.ancientOne.omenPosition;
 
     const currentOmen =
       currentOmenPosition === 0
@@ -576,63 +583,25 @@ export function resolveEncounterSpaceSelection(
           [spaceId]: {
             ...space,
 
-            gates:
-              space.gates.slice(1),
+            gates: space.gates.slice(1),
           },
         },
 
-        gateDiscard: [
-          ...game.board.gateDiscard,
-          discardedGate,
-        ],
+        gateDiscard: [...game.board.gateDiscard, discardedGate],
       },
 
       pendingDecision: null,
     };
 
     /*
-    * If the discarded Gate does not correspond
-    * to the current Omen, advance Doom by 1.
-    */
-    if (
-      discardedGate.omen !== currentOmen
-    ) {
-      currentGame =
-        advanceDoom(
-          currentGame,
-          1,
-        );
+     * If the discarded Gate does not correspond
+     * to the current Omen, advance Doom by 1.
+     */
+    if (discardedGate.omen !== currentOmen) {
+      currentGame = advanceDoom(currentGame, 1);
     }
 
-    const mythosId =
-      currentGame.currentMythosId;
-
-    if (!mythosId) {
-      throw new Error(
-        "That Which Consumes is missing current Mythos.",
-      );
-    }
-
-    const mythos =
-      getMythosById(
-        mythosId,
-      );
-
-    return {
-      ...currentGame,
-
-      board: {
-        ...currentGame.board,
-
-        mythosDiscard: [
-          ...currentGame.board.mythosDiscard,
-          mythos,
-        ],
-      },
-
-      currentMythosId:
-        null,
-    };
+    return finishMythosPhase(currentGame, map);
   }
 
   /*
@@ -646,41 +615,30 @@ export function resolveEncounterSpaceSelection(
     pendingDecision: null,
   };
 
-  const effects =
-    decision.onSpaceSelected;
+  const effects = decision.onSpaceSelected;
 
-  if (
-    effects.length > 0
-  ) {
-    const resolvedEffects =
-      effects.map((effect) => ({
-        ...effect,
+  if (effects.length > 0) {
+    const resolvedEffects = effects.map((effect) => ({
+      ...effect,
 
-        spaceId:
-          effect.spaceId ??
-          spaceId,
-      }));
+      spaceId: effect.spaceId ?? spaceId,
+    }));
 
-    currentGame =
-      resolveEncounterEffects(
-        currentGame,
-        game.activeInvestigatorId!,
-        resolvedEffects,
-        map,
-      );
+    currentGame = resolveEncounterEffects(
+      currentGame,
+      game.activeInvestigatorId!,
+      resolvedEffects,
+      map,
+    );
   }
 
-  if (
-    decision.onComplete &&
-    decision.onComplete.length > 0
-  ) {
-    currentGame =
-      resolveEncounterEffects(
-        currentGame,
-        game.activeInvestigatorId!,
-        decision.onComplete,
-        map,
-      );
+  if (decision.onComplete && decision.onComplete.length > 0) {
+    currentGame = resolveEncounterEffects(
+      currentGame,
+      game.activeInvestigatorId!,
+      decision.onComplete,
+      map,
+    );
   }
 
   return currentGame;

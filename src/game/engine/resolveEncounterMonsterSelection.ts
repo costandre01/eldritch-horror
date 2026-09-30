@@ -8,6 +8,7 @@ import type { MapDefinition } from "../models/MapDefinition";
 
 import { resolveEncounterEffects } from "./resolveEncounterEffects";
 import { resolveMonsterToughness } from "./resolveMonsterToughness";
+import { finishMythosPhase } from "./resolveMythos";
 
 export function resolveEncounterMonsterSelection(
   game: GameState,
@@ -334,22 +335,13 @@ export function resolveEncounterMonsterSelection(
           };
         }
 
-        return {
-          ...currentGame,
-
-          board: {
-            ...currentGame.board,
-
-            mythosDiscard: [
-              ...currentGame.board
-                .mythosDiscard,
-              mythos,
-            ],
+        return finishMythosPhase(
+          {
+            ...currentGame,
+            pendingDecision: null,
           },
-
-          currentMythosId: null,
-          pendingDecision: null,
-        };
+          map,
+        );
       }
 
       const nextInvestigator =
@@ -447,6 +439,17 @@ export function resolveEncounterMonsterSelection(
             `mythos:world-fights-back:${nextIndex}`,
         },
       };
+    }
+
+    if (decision.source === "mythos:blood-flows") {
+      return finishMythosPhase(
+        {
+          ...currentGame,
+          pendingDecision: null,
+          activeInvestigatorId: null,
+        },
+        map,
+      );
     }
 
     return currentGame;

@@ -21,7 +21,7 @@ import {
 } from "./gainCondition";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
-import { resolveMythosSpecial, resumeSilverTwilightAid } from "./resolveMythosSpecial";
+import { resolveMythosSpecial, resumeSilverTwilightAid as resumeSilverTwilightAidState } from "./resolveMythosSpecial";
 import { resolveCombatEncounterEnd } from "./resolveCombatEncounterEnd";
 import { resolveMonsterToughness } from "./resolveMonsterToughness";
 import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
@@ -45,7 +45,24 @@ import { getGainableSpellIds } from "./getGainableSpellIds";
 import { continueDarkPower } from "./continueDarkPower";
 import { getImprovableSkills, improveInvestigatorSkill, startNextStartingImprovement } from "./improvementEngine";
 import { startInvestigatorActions } from "./startInvestigatorActions";
-import { finishMythosPhase } from "./resolveMythos";
+import { finishMythosPhase, getMythosById } from "./resolveMythos";
+import { CORE_MYSTERIES } from "../../content/core/coreMysteries";
+
+function continueSilverTwilightAid(
+  game: GameState,
+  map: MapDefinition,
+  investigatorIndex: number,
+): GameState {
+  const resumedGame = resumeSilverTwilightAidState(
+    game,
+    map,
+    investigatorIndex,
+  );
+
+  return resumedGame.pendingDecision
+    ? resumedGame
+    : finishMythosPhase(resumedGame, map);
+}
 
 export function resolveGameFlowChoice(
   game: GameState,
@@ -60,6 +77,98 @@ export function resolveGameFlowChoice(
     decision.type !== "choice"
   ) {
     return game;
+  }
+
+  if (
+    decision.source?.startsWith(
+      "investigator:charlie-acquire-assets:",
+    )
+  ) {
+    const [, , ownerId, assetId] =
+      decision.source.split(":");
+    const targetId = choiceId.startsWith(
+      "charlie-acquire-assets:",
+    )
+      ? choiceId.substring(
+          "charlie-acquire-assets:".length,
+        )
+      : "";
+    const owner = game.investigators[ownerId ?? ""];
+    const target = game.investigators[targetId];
+    const asset = assetId ? game.assets[assetId] : undefined;
+    const isPossession = Boolean(
+      assetId && owner?.assetIds.includes(assetId),
+    );
+    const isImmediateAsset = Boolean(
+      assetId &&
+      game.board.assetDiscard.some((card) => card.id === assetId),
+    );
+
+    if (
+      !owner ||
+      owner.definitionId !== "charlie-kane" ||
+      !assetId ||
+      !asset ||
+      (!isPossession && !isImmediateAsset) ||
+      !target ||
+      target.isDefeated ||
+      !game.investigatorOrder.includes(target.id)
+    ) {
+      throw new Error(
+        "Choose a valid investigator to receive the purchased Asset.",
+      );
+    }
+
+    let investigators =
+      target.id === owner.id || !isPossession
+        ? game.investigators
+        : {
+            ...game.investigators,
+            [owner.id]: {
+              ...owner,
+              assetIds: owner.assetIds.filter(
+                (id) => id !== assetId,
+              ),
+            },
+            [target.id]: {
+              ...target,
+              assetIds: [
+                ...target.assetIds,
+                assetId,
+              ],
+            },
+          };
+
+    if (asset.name === "Private Care") {
+      investigators = {
+        ...investigators,
+        [target.id]: {
+          ...investigators[target.id],
+          health: target.maxHealth,
+          sanity: target.maxSanity,
+        },
+      };
+    }
+
+    const pendingAcquireAssetEffects =
+      game.pendingAcquireAssetEffects
+        ? {
+            ...game.pendingAcquireAssetEffects,
+            assetRecipientIds: {
+              ...game.pendingAcquireAssetEffects.assetRecipientIds,
+              ...(isImmediateAsset
+                ? { [assetId]: target.id }
+                : {}),
+            },
+          }
+        : null;
+
+    return continueAcquireAssetEffects({
+      ...game,
+      investigators,
+      pendingAcquireAssetEffects,
+      pendingDecision: null,
+    });
   }
 
   if (
@@ -511,7 +620,7 @@ export function resolveGameFlowChoice(
   }
 
   if (decision.source?.startsWith("asset:sanctuary:")) {
-    const investigatorId = game.activeInvestigatorId;
+    const investigatorId = decision.source.split(":")[3] ?? game.activeInvestigatorId;
     if (!investigatorId) return { ...game, pendingDecision: null };
     if (choiceId === "sanctuary:skip") return continueAcquireAssetEffects({ ...game, pendingDecision: null });
     const conditionId = choiceId.startsWith("sanctuary:discard:") ? choiceId.slice("sanctuary:discard:".length) : "";
@@ -520,7 +629,7 @@ export function resolveGameFlowChoice(
   }
 
   if (decision.source?.startsWith("asset:delivery-service:")) {
-    const giverId = game.activeInvestigatorId;
+    const giverId = decision.source.split(":")[3] ?? game.activeInvestigatorId;
     const targetId = choiceId.startsWith("delivery-service:") ? choiceId.slice("delivery-service:".length) : "";
     const giver = giverId ? game.investigators[giverId] : undefined;
     const target = game.investigators[targetId];
@@ -548,7 +657,7 @@ export function resolveGameFlowChoice(
 
   if (decision.source?.startsWith("asset:wireless-report:")) {
     const [, targetId, rawAmount] = choiceId.split(":");
-    const giverId = game.activeInvestigatorId;
+    const giverId = decision.source.split(":")[3] ?? game.activeInvestigatorId;
     const giver = giverId ? game.investigators[giverId] : undefined;
     const target = targetId ? game.investigators[targetId] : undefined;
     const amount = Number(rawAmount);
@@ -904,7 +1013,12 @@ export function resolveGameFlowChoice(
 
   if (
     decision.source ===
-    "mystery:occult-research"
+      `mystery:${game.mysteries.activeMysteryId}` &&
+    CORE_MYSTERIES.some(
+      (mystery) =>
+        mystery.id === game.mysteries.activeMysteryId &&
+        mystery.type === "research-encounter",
+    )
   ) {
     const investigatorId =
       game.activeInvestigatorId;
@@ -2312,6 +2426,46 @@ export function resolveGameFlowChoice(
 
   /*
   * ============================================================
+  * PATROLLING THE BORDER — ENTERS PLAY
+  * ============================================================
+  */
+
+  if (
+    decision.source ===
+    "mythos:patrolling-the-border:choose-investigator"
+  ) {
+    const investigatorId = choiceId.startsWith(
+      "patrolling-the-border:",
+    )
+      ? choiceId.substring(
+          "patrolling-the-border:".length,
+        )
+      : "";
+    const investigator = game.investigators[investigatorId];
+
+    if (!investigator) {
+      return game;
+    }
+
+    return finishMythosPhase(
+      {
+        ...game,
+        investigators: {
+          ...game.investigators,
+          [investigatorId]: {
+            ...investigator,
+            isDelayed: true,
+          },
+        },
+        pendingDecision: null,
+        activeInvestigatorId: null,
+      },
+      map,
+    );
+  }
+
+  /*
+  * ============================================================
   * SILVER TWILIGHT AID
   * ============================================================
   */
@@ -2372,7 +2526,7 @@ export function resolveGameFlowChoice(
         pendingDecision: null,
       };
 
-      return resumeSilverTwilightAid(
+      return continueSilverTwilightAid(
         updatedGame,
         map,
         investigatorIndex + 1,
@@ -2392,7 +2546,7 @@ export function resolveGameFlowChoice(
       if (
         game.board.assetDeck.length === 0
       ) {
-        return resumeSilverTwilightAid(
+        return continueSilverTwilightAid(
           {
             ...game,
 
@@ -2420,7 +2574,7 @@ export function resolveGameFlowChoice(
         )[0];
 
       if (!selectedAsset) {
-        return resumeSilverTwilightAid(
+        return continueSilverTwilightAid(
           {
             ...game,
 
@@ -2456,7 +2610,7 @@ export function resolveGameFlowChoice(
         pendingDecision: null,
       };
 
-      return resumeSilverTwilightAid(
+      return continueSilverTwilightAid(
         updatedGame,
         map,
         investigatorIndex + 1,
@@ -2476,7 +2630,7 @@ export function resolveGameFlowChoice(
       const spellIds = getGainableSpellIds(game, investigatorId);
 
       if (spellIds.length === 0) {
-        return resumeSilverTwilightAid(
+        return continueSilverTwilightAid(
           {
             ...game,
 
@@ -2529,7 +2683,7 @@ export function resolveGameFlowChoice(
       choiceId ===
       `silver-twilight-aid:pass:${investigatorIndex}`
     ) {
-      return resumeSilverTwilightAid(
+      return continueSilverTwilightAid(
         {
           ...game,
           pendingDecision: null,
@@ -2880,18 +3034,14 @@ export function resolveGameFlowChoice(
       ];
 
     if (!investigatorId) {
-      return {
-        ...game,
-
-        pendingDecision:
-          null,
-
-        activeInvestigatorId:
-          null,
-
-        currentMythosId:
-          null,
-      };
+      return finishMythosPhase(
+        {
+          ...game,
+          pendingDecision: null,
+          activeInvestigatorId: null,
+        },
+        map,
+      );
     }
 
     const investigator =
@@ -2940,18 +3090,14 @@ export function resolveGameFlowChoice(
         ];
 
       if (!nextInvestigatorId) {
-        return {
-          ...updatedGame,
-
-          currentMythosId:
-            null,
-
-          pendingDecision:
-            null,
-
-          activeInvestigatorId:
-            null,
-        };
+        return finishMythosPhase(
+          {
+            ...updatedGame,
+            pendingDecision: null,
+            activeInvestigatorId: null,
+          },
+          map,
+        );
       }
 
       return {
@@ -3050,18 +3196,14 @@ export function resolveGameFlowChoice(
         ];
 
       if (!nextInvestigatorId) {
-        return {
-          ...currentGame,
-
-          currentMythosId:
-            null,
-
-          pendingDecision:
-            null,
-
-          activeInvestigatorId:
-            null,
-        };
+        return finishMythosPhase(
+          {
+            ...currentGame,
+            pendingDecision: null,
+            activeInvestigatorId: null,
+          },
+          map,
+        );
       }
 
       return {
@@ -3204,7 +3346,14 @@ export function resolveGameFlowChoice(
         ];
 
       if (!nextInvestigatorId) {
-        return updatedGame;
+        return finishMythosPhase(
+          {
+            ...updatedGame,
+            pendingDecision: null,
+            activeInvestigatorId: null,
+          },
+          map,
+        );
       }
 
       return {
@@ -3319,7 +3468,14 @@ export function resolveGameFlowChoice(
         ];
 
       if (!nextInvestigatorId) {
-        return updatedGame;
+        return finishMythosPhase(
+          {
+            ...updatedGame,
+            pendingDecision: null,
+            activeInvestigatorId: null,
+          },
+          map,
+        );
       }
 
       return {
@@ -3485,11 +3641,14 @@ export function resolveGameFlowChoice(
         ];
 
       if (!nextInvestigatorId) {
-        return {
-          ...game,
-
-          pendingDecision: null,
-        };
+        return finishMythosPhase(
+          {
+            ...game,
+            pendingDecision: null,
+            activeInvestigatorId: null,
+          },
+          map,
+        );
       }
 
       const nextInvestigator =
@@ -3611,18 +3770,14 @@ export function resolveGameFlowChoice(
       ];
 
     if (!investigatorId) {
-      return {
-        ...game,
-
-        currentMythosId:
-          null,
-
-        pendingDecision:
-          null,
-
-        activeInvestigatorId:
-          null,
-      };
+      return finishMythosPhase(
+        {
+          ...game,
+          pendingDecision: null,
+          activeInvestigatorId: null,
+        },
+        map,
+      );
     }
 
     const investigator =
@@ -3692,18 +3847,14 @@ export function resolveGameFlowChoice(
       */
 
       if (!nextInvestigatorId) {
-        return {
-          ...updatedGame,
-
-          currentMythosId:
-            null,
-
-          pendingDecision:
-            null,
-
-          activeInvestigatorId:
-            null,
-        };
+        return finishMythosPhase(
+          {
+            ...updatedGame,
+            pendingDecision: null,
+            activeInvestigatorId: null,
+          },
+          map,
+        );
       }
 
       return resolveMythosSpecial(
@@ -3811,18 +3962,14 @@ export function resolveGameFlowChoice(
         ];
 
       if (!nextInvestigatorId) {
-        return {
-          ...updatedGame,
-
-          currentMythosId:
-            null,
-
-          pendingDecision:
-            null,
-
-          activeInvestigatorId:
-            null,
-        };
+        return finishMythosPhase(
+          {
+            ...updatedGame,
+            pendingDecision: null,
+            activeInvestigatorId: null,
+          },
+          map,
+        );
       }
 
       return resolveMythosSpecial(
@@ -3878,18 +4025,14 @@ export function resolveGameFlowChoice(
                   "condition-dark-pact",
               );
 
-          return {
-              ...updatedGame,
-
-              currentMythosId:
-                  null,
-
-              pendingDecision:
-                  null,
-
-              activeInvestigatorId:
-                  null,
-          };
+          return finishMythosPhase(
+              {
+                  ...updatedGame,
+                  pendingDecision: null,
+                  activeInvestigatorId: null,
+              },
+              map,
+          );
       }
 
       /*
@@ -3928,22 +4071,18 @@ export function resolveGameFlowChoice(
                           game.currentMythosId,
                   },
                   map,
-                  0,
+                  getMythosById("desperate-times").icons.length + 1,
               );
           }
 
-          return {
-              ...updatedGame,
-
-              currentMythosId:
-                  null,
-
-              pendingDecision:
-                  null,
-
-              activeInvestigatorId:
-                  null,
-          };
+          return finishMythosPhase(
+              {
+                  ...updatedGame,
+                  pendingDecision: null,
+                  activeInvestigatorId: null,
+              },
+              map,
+          );
       }
 
       return game;
@@ -4049,27 +4188,14 @@ export function resolveGameFlowChoice(
         return game;
       }
 
-      return {
-        ...updatedGame,
-
-        board: {
-          ...updatedGame.board,
-
-          mythosDiscard: [
-            ...updatedGame.board.mythosDiscard,
-            fromBeyond,
-          ],
+      return finishMythosPhase(
+        {
+          ...updatedGame,
+          pendingDecision: null,
+          activeInvestigatorId: null,
         },
-
-        currentMythosId:
-          null,
-
-        pendingDecision:
-          null,
-
-        activeInvestigatorId:
-          null,
-      };
+        map,
+      );
     }
 
     /*
@@ -4090,7 +4216,7 @@ export function resolveGameFlowChoice(
             null,
         },
         map,
-        0,
+        getMythosById("from-beyond").icons.length + 1,
         2,
       );
     }

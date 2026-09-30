@@ -1,14 +1,65 @@
 import type { GameState } from "../models/GameState";
 import { eldritchBaseMap } from "../../content/core/maps/eldritchBaseMap";
+import { coreInvestigators } from "../../content/core/investigators";
 
 /** Starts the next unresolved immediate effect from one Acquire Assets action. */
 export function continueAcquireAssetEffects(game: GameState): GameState {
   let queue = game.pendingAcquireAssetEffects;
   if (!queue) return game;
 
+  while ((queue.charlieAssetIds?.length ?? 0) > 0) {
+    const [assetId, ...remaining] = queue.charlieAssetIds ?? [];
+    queue = { ...queue, charlieAssetIds: remaining };
+
+    const charlie = game.investigators[queue.investigatorId];
+    const asset = assetId ? game.assets[assetId] : undefined;
+    const targets = game.investigatorOrder
+      .map((id) => game.investigators[id])
+      .filter(
+        (investigator) =>
+          investigator !== undefined &&
+          !investigator.isDefeated,
+      );
+
+    if (
+      !charlie ||
+      charlie.definitionId !== "charlie-kane" ||
+      !asset ||
+      (!charlie.assetIds.includes(asset.id) &&
+        !game.board.assetDiscard.some((card) => card.id === asset.id)) ||
+      targets.length < 2
+    ) {
+      continue;
+    }
+
+    return {
+      ...game,
+      pendingAcquireAssetEffects: queue,
+      pendingDecision: {
+        type: "choice",
+        title: "Charlie Kane — Well Connected",
+        message: `Choose who gains ${asset.name}.`,
+        options: targets.map((target) => ({
+          id: `charlie-acquire-assets:${target.id}`,
+          title:
+            coreInvestigators.find(
+              (definition) => definition.id === target.definitionId,
+            )?.name ?? target.id,
+          description:
+            target.id === charlie.id
+              ? `Charlie keeps ${asset.name}.`
+              : `${asset.name} is given to this investigator.`,
+        })),
+        source: `investigator:charlie-acquire-assets:${charlie.id}:${asset.id}`,
+      },
+    };
+  }
+
   while (queue.assetIds.length > 0) {
     const [assetId, ...remaining] = queue.assetIds;
-    const investigator = game.investigators[queue.investigatorId];
+    const recipientId =
+      queue.assetRecipientIds?.[assetId] ?? queue.investigatorId;
+    const investigator = game.investigators[recipientId];
     const asset = game.board.assetDiscard.find((card) => card.id === assetId);
     queue = { ...queue, assetIds: remaining };
     const base = { ...game, pendingDecision: null, pendingAcquireAssetEffects: queue };
@@ -26,7 +77,7 @@ export function continueAcquireAssetEffects(game: GameState): GameState {
             ...investigator.conditionIds.map((conditionId) => ({ id: `sanctuary:discard:${conditionId}`, title: game.conditions[conditionId]?.definitionId ?? conditionId })),
             { id: "sanctuary:skip", title: "Keep all Conditions" },
           ],
-          source: `asset:sanctuary:${assetId}`,
+          source: `asset:sanctuary:${assetId}:${investigator.id}`,
         },
       };
     }
@@ -55,7 +106,7 @@ export function continueAcquireAssetEffects(game: GameState): GameState {
           title: "Delivery Service",
           message: "Choose another investigator to receive any number of your Item possessions.",
           options: targets.map((target) => ({ id: `delivery-service:${target.id}`, title: target.id })),
-          source: `asset:delivery-service:${assetId}`,
+          source: `asset:delivery-service:${assetId}:${investigator.id}`,
         },
       };
     }
@@ -74,7 +125,7 @@ export function continueAcquireAssetEffects(game: GameState): GameState {
           title: "Wireless Report",
           message: "Choose another investigator anywhere and how many Clues to give.",
           options,
-          source: `asset:wireless-report:${assetId}`,
+          source: `asset:wireless-report:${assetId}:${investigator.id}`,
         },
       };
     }

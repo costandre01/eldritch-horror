@@ -4,6 +4,8 @@ import { resolveEncounterEffects } from "../engine/resolveEncounterEffects";
 import { resolveEncounterSpaceSelection } from "../engine/resolveEncounterSpaceSelection";
 import { resolveEncounterChoice } from "../engine/resolveEncounterChoice";
 import { resolveGameFlowChoice } from "../engine/resolveGameFlowChoice";
+import { endInvestigatorEncounter } from "../engine/endInvestigatorEncounter";
+import { spendInvestigatorClues } from "../engine/clueEngine";
 import type { GameState } from "../models/GameState";
 import type { MapDefinition } from "../models/MapDefinition";
 import { createTestGame } from "./helpers/createTestGame";
@@ -71,6 +73,99 @@ function prepareGame(): GameState {
 }
 
 describe("Clues in encounters", () => {
+  function prepareOccultResearchDecision(): GameState {
+    const game = prepareGame();
+    const investigator = game.investigators["investigator-1"];
+    const gainedClue = { id: "clue-arkham", spaceId: "arkham" };
+
+    game.currentEncounterId = null;
+    game.currentEncounterBackId = null;
+    game.currentEncounterDeckType = null;
+    game.investigatorTurnIndex = 0;
+    game.encounterCluesGained = 1;
+    game.encounterClueTokenIdsGained = [gainedClue.id];
+    investigator.clues = 1;
+    investigator.clueTokens = [gainedClue];
+    game.board.spaces.arkham.clues = 0;
+    game.board.spaces.arkham.clueTokenIds = [];
+    game.mysteries = {
+      selectedMysteryIds: ["azathoth-occult-research"],
+      activeMysteryId: "azathoth-occult-research",
+      solvedMysteryIds: [],
+      progress: {
+        "azathoth-occult-research": {
+          mysteryId: "azathoth-occult-research",
+          clueTokenIds: [],
+          eldritchTokenCount: 0,
+          monsterIds: [],
+          gateIds: [],
+          mysteryTokenSpaceId: null,
+          eldritchTokenSpaceIds: [],
+        },
+      },
+    };
+
+    return endInvestigatorEncounter(game);
+  }
+
+  it("places the Clue gained in the Research Encounter on Occult Research", () => {
+    const prompted = prepareOccultResearchDecision();
+
+    expect(prompted.pendingDecision).toMatchObject({
+      type: "choice",
+      source: "mystery:azathoth-occult-research",
+    });
+
+    const result = resolveGameFlowChoice(
+      prompted,
+      "occult-research:spend",
+      map,
+    );
+
+    expect(result.investigators["investigator-1"].clues).toBe(0);
+    expect(result.investigators["investigator-1"].clueTokens).toEqual([]);
+    expect(result.mysteries.progress["azathoth-occult-research"].clueTokenIds)
+      .toEqual(["clue-arkham"]);
+    expect(result.activeInvestigatorId).toBe("investigator-2");
+  });
+
+  it("keeps the gained Clue when Occult Research is declined", () => {
+    const prompted = prepareOccultResearchDecision();
+
+    const result = resolveGameFlowChoice(
+      prompted,
+      "occult-research:decline",
+      map,
+    );
+
+    expect(result.investigators["investigator-1"].clues).toBe(1);
+    expect(result.investigators["investigator-1"].clueTokens?.map((clue) => clue.id))
+      .toEqual(["clue-arkham"]);
+    expect(result.mysteries.progress["azathoth-occult-research"].clueTokenIds)
+      .toEqual([]);
+    expect(result.activeInvestigatorId).toBe("investigator-2");
+  });
+
+  it("does not offer Occult Research after the gained Clue was already spent", () => {
+    const prompted = prepareOccultResearchDecision();
+    const gameWithoutPrompt = {
+      ...prompted,
+      pendingDecision: null,
+    };
+    const afterSpend = spendInvestigatorClues(
+      gameWithoutPrompt,
+      "investigator-1",
+      1,
+    );
+
+    const result = endInvestigatorEncounter(afterSpend);
+
+    expect(afterSpend.encounterCluesGained).toBe(0);
+    expect(afterSpend.encounterClueTokenIdsGained).toEqual([]);
+    expect(result.pendingDecision?.type).toBe("investigator-turn");
+    expect(result.activeInvestigatorId).toBe("investigator-2");
+  });
+
   it("moves the physical token together with the visible count", () => {
     const result = moveClue(prepareGame(), map, "arkham", "sea");
 
