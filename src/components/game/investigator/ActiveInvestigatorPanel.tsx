@@ -22,6 +22,10 @@ import { getEffectiveSkill } from "../../../game/engine/getEffectiveSkill";
 import { canPerformAction } from "../../../game/engine/canPerformAction";
 import { isRestrictedByDetained } from "../../../game/engine/conditionRestrictions";
 import type { GameState } from "../../../game/models/GameState";
+import type { InvestigatorAbility } from "../../../game/models/InvestigatorDefinition";
+import {
+  coreConditionDefinitions,
+} from "../../../content/core/coreConditions";
 
 interface ActiveInvestigatorPanelProps {
   investigator: Investigator;
@@ -30,12 +34,16 @@ interface ActiveInvestigatorPanelProps {
   investigatorName: string;
   investigatorPortrait: string;
 
+  investigatorAbilities: InvestigatorAbility[];
+  canUseInvestigatorAction: boolean;
+
   assets: Asset[];
   artifacts: Artifact[];
   spells: Spell[];
   conditions: Condition[];
 
   onOpenCards: () => void;
+  onUseInvestigatorAction: () => void;
   onInspectSpace: (spaceId: string) => void;
   onActivateSpell: (spellId: string, frontEffectIndex: number) => void;
   onActivatePossession: (kind: "asset" | "artifact", cardId: string, ability: string) => void;
@@ -62,19 +70,38 @@ type SelectedCard =
 export default function ActiveInvestigatorPanel({
   investigator,
   game,
+
   investigatorName,
   investigatorPortrait,
+  investigatorAbilities,
+  canUseInvestigatorAction,
 
   assets,
   artifacts,
   spells,
   conditions,
+
+  onOpenCards,
+  onUseInvestigatorAction,
   onInspectSpace,
   onActivateSpell,
   onActivatePossession,
 }: ActiveInvestigatorPanelProps) {
   const [selectedCard, setSelectedCard] =
     useState<SelectedCard | null>(null);
+
+  const [showInvestigatorMenu, setShowInvestigatorMenu] =
+    useState(false);
+
+  const actionAbility =
+    investigatorAbilities.find(
+      (ability) => ability.type === "action",
+    );
+
+  const passiveAbilities =
+    investigatorAbilities.filter(
+      (ability) => ability.type === "passive",
+    );
 
   /*
    * ============================================================
@@ -167,12 +194,216 @@ export default function ActiveInvestigatorPanel({
           <div className="grid grid-cols-1 items-center gap-4 min-[480px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             {/* PORTRAIT + NAME */}
             <div className="min-w-0">
-              <div className="flex min-h-48 justify-center rounded-2xl border border-slate-700/70 bg-slate-950/50 p-2 shadow-inner">
-                <img
-                  src={investigatorPortrait}
-                  alt={investigatorName}
-                  className="max-h-72 w-auto max-w-full rounded-lg object-contain"
-                />
+              <div
+                className="
+                  group
+                  relative
+                  flex
+                  min-h-48
+                  justify-center
+                  rounded-2xl
+                  border
+                  border-slate-700/70
+                  bg-slate-950/50
+                  p-2
+                  shadow-inner
+                "
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowInvestigatorMenu(
+                      (current) => !current,
+                    )
+                  }
+                  className="relative flex w-full cursor-pointer justify-center"
+                >
+                  <img
+                    src={investigatorPortrait}
+                    alt={investigatorName}
+                    className="
+                      max-h-72
+                      w-auto
+                      max-w-full
+                      rounded-lg
+                      object-contain
+                      transition
+                      duration-200
+                      group-hover:brightness-50
+                    "
+                  />
+
+                  {/* HOVER - ABILITIES TOOLTIP */}
+
+                  {!showInvestigatorMenu && (
+                    <div
+                      className="
+                        pointer-events-none
+                        absolute
+                        left-full
+                        top-1/2
+                        z-50
+                        ml-4
+                        w-80
+                        -translate-y-1/2
+                        rounded-2xl
+                        border
+                        border-slate-700
+                        bg-[#15171c]
+                        p-5
+                        opacity-0
+                        shadow-2xl
+                        transition-all
+                        duration-150
+                        group-hover:opacity-100
+                      "
+                    >
+                      {/* TOOLTIP ARROW */}
+
+                      <div
+                        className="
+                          absolute
+                          -left-2
+                          top-1/2
+                          h-4
+                          w-4
+                          -translate-y-1/2
+                          rotate-45
+                          border-b
+                          border-l
+                          border-slate-700
+                          bg-[#15171c]
+                        "
+                      />
+
+                      {actionAbility && (
+                        <div className="relative">
+                          <div className="text-xs font-black uppercase tracking-wider text-amber-300">
+                            Action
+                          </div>
+
+                          <div className="mt-2 text-sm font-medium leading-relaxed text-slate-200">
+                            {actionAbility.description}
+                          </div>
+                        </div>
+                      )}
+
+                      {passiveAbilities.map(
+                        (ability) => (
+                          <div
+                            key={ability.id}
+                            className={
+                              actionAbility
+                                ? "relative mt-5 border-t border-slate-700/70 pt-4"
+                                : "relative"
+                            }
+                          >
+                            <div className="text-xs font-black uppercase tracking-wider text-sky-300">
+                              Passive
+                            </div>
+
+                            <div className="mt-2 text-sm font-medium leading-relaxed text-slate-200">
+                              {ability.description}
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </button>
+
+                {/* CLICK - SEE / ACTION */}
+
+                {showInvestigatorMenu && (
+                  <div
+                    className="
+                      absolute
+                      inset-0
+                      z-20
+                      flex
+                      flex-col
+                      items-center
+                      justify-center
+                      gap-4
+                      bg-black/85
+                      p-5
+                    "
+                  >
+                    <div className="text-center">
+                      <div className="text-sm font-black text-white">
+                        {investigatorName}
+                      </div>
+
+                      <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Investigator
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowInvestigatorMenu(false);
+                          onOpenCards();
+                        }}
+                        className="
+                          rounded-lg
+                          bg-slate-700
+                          px-5
+                          py-2
+                          text-xs
+                          font-black
+                          text-white
+                          transition
+                          hover:bg-slate-600
+                        "
+                      >
+                        SEE
+                      </button>
+
+                      {actionAbility && (
+                        <button
+                          type="button"
+                          disabled={!canUseInvestigatorAction}
+                          onClick={() => {
+                            if (!canUseInvestigatorAction) {
+                              return;
+                            }
+
+                            setShowInvestigatorMenu(false);
+                            onUseInvestigatorAction();
+                          }}
+                          className="
+                            rounded-lg
+                            bg-amber-700
+                            px-5
+                            py-2
+                            text-xs
+                            font-black
+                            text-white
+                            transition
+                            hover:bg-amber-600
+                            disabled:cursor-not-allowed
+                            disabled:bg-slate-800
+                            disabled:text-slate-500
+                          "
+                        >
+                          ACTION
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowInvestigatorMenu(false)
+                      }
+                      className="text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="mt-3 text-center">
@@ -310,8 +541,12 @@ export default function ActiveInvestigatorPanel({
           {/* ================================================== */}
 
           <div className="min-w-0">
+
             <InvestigatorConditions
               conditions={conditions}
+              conditionDefinitions={
+                coreConditionDefinitions
+              }
               onSelect={(condition) =>
                 setSelectedCard({
                   kind: "condition",
@@ -319,6 +554,7 @@ export default function ActiveInvestigatorPanel({
                 })
               }
             />
+
           </div>
 
           </div>

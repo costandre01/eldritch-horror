@@ -3,9 +3,11 @@ import InvestigatorCardThumbnail from "./InvestigatorCardThumbnail";
 
 interface InvestigatorArtifactsProps {
   artifacts: Artifact[];
+
   getArtifactImage: (
     artifact: Artifact,
   ) => string;
+
   onSelect: (
     artifact: Artifact,
   ) => void;
@@ -42,7 +44,10 @@ export default function InvestigatorArtifacts({
       {artifacts.length === 0 ? (
 
         <div className="mt-3 flex min-h-14 items-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-950/40 px-3 text-xs text-slate-400">
-          <span className="text-base text-slate-500">＋</span>
+          <span className="text-base text-slate-500">
+            ＋
+          </span>
+
           No artifacts yet
         </div>
 
@@ -52,27 +57,31 @@ export default function InvestigatorArtifacts({
         /* ARTIFACTS */
         /* ================================================== */
 
-        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+        <div className="mt-3 flex flex-wrap gap-3 pb-2">
 
-          {artifacts.map(
-            (artifact) => (
+          {artifacts.map((artifact) => {
+            const imagePath =
+              getArtifactImage(artifact);
 
+            return (
               <InvestigatorCardThumbnail
                 key={artifact.id}
-                image={getArtifactImage(artifact)}
+                image={imagePath}
                 name={artifact.name}
                 kind="artifact"
-                onClick={() => onSelect(artifact)}
+                tooltipText={artifact.description}
+                onClick={() =>
+                  onSelect(artifact)
+                }
                 onImageError={() => {
                   console.error(
                     "Artifact image not found:",
-                    getArtifactImage(artifact),
+                    imagePath,
                   );
                 }}
               />
-
-            ),
-          )}
+            );
+          })}
 
         </div>
 

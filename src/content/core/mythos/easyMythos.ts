@@ -291,7 +291,7 @@ export const easyMythos: MythosDefinition[] = [
         ],
 
         text:
-            "When this card enters play, spawn the Tick Tock Men Epic Monster on space 21. When it is defeated, solve this Rumor.\n\nWhen there are no Eldritch tokens on this card, discard all Clues on the game board, then each investigator discards all Clues.",
+            "When this card enters play, spawn the Tick Tock Men Epic Monster on space 21. When it is defeated, solve this Rumor.\n\nWhen there are no Eldritch tokens on this card, each investigator discards all Clues, and then discard all Clues on the game board and solve this Rumor.",
 
         effects: [
             {

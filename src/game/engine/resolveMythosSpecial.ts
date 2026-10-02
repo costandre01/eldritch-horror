@@ -27,12 +27,430 @@ import { discardSpell } from "./discardSpell";
 import { syncActiveExpedition } from "./syncActiveExpedition";
 import { spendInvestigatorClues } from "./clueEngine";
 import { CORE_CLUES } from "../../content/core/coreClues";
+import { advanceOmen } from "./omenEngine";
+import { showMythosContinue } from "./showMythosContinue";
 
 const ALL_MYTHOS = [
     ...easyMythos,
     ...normalMythos,
     ...hardMythos,
 ];
+
+type MythosCardReckoningDecision = Extract<
+  NonNullable<GameState["pendingDecision"]>,
+  { type: "mythos-card-reckoning" }
+>;
+
+interface WindWalkerResume {
+  investigatorIds: string[];
+  currentInvestigatorIndex: number;
+  reckoningDecision: MythosCardReckoningDecision;
+}
+
+interface WorldShakesResume {
+  investigatorIds: string[];
+  currentInvestigatorIndex: number;
+  activeExpeditionSpaceId: string;
+}
+
+interface TideOfDespairResume {
+  investigatorIds: string[];
+  currentInvestigatorIndex: number;
+}
+
+const WIND_WALKER_RESUME_PREFIX =
+  "the-wind-walker:after-loss:";
+
+const WORLD_SHAKES_RESUME_PREFIX =
+  "the-world-shakes:after-loss:";
+
+const TIDE_OF_DESPAIR_RESUME_PREFIX =
+  "tide-of-despair:continue:";
+
+function encodeWindWalkerResume(
+  resume: WindWalkerResume,
+): string {
+  return `${WIND_WALKER_RESUME_PREFIX}${encodeURIComponent(JSON.stringify(resume))}`;
+}
+
+function decodeWindWalkerResume(
+  specialId: string,
+): WindWalkerResume {
+  try {
+    const resume = JSON.parse(
+      decodeURIComponent(
+        specialId.slice(WIND_WALKER_RESUME_PREFIX.length),
+      ),
+    ) as WindWalkerResume;
+
+    if (
+      !Array.isArray(resume.investigatorIds) ||
+      !Number.isInteger(resume.currentInvestigatorIndex) ||
+      resume.reckoningDecision?.type !== "mythos-card-reckoning"
+    ) {
+      throw new Error("Invalid continuation state.");
+    }
+
+    return resume;
+  } catch {
+    throw new Error(
+      `Invalid Wind-Walker continuation "${specialId}".`,
+    );
+  }
+}
+
+function encodeWorldShakesResume(
+  resume: WorldShakesResume,
+): string {
+  return `${WORLD_SHAKES_RESUME_PREFIX}${encodeURIComponent(JSON.stringify(resume))}`;
+}
+
+function decodeWorldShakesResume(
+  specialId: string,
+): WorldShakesResume {
+  try {
+    const resume = JSON.parse(
+      decodeURIComponent(
+        specialId.slice(WORLD_SHAKES_RESUME_PREFIX.length),
+      ),
+    ) as WorldShakesResume;
+
+    if (
+      !Array.isArray(resume.investigatorIds) ||
+      !Number.isInteger(resume.currentInvestigatorIndex) ||
+      typeof resume.activeExpeditionSpaceId !== "string"
+    ) {
+      throw new Error("Invalid continuation state.");
+    }
+
+    return resume;
+  } catch {
+    throw new Error(
+      `Invalid The World Shakes continuation "${specialId}".`,
+    );
+  }
+}
+
+function encodeTideOfDespairResume(
+  resume: TideOfDespairResume,
+): string {
+  return `${TIDE_OF_DESPAIR_RESUME_PREFIX}${encodeURIComponent(JSON.stringify(resume))}`;
+}
+
+function decodeTideOfDespairResume(
+  specialId: string,
+): TideOfDespairResume {
+  try {
+    const resume = JSON.parse(
+      decodeURIComponent(
+        specialId.slice(TIDE_OF_DESPAIR_RESUME_PREFIX.length),
+      ),
+    ) as TideOfDespairResume;
+
+    if (
+      !Array.isArray(resume.investigatorIds) ||
+      !Number.isInteger(resume.currentInvestigatorIndex)
+    ) {
+      throw new Error("Invalid continuation state.");
+    }
+
+    return resume;
+  } catch {
+    throw new Error(
+      `Invalid Tide of Despair continuation "${specialId}".`,
+    );
+  }
+}
+
+function continueWindWalkerConsequences(
+  game: GameState,
+  mythos: MythosDefinition,
+  map: MapDefinition,
+  resume: WindWalkerResume,
+): GameState {
+  let investigatorIndex = resume.currentInvestigatorIndex;
+
+  while (investigatorIndex < resume.investigatorIds.length) {
+    const investigatorId = resume.investigatorIds[investigatorIndex];
+    investigatorIndex += 1;
+
+    const investigator = investigatorId
+      ? game.investigators[investigatorId]
+      : undefined;
+
+    if (!investigator || investigator.isDefeated) {
+      continue;
+    }
+
+    const delayedGame: GameState = {
+      ...game,
+      activeInvestigatorId: investigatorId,
+      pendingDecision: null,
+      investigators: {
+        ...game.investigators,
+        [investigatorId]: {
+          ...investigator,
+          isDelayed: true,
+        },
+      },
+    };
+
+    return resolveEncounterEffects(
+      delayedGame,
+      investigatorId,
+      [
+        {
+          type: "lose-health",
+          amount: 6,
+        },
+        {
+          type: "continue-mythos-special",
+          mythosId: mythos.id,
+          mythosStep: encodeWindWalkerResume({
+            ...resume,
+            currentInvestigatorIndex: investigatorIndex,
+          }),
+        },
+      ],
+      map,
+    );
+  }
+
+  const solvedGame = solveMythosRumor(
+    {
+      ...game,
+      activeInvestigatorId: null,
+      pendingDecision: null,
+    },
+    mythos,
+  );
+
+  return {
+    ...solvedGame,
+    pendingDecision: {
+      ...resume.reckoningDecision,
+      resolvedMythosIds: resume.reckoningDecision.resolvedMythosIds.includes(
+        mythos.id,
+      )
+        ? resume.reckoningDecision.resolvedMythosIds
+        : [
+            ...resume.reckoningDecision.resolvedMythosIds,
+            mythos.id,
+          ],
+    },
+  };
+}
+
+function continueWorldShakes(
+  game: GameState,
+  mythos: MythosDefinition,
+  map: MapDefinition,
+  resume: WorldShakesResume,
+): GameState {
+  let investigatorIndex = resume.currentInvestigatorIndex;
+
+  while (investigatorIndex < resume.investigatorIds.length) {
+    const investigatorId = resume.investigatorIds[investigatorIndex];
+    investigatorIndex += 1;
+
+    const investigator = investigatorId
+      ? game.investigators[investigatorId]
+      : undefined;
+
+    if (!investigator || investigator.isDefeated) {
+      continue;
+    }
+
+    return resolveEncounterEffects(
+      {
+        ...game,
+        activeInvestigatorId: investigatorId,
+        pendingDecision: null,
+      },
+      investigatorId,
+      [
+        {
+          type: "lose-health",
+          amount: 2,
+        },
+        {
+          type: "become-delayed",
+        },
+        {
+          type: "continue-mythos-special",
+          mythosId: mythos.id,
+          mythosStep: encodeWorldShakesResume({
+            ...resume,
+            currentInvestigatorIndex: investigatorIndex,
+          }),
+        },
+      ],
+      map,
+    );
+  }
+
+  const activeExpeditionSpace = map.spaces.find(
+    (space) => space.id === resume.activeExpeditionSpaceId,
+  );
+
+  if (!activeExpeditionSpace) {
+    throw new Error(
+      `Active Expedition space "${resume.activeExpeditionSpaceId}" does not exist.`,
+    );
+  }
+
+  const remainingExpeditionDeck =
+    game.board.encounterDecks.expedition.filter(
+      (encounterId) =>
+        game.encounters[encounterId]?.name !== activeExpeditionSpace.name,
+    );
+  const shuffledExpeditionDeck = [...remainingExpeditionDeck];
+
+  for (let i = shuffledExpeditionDeck.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const current = shuffledExpeditionDeck[i];
+    shuffledExpeditionDeck[i] = shuffledExpeditionDeck[j];
+    shuffledExpeditionDeck[j] = current;
+  }
+
+  const expeditionGame = syncActiveExpedition(
+    {
+      ...game,
+      activeInvestigatorId: null,
+      pendingDecision: null,
+      board: {
+        ...game.board,
+        encounterDecks: {
+          ...game.board.encounterDecks,
+          expedition: shuffledExpeditionDeck,
+        },
+      },
+    },
+    map,
+  );
+
+  return showMythosContinue(
+    expeditionGame,
+    mythos.icons.length + 1,
+  );
+}
+
+export function resolveTideOfDespairLoss(
+  game: GameState,
+  investigatorId: string,
+  mythosStep: string,
+  map: MapDefinition,
+): GameState {
+  return resolveEncounterEffects(
+    {
+      ...game,
+      activeInvestigatorId: investigatorId,
+      pendingDecision: null,
+    },
+    investigatorId,
+    [
+      {
+        type: "lose-health",
+        amount: 2,
+        deferDefeat: true,
+      },
+      {
+        type: "lose-sanity",
+        amount: 2,
+        deferDefeat: true,
+      },
+      {
+        type: "resolve-investigator-defeat",
+      },
+      {
+        type: "continue-mythos-special",
+        mythosId: "tide-of-despair",
+        mythosStep,
+      },
+    ],
+    map,
+  );
+}
+
+function continueTideOfDespair(
+  game: GameState,
+  mythos: MythosDefinition,
+  map: MapDefinition,
+  resume: TideOfDespairResume,
+): GameState {
+  let investigatorIndex = resume.currentInvestigatorIndex;
+
+  while (investigatorIndex < resume.investigatorIds.length) {
+    const investigatorId = resume.investigatorIds[investigatorIndex];
+    investigatorIndex += 1;
+
+    const investigator = investigatorId
+      ? game.investigators[investigatorId]
+      : undefined;
+
+    if (!investigator || investigator.isDefeated) {
+      continue;
+    }
+
+    const nextStep = encodeTideOfDespairResume({
+      ...resume,
+      currentInvestigatorIndex: investigatorIndex,
+    });
+    const blessedConditionId = investigator.conditionIds.find(
+      (conditionId) =>
+        game.conditions[conditionId]?.definitionId === "condition-blessed",
+    );
+
+    if (!blessedConditionId) {
+      return resolveTideOfDespairLoss(
+        game,
+        investigatorId,
+        nextStep,
+        map,
+      );
+    }
+
+    return {
+      ...game,
+      activeInvestigatorId: investigatorId,
+      pendingDecision: {
+        type: "choice",
+        title: "Tide of Despair",
+        message:
+          "Discard your Blessed Condition to avoid losing 2 Health and 2 Sanity.",
+        options: [
+          {
+            id: `tide-of-despair:discard-blessed:${investigatorId}`,
+            title: "Discard Blessed",
+            description:
+              "Discard the Blessed Condition and avoid losing Health and Sanity.",
+          },
+          {
+            id: `tide-of-despair:keep-blessed:${investigatorId}`,
+            title: "Keep Blessed",
+            description:
+              "Keep the Blessed Condition and lose 2 Health and 2 Sanity.",
+          },
+        ],
+        source: `mythos:tide-of-despair:${investigatorId}`,
+        resume: {
+          type: "mythos-special",
+          mythosId: mythos.id,
+          step: nextStep,
+        },
+      },
+    };
+  }
+
+  return showMythosContinue(
+    {
+      ...game,
+      activeInvestigatorId: null,
+      pendingDecision: null,
+    },
+    mythos.icons.length + 1,
+  );
+}
 
 function createSilverTwilightAidChoice(
   game: GameState,
@@ -287,6 +705,7 @@ export function startArrestsMade(
 export function startUnexpectedBetrayal(
     game: GameState,
     investigatorIndex: number,
+    map: MapDefinition,
 ): GameState {
     while (
         investigatorIndex <
@@ -328,58 +747,99 @@ export function startUnexpectedBetrayal(
             continue;
         }
 
-        /*
-         * Perde 3 Health.
-         */
-        const newHealth =
-            Math.max(
-                0,
-                investigator.health - 3,
-            );
-
-        const isDefeated =
-            newHealth <= 0 ||
-            investigator.sanity <= 0;
-
         const updatedGame: GameState = {
             ...game,
 
             activeInvestigatorId:
                 investigatorId,
-
-            investigators: {
-                ...game.investigators,
-
-                [investigatorId]: {
-                    ...investigator,
-
-                    health:
-                        newHealth,
-
-                    isDefeated,
-                },
-            },
         };
 
         /*
-         * Se a perda de Health derrotou o Investigator,
-         * não pode continuar a escolher um Ally.
-         *
-         * Passa diretamente ao próximo Investigator.
+         * Resolve the Health loss through the common loss engine so
+         * prevention effects and the complete defeat procedure remain
+         * available. The continuation returns here after either outcome.
          */
-        if (isDefeated) {
-            return startUnexpectedBetrayal(
-                updatedGame,
-                investigatorIndex + 1,
-            );
-        }
+        return resolveEncounterEffects(
+            updatedGame,
+            investigatorId,
+            [
+                {
+                    type: "lose-health",
+                    amount: 3,
+                },
+                {
+                    type: "continue-mythos-special",
+                    mythosId: "unexpected-betrayal",
+                    mythosStep:
+                        `unexpected-betrayal:after-loss:${investigatorIndex}`,
+                },
+            ],
+            map,
+        );
+    }
 
-        /*
-         * O Investigator continua ativo e escolhe
-         * exatamente 1 Ally para descartar.
-         */
-        return {
-            ...updatedGame,
+    return {
+        ...game,
+        pendingDecision:
+            null,
+
+        activeInvestigatorId:
+            null,
+    };
+}
+
+function continueUnexpectedBetrayalAfterLoss(
+    game: GameState,
+    investigatorIndex: number,
+    map: MapDefinition,
+): GameState {
+    const investigatorId =
+        game.investigatorOrder[
+            investigatorIndex
+        ];
+
+    const investigator =
+        investigatorId
+            ? game.investigators[
+                investigatorId
+            ]
+            : undefined;
+
+    /* A defeated investigator cannot resolve the Ally discard. */
+    if (!investigator || investigator.isDefeated) {
+        return startUnexpectedBetrayal(
+            {
+                ...game,
+                pendingDecision: null,
+                activeInvestigatorId: null,
+            },
+            investigatorIndex + 1,
+            map,
+        );
+    }
+
+    const allyIds =
+        investigator.assetIds.filter(
+            (assetId) =>
+                game.assets[
+                    assetId
+                ]?.type === "ally",
+        );
+
+    if (allyIds.length === 0) {
+        return startUnexpectedBetrayal(
+            {
+                ...game,
+                pendingDecision: null,
+                activeInvestigatorId: null,
+            },
+            investigatorIndex + 1,
+            map,
+        );
+    }
+
+    return {
+            ...game,
 
             pendingDecision: {
                 type: "select-card",
@@ -408,19 +868,6 @@ export function startUnexpectedBetrayal(
                     `mythos:unexpected-betrayal:${investigatorIndex}`,
             },
         };
-    }
-
-    /*
-     * Todos os Investigators foram tratados.
-     */
-    return {
-        ...game,
-        pendingDecision:
-            null,
-
-        activeInvestigatorId:
-            null,
-    };
 }
 
 function getItemIds(
@@ -817,6 +1264,73 @@ export function resolveMythosSpecial(
   specialId: string,
   map: MapDefinition,
 ): GameState {
+  if (specialId.startsWith(TIDE_OF_DESPAIR_RESUME_PREFIX)) {
+    if (mythos.id !== "tide-of-despair") {
+      throw new Error(
+        `Invalid Mythos for Tide of Despair: "${mythos.id}".`,
+      );
+    }
+
+    return continueTideOfDespair(
+      game,
+      mythos,
+      map,
+      decodeTideOfDespairResume(specialId),
+    );
+  }
+
+  if (specialId.startsWith(WORLD_SHAKES_RESUME_PREFIX)) {
+    if (mythos.id !== "the-world-shakes") {
+      throw new Error(
+        `Invalid Mythos for The World Shakes: "${mythos.id}".`,
+      );
+    }
+
+    return continueWorldShakes(
+      game,
+      mythos,
+      map,
+      decodeWorldShakesResume(specialId),
+    );
+  }
+
+  if (specialId.startsWith(WIND_WALKER_RESUME_PREFIX)) {
+    if (mythos.id !== "the-wind-walker") {
+      throw new Error(
+        `Invalid Mythos for The Wind-Walker: "${mythos.id}".`,
+      );
+    }
+
+    return continueWindWalkerConsequences(
+      game,
+      mythos,
+      map,
+      decodeWindWalkerResume(specialId),
+    );
+  }
+
+  if (
+    specialId.startsWith(
+      "unexpected-betrayal:after-loss:",
+    )
+  ) {
+    const investigatorIndex = Number(
+      specialId.split(":")[2],
+    );
+
+    if (!Number.isInteger(investigatorIndex)) {
+      throw new Error(
+        `Invalid Unexpected Betrayal continuation "${specialId}".`,
+      );
+    }
+
+    return continueUnexpectedBetrayalAfterLoss(
+      game,
+      investigatorIndex,
+      map,
+    );
+  }
+
   switch (specialId) {
 
     case "driven-to-bankruptcy": {
@@ -1935,6 +2449,7 @@ export function resolveMythosSpecial(
       return startUnexpectedBetrayal(
           game,
           0,
+        map,
       );
     }
 
@@ -3203,8 +3718,8 @@ export function resolveMythosSpecial(
        * LOST KNOWLEDGE — 0 ELDRITCH TOKENS
        * ==========================================================
        *
-       * Discard all Clues on the game board, then each
-       * Investigator discards all Clues.
+       * Each Investigator discards all Clues, then discard all
+       * Clues on the game board and solve this Rumor.
        */
 
       const clueTokensToDiscard: {
@@ -3212,13 +3727,40 @@ export function resolveMythosSpecial(
         spaceId: string;
       }[] = [];
 
+      /*
+       * Remove every Clue from every Investigator first.
+       */
+
+      const updatedInvestigators = {
+        ...game.investigators,
+      };
+
+      for (
+        const [
+          investigatorId,
+          investigator,
+        ] of Object.entries(
+          game.investigators,
+        )
+      ) {
+        clueTokensToDiscard.push(...(investigator.clueTokens ?? []));
+        updatedInvestigators[
+          investigatorId
+        ] = {
+          ...investigator,
+
+          clues: 0,
+          clueTokens: [],
+        };
+      }
+
+      /*
+       * Then remove every Clue token from the board.
+       */
+
       const updatedSpaces = {
         ...game.board.spaces,
       };
-
-      /*
-       * Remove every Clue token from the board.
-       */
 
       for (
         const [
@@ -3246,33 +3788,6 @@ export function resolveMythosSpecial(
           clues: 0,
 
           clueTokenIds: [],
-        };
-      }
-
-      /*
-       * Remove every Clue from every Investigator.
-       */
-
-      const updatedInvestigators = {
-        ...game.investigators,
-      };
-
-      for (
-        const [
-          investigatorId,
-          investigator,
-        ] of Object.entries(
-          game.investigators,
-        )
-      ) {
-        clueTokensToDiscard.push(...(investigator.clueTokens ?? []));
-        updatedInvestigators[
-          investigatorId
-        ] = {
-          ...investigator,
-
-          clues: 0,
-          clueTokens: [],
         };
       }
 
@@ -3962,50 +4477,24 @@ export function resolveMythosSpecial(
        * and loses 6 Health.
        */
 
-      let currentGame =
-        game;
-
-      for (
-        const investigatorId of
-          currentGame.investigatorOrder
+      if (
+        game.pendingDecision?.type !==
+        "mythos-card-reckoning"
       ) {
-        const investigator =
-          currentGame.investigators[
-            investigatorId
-          ];
-
-        if (!investigator) {
-          continue;
-        }
-
-        currentGame = {
-          ...currentGame,
-
-          investigators: {
-            ...currentGame.investigators,
-
-            [investigatorId]: {
-              ...investigator,
-
-              isDelayed: true,
-
-              health: Math.max(
-                0,
-                investigator.health - 6,
-              ),
-
-              isDefeated:
-                investigator.health - 6 <=
-                  0 ||
-                investigator.sanity <= 0,
-            },
-          },
-        };
+        throw new Error(
+          "The Wind-Walker consequence requires an active Mythos card Reckoning.",
+        );
       }
 
-      return solveMythosRumor(
-        currentGame,
+      return continueWindWalkerConsequences(
+        game,
         mythos,
+        map,
+        {
+          investigatorIds: [...game.investigatorOrder],
+          currentInvestigatorIndex: 0,
+          reckoningDecision: game.pendingDecision,
+        },
       );
     }
 
@@ -4101,6 +4590,12 @@ export function resolveMythosSpecial(
      */
 
     case "the-world-shakes": {
+      if (mythos.id !== "the-world-shakes") {
+        throw new Error(
+          `Invalid Mythos for The World Shakes: "${mythos.id}".`,
+        );
+      }
+
       const activeExpeditionSpaceId =
         game.board.activeExpeditionSpaceId;
 
@@ -4135,140 +4630,27 @@ export function resolveMythosSpecial(
         ...activeExpeditionSpace.connectedSpaceIds,
       ]);
 
-      /*
-       * ==========================================================
-       * AFFECT INVESTIGATORS
-       * ==========================================================
-       */
-
-      const updatedInvestigators = {
-        ...game.investigators,
-      };
-
-      for (
-        const investigatorId of
-          game.investigatorOrder
-      ) {
-        const investigator =
-          game.investigators[
-            investigatorId
-          ];
-
-        if (!investigator) {
-          continue;
-        }
-
-        if (
-          !investigator.spaceId ||
-          !affectedSpaceIds.has(
-            investigator.spaceId,
-          )
-        ) {
-          continue;
-        }
-
-        const newHealth =
-          Math.max(
-            0,
-            investigator.health - 2,
+      const investigatorIds = game.investigatorOrder.filter(
+        (investigatorId) => {
+          const investigator = game.investigators[investigatorId];
+          return Boolean(
+            investigator?.spaceId &&
+              affectedSpaceIds.has(investigator.spaceId) &&
+              !investigator.isDefeated,
           );
-
-        updatedInvestigators[
-          investigatorId
-        ] = {
-          ...investigator,
-
-          health:
-            newHealth,
-
-          isDelayed:
-            true,
-
-          isDefeated:
-            newHealth <= 0 ||
-            investigator.sanity <= 0,
-        };
-      }
-
-      /*
-       * ==========================================================
-       * REMOVE ACTIVE EXPEDITION ENCOUNTERS
-       * ==========================================================
-       *
-       * Expedition Encounter cards are identified by the name
-       * of the Expedition space.
-       *
-       * They are returned to the game box, so they are removed
-       * from the deck and are NOT added to the discard pile.
-       */
-
-      const expeditionDeck =
-        game.board.encounterDecks.expedition;
-
-      const remainingExpeditionDeck =
-        expeditionDeck.filter(
-          (encounterId) =>
-            game.encounters[
-              encounterId
-            ]?.name !==
-            activeExpeditionSpace.name,
-        );
-
-      /*
-       * ==========================================================
-       * SHUFFLE
-       * ==========================================================
-       */
-
-      const shuffledExpeditionDeck =
-        [...remainingExpeditionDeck];
-
-      for (
-        let i =
-          shuffledExpeditionDeck.length - 1;
-        i > 0;
-        i--
-      ) {
-        const j =
-          Math.floor(
-            Math.random() * (i + 1),
-          );
-
-        const current =
-          shuffledExpeditionDeck[i];
-
-        shuffledExpeditionDeck[i] =
-          shuffledExpeditionDeck[j];
-
-        shuffledExpeditionDeck[j] =
-          current;
-      }
-
-      let currentGame: GameState = {
-        ...game,
-
-        investigators:
-          updatedInvestigators,
-
-        board: {
-          ...game.board,
-
-          encounterDecks: {
-            ...game.board.encounterDecks,
-
-            expedition:
-              shuffledExpeditionDeck,
-          },
         },
-      };
+      );
 
-      currentGame =
-        syncActiveExpedition(
-          currentGame,
-          map,
-        );
-
-      return currentGame;
+      return continueWorldShakes(
+        game,
+        mythos,
+        map,
+        {
+          investigatorIds,
+          currentInvestigatorIndex: 0,
+          activeExpeditionSpaceId,
+        },
+      );
     }
 
     case "treacherous-magic": {
@@ -4287,234 +4669,22 @@ export function resolveMythosSpecial(
     }
 
     case "tide-of-despair": {
-      if (
-        mythos.id !== "tide-of-despair"
-      ) {
+      if (mythos.id !== "tide-of-despair") {
         throw new Error(
           `Mythos "${mythos.id}" cannot resolve Tide of Despair.`,
         );
       }
 
-      const investigatorIds =
-        game.investigatorOrder;
-
-      if (
-        investigatorIds.length === 0
-      ) {
-        return {
-          ...game,
-
-          currentMythosId:
-            null,
-
-          pendingDecision:
-            null,
-
-          activeInvestigatorId:
-            null,
-        };
-      }
-
-      /*
-      * The first Investigator is index 0.
-      *
-      * Subsequent Investigators use:
-      *
-      * tide-of-despair:1
-      * tide-of-despair:2
-      * ...
-      */
-
-      let investigatorIndex = 0;
-
-      if (
-        specialId.includes(":")
-      ) {
-        const parsedIndex =
-          Number(
-            specialId.split(":")[1],
-          );
-
-        if (
-          Number.isInteger(
-            parsedIndex,
-          )
-        ) {
-          investigatorIndex =
-            parsedIndex;
-        }
-      }
-
-      const investigatorId =
-        investigatorIds[
-          investigatorIndex
-        ];
-
-      if (!investigatorId) {
-        return {
-          ...game,
-
-          currentMythosId:
-            null,
-
-          pendingDecision:
-            null,
-
-          activeInvestigatorId:
-            null,
-        };
-      }
-
-      const investigator =
-        game.investigators[
-          investigatorId
-        ];
-
-      if (!investigator) {
-        throw new Error(
-          `Investigator "${investigatorId}" does not exist.`,
-        );
-      }
-
-      /*
-      * Find a Blessed Condition.
-      */
-
-      const blessedConditionId =
-        investigator.conditionIds.find(
-          (conditionId) =>
-            game.conditions[
-              conditionId
-            ]?.definitionId ===
-            "condition-blessed",
-        );
-
-      /*
-      * No Blessed:
-      *
-      * Lose 2 Health and 2 Sanity immediately.
-      */
-
-      if (!blessedConditionId) {
-        const newHealth =
-          Math.max(
-            0,
-            investigator.health - 2,
-          );
-
-        const newSanity =
-          Math.max(
-            0,
-            investigator.sanity - 2,
-          );
-
-        const updatedGame: GameState = {
-          ...game,
-
-          investigators: {
-            ...game.investigators,
-
-            [investigatorId]: {
-              ...investigator,
-
-              health:
-                newHealth,
-
-              sanity:
-                newSanity,
-
-              isDefeated:
-                newHealth <= 0 ||
-                newSanity <= 0,
-            },
-          },
-        };
-
-        const nextIndex =
-          investigatorIndex + 1;
-
-        const nextInvestigatorId =
-          updatedGame.investigatorOrder[
-            nextIndex
-          ];
-
-        /*
-        * Last Investigator.
-        */
-
-        if (!nextInvestigatorId) {
-          return {
-            ...updatedGame,
-
-            currentMythosId:
-              null,
-
-            pendingDecision:
-              null,
-
-            activeInvestigatorId:
-              null,
-          };
-        }
-
-        return resolveMythosSpecial(
-          updatedGame,
-          mythos,
-          `tide-of-despair:${nextIndex}`,
-          map,
-        );
-      }
-
-      /*
-      * Investigator has Blessed:
-      * give him the choice.
-      */
-
-      return {
-        ...game,
-
-        activeInvestigatorId:
-          investigatorId,
-
-        pendingDecision: {
-          type: "choice",
-
-          title:
-            "Tide of Despair",
-
-          message:
-            "Discard your Blessed Condition to avoid losing 2 Health and 2 Sanity.",
-
-          options: [
-            {
-              id:
-                `tide-of-despair:discard-blessed:${investigatorIndex}`,
-
-              title:
-                "Discard Blessed",
-
-              description:
-                "Discard the Blessed Condition and avoid losing Health and Sanity.",
-            },
-
-            {
-              id:
-                `tide-of-despair:keep-blessed:${investigatorIndex}`,
-
-              title:
-                "Keep Blessed",
-
-              description:
-                "Keep the Blessed Condition and lose 2 Health and 2 Sanity.",
-            },
-          ],
-
-          source:
-            `mythos:tide-of-despair:${investigatorIndex}`,
+      return continueTideOfDespair(
+        game,
+        mythos,
+        map,
+        {
+          investigatorIds: [...game.investigatorOrder],
+          currentInvestigatorIndex: 0,
         },
-      };
+      );
     }
-
     case "the-storm": {
       if (mythos.id !== "the-storm") {
         throw new Error(
@@ -4821,18 +4991,25 @@ export function resolveMythosSpecial(
       */
 
       if (matchingGateCount === 0) {
+        const wasAwakened =
+          game.ancientOne.awakened;
+
+        const advancedGame =
+          advanceOmen(game, 1);
+
+        if (
+          !wasAwakened &&
+          advancedGame.ancientOne.awakened
+        ) {
+          return resolveAncientOneAwakening(
+            advancedGame,
+            map,
+            mythos.icons.length + 1,
+          );
+        }
+
         return {
-          ...game,
-
-          ancientOne: {
-            ...game.ancientOne,
-
-            omenPosition:
-              (
-                game.ancientOne.omenPosition +
-                1
-              ) % 4,
-          },
+          ...advancedGame,
 
           currentMythosId: null,
 

@@ -1235,6 +1235,7 @@ export function resolveCardSelection(
             startUnexpectedBetrayal(
                 currentGame,
                 investigatorIndex + 1,
+                map,
             );
 
         currentGame = finishMythosSpecialIfComplete(

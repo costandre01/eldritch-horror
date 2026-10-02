@@ -15,13 +15,14 @@ import { hardMythos } from "../../content/core/mythos/hardMythos";
 import { resolveByakheeDefeat } from "./resolveByakheeDefeat";
 import { endInvestigatorEncounter } from "./endInvestigatorEncounter";
 
-import {
-  gainCondition,
-  gainConditionByCategory,
-} from "./gainCondition";
+import { gainCondition, gainConditionByCategory } from "./gainCondition";
 import { solveMythosRumor } from "./solveMythosRumor";
 import { getLeadInvestigatorId } from "./getLeadInvestigatorId";
-import { resolveMythosSpecial, resumeSilverTwilightAid as resumeSilverTwilightAidState } from "./resolveMythosSpecial";
+import {
+  resolveMythosSpecial,
+  resolveTideOfDespairLoss,
+  resumeSilverTwilightAid as resumeSilverTwilightAidState,
+} from "./resolveMythosSpecial";
 import { resolveCombatEncounterEnd } from "./resolveCombatEncounterEnd";
 import { resolveMonsterToughness } from "./resolveMonsterToughness";
 import { CORE_EPIC_MONSTERS } from "../../content/core/coreEpicMonsters";
@@ -43,7 +44,11 @@ import { resolveCombatTest } from "./combat/resolveCombatTest";
 import { devourInvestigator } from "./devourInvestigator";
 import { getGainableSpellIds } from "./getGainableSpellIds";
 import { continueDarkPower } from "./continueDarkPower";
-import { getImprovableSkills, improveInvestigatorSkill, startNextStartingImprovement } from "./improvementEngine";
+import {
+  getImprovableSkills,
+  improveInvestigatorSkill,
+  startNextStartingImprovement,
+} from "./improvementEngine";
 import { startInvestigatorActions } from "./startInvestigatorActions";
 import { finishMythosPhase, getMythosById } from "./resolveMythos";
 import { CORE_MYSTERIES } from "../../content/core/coreMysteries";
@@ -69,39 +74,88 @@ export function resolveGameFlowChoice(
   choiceId: string,
   map: MapDefinition,
 ): GameState {
-  const decision =
-    game.pendingDecision;
+  const decision = game.pendingDecision;
 
-  if (
-    !decision ||
-    decision.type !== "choice"
-  ) {
+  if (!decision || decision.type !== "choice") {
     return game;
   }
 
-  if (
-    decision.source?.startsWith(
-      "investigator:charlie-acquire-assets:",
-    )
-  ) {
-    const [, , ownerId, assetId] =
-      decision.source.split(":");
-    const targetId = choiceId.startsWith(
-      "charlie-acquire-assets:",
-    )
-      ? choiceId.substring(
-          "charlie-acquire-assets:".length,
-        )
+  /*
+   * ============================================================
+   * AKACHI ONYELE — GATE INSIGHT
+   * ============================================================
+   *
+   * Akachi looked at the top 2 Gates in the Gate stack.
+   *
+   * The selected Gate remains on top.
+   * The other Gate is moved to the bottom.
+   */
+
+  if (decision.source === "investigator-ability:akachi-action") {
+    const prefix = "akachi-gate:";
+
+    if (!choiceId.startsWith(prefix)) {
+      throw new Error("Choose one of the revealed Gates.");
+    }
+
+    const selectedGateId = choiceId.slice(prefix.length);
+
+    const topGates = game.board.gateStack.slice(0, 2);
+
+    if (topGates.length < 2) {
+      throw new Error("Gate Insight requires 2 Gates in the Gate stack.");
+    }
+
+    const selectedGate = topGates.find((gate) => gate.id === selectedGateId);
+
+    if (!selectedGate) {
+      throw new Error(
+        "The selected Gate is not one of the Gates revealed by Gate Insight.",
+      );
+    }
+
+    const otherGate = topGates.find((gate) => gate.id !== selectedGateId);
+
+    if (!otherGate) {
+      throw new Error("Gate Insight could not determine the second Gate.");
+    }
+
+    /*
+     * Remove the original top 2 Gates.
+     *
+     * Selected Gate:
+     *   -> top
+     *
+     * Other Gate:
+     *   -> bottom
+     */
+
+    const remainingGateStack = game.board.gateStack.slice(2);
+
+    return {
+      ...game,
+
+      board: {
+        ...game.board,
+
+        gateStack: [selectedGate, ...remainingGateStack, otherGate],
+      },
+
+      pendingDecision: null,
+    };
+  }
+
+  if (decision.source?.startsWith("investigator:charlie-acquire-assets:")) {
+    const [, , ownerId, assetId] = decision.source.split(":");
+    const targetId = choiceId.startsWith("charlie-acquire-assets:")
+      ? choiceId.substring("charlie-acquire-assets:".length)
       : "";
     const owner = game.investigators[ownerId ?? ""];
     const target = game.investigators[targetId];
     const asset = assetId ? game.assets[assetId] : undefined;
-    const isPossession = Boolean(
-      assetId && owner?.assetIds.includes(assetId),
-    );
+    const isPossession = Boolean(assetId && owner?.assetIds.includes(assetId));
     const isImmediateAsset = Boolean(
-      assetId &&
-      game.board.assetDiscard.some((card) => card.id === assetId),
+      assetId && game.board.assetDiscard.some((card) => card.id === assetId),
     );
 
     if (
@@ -126,16 +180,11 @@ export function resolveGameFlowChoice(
             ...game.investigators,
             [owner.id]: {
               ...owner,
-              assetIds: owner.assetIds.filter(
-                (id) => id !== assetId,
-              ),
+              assetIds: owner.assetIds.filter((id) => id !== assetId),
             },
             [target.id]: {
               ...target,
-              assetIds: [
-                ...target.assetIds,
-                assetId,
-              ],
+              assetIds: [...target.assetIds, assetId],
             },
           };
 
@@ -150,18 +199,15 @@ export function resolveGameFlowChoice(
       };
     }
 
-    const pendingAcquireAssetEffects =
-      game.pendingAcquireAssetEffects
-        ? {
-            ...game.pendingAcquireAssetEffects,
-            assetRecipientIds: {
-              ...game.pendingAcquireAssetEffects.assetRecipientIds,
-              ...(isImmediateAsset
-                ? { [assetId]: target.id }
-                : {}),
-            },
-          }
-        : null;
+    const pendingAcquireAssetEffects = game.pendingAcquireAssetEffects
+      ? {
+          ...game.pendingAcquireAssetEffects,
+          assetRecipientIds: {
+            ...game.pendingAcquireAssetEffects.assetRecipientIds,
+            ...(isImmediateAsset ? { [assetId]: target.id } : {}),
+          },
+        }
+      : null;
 
     return continueAcquireAssetEffects({
       ...game,
@@ -171,81 +217,49 @@ export function resolveGameFlowChoice(
     });
   }
 
-  if (
-    decision.source?.startsWith(
-      "starting-improvement:",
-    )
-  ) {
-    const investigatorId =
-      decision.source.split(":")[1];
+  if (decision.source?.startsWith("starting-improvement:")) {
+    const investigatorId = decision.source.split(":")[1];
 
-    const investigator =
-      investigatorId
-        ? game.investigators[
-            investigatorId
-          ]
-        : undefined;
+    const investigator = investigatorId
+      ? game.investigators[investigatorId]
+      : undefined;
 
-    const skill =
-      choiceId as import("../models/Investigator").Skill;
+    const skill = choiceId as import("../models/Investigator").Skill;
 
-    if (
-      !investigator ||
-      !getImprovableSkills(
-        investigator,
-      ).includes(skill)
-    ) {
+    if (!investigator || !getImprovableSkills(investigator).includes(skill)) {
       return game;
     }
 
-    const improvedGame =
-      improveInvestigatorSkill(
-        game,
-        investigator.id,
-        skill,
-      );
+    const improvedGame = improveInvestigatorSkill(game, investigator.id, skill);
 
     const gameAfterChoice: GameState = {
       ...improvedGame,
 
-      pendingDecision:
-        null,
+      pendingDecision: null,
 
-      startingImprovementQueue:
-        (
-          game.startingImprovementQueue ??
-          []
-        ).slice(1),
+      startingImprovementQueue: (game.startingImprovementQueue ?? []).slice(1),
     };
 
     /*
-    * There are still starting Improvements
-    * waiting to be chosen.
-    */
-    if (
-      (
-        gameAfterChoice
-          .startingImprovementQueue
-          ?.length ?? 0
-      ) > 0
-    ) {
-      return startNextStartingImprovement(
-        gameAfterChoice,
-      );
+     * There are still starting Improvements
+     * waiting to be chosen.
+     */
+    if ((gameAfterChoice.startingImprovementQueue?.length ?? 0) > 0) {
+      return startNextStartingImprovement(gameAfterChoice);
     }
 
     /*
-    * Initial game setup:
-    *
-    * After the final starting Improvement
-    * has been chosen, start the Lead
-    * Investigator's first Action Phase.
-    *
-    * Replacement investigators can also
-    * receive starting Improvements during
-    * the game. In that case we must NOT
-    * restart the Action Phase.
-    */
+     * Initial game setup:
+     *
+     * After the final starting Improvement
+     * has been chosen, start the Lead
+     * Investigator's first Action Phase.
+     *
+     * Replacement investigators can also
+     * receive starting Improvements during
+     * the game. In that case we must NOT
+     * restart the Action Phase.
+     */
     if (
       gameAfterChoice.round === 1 &&
       gameAfterChoice.phase === "action" &&
@@ -253,37 +267,23 @@ export function resolveGameFlowChoice(
       gameAfterChoice.activeInvestigatorId ===
         gameAfterChoice.leadInvestigatorId
     ) {
-      return startInvestigatorActions(
-        gameAfterChoice,
-      );
+      return startInvestigatorActions(gameAfterChoice);
     }
 
     return gameAfterChoice;
   }
 
-  if (
-    decision.source?.startsWith(
-      "defeat-type:",
-    )
-  ) {
-    const [
-      ,
-      investigatorId,
-      resumeMonsterId,
-    ] = decision.source.split(":");
+  if (decision.source?.startsWith("defeat-type:")) {
+    const [, investigatorId, resumeMonsterId] = decision.source.split(":");
 
     if (!investigatorId) {
-      throw new Error(
-        "Defeat type choice has no investigator.",
-      );
+      throw new Error("Defeat type choice has no investigator.");
     }
 
     const defeatType =
-      choiceId ===
-      `defeat-type:crippled:${investigatorId}`
+      choiceId === `defeat-type:crippled:${investigatorId}`
         ? "crippled"
-        : choiceId ===
-            `defeat-type:insane:${investigatorId}`
+        : choiceId === `defeat-type:insane:${investigatorId}`
           ? "insane"
           : null;
 
@@ -291,89 +291,69 @@ export function resolveGameFlowChoice(
       return game;
     }
 
-    const defeatedGame =
-      defeatInvestigator(
-        {
-          ...game,
-          pendingDecision: null,
-        },
-        map,
-        investigatorId,
-        resumeMonsterId || undefined,
-        defeatType,
-        decision.resume,
-      );
+    const defeatedGame = defeatInvestigator(
+      {
+        ...game,
+        pendingDecision: null,
+      },
+      map,
+      investigatorId,
+      resumeMonsterId || undefined,
+      defeatType,
+      decision.resume,
+    );
 
     /*
-    * defeatInvestigator may have created another
-    * decision, for example choosing a new Lead.
-    *
-    * In that case, the Mythos resume is already
-    * stored inside that decision and must not
-    * execute yet.
-    */
+     * defeatInvestigator may have created another
+     * decision, for example choosing a new Lead.
+     *
+     * In that case, the Mythos resume is already
+     * stored inside that decision and must not
+     * execute yet.
+     */
     if (defeatedGame.pendingDecision) {
       return defeatedGame;
     }
 
     /*
-    * ============================================================
-    * RESUME A DARK POWER
-    * ============================================================
-    *
-    * The Investigator was defeated after choosing
-    * Crippled or Insane.
-    *
-    * The defeat is now completely resolved, so continue
-    * A Dark Power with the next applicable Investigator.
-    */
+     * ============================================================
+     * RESUME A DARK POWER
+     * ============================================================
+     *
+     * The Investigator was defeated after choosing
+     * Crippled or Insane.
+     *
+     * The defeat is now completely resolved, so continue
+     * A Dark Power with the next applicable Investigator.
+     */
 
-    if (
-      decision.resume?.type ===
-      "mythos-dark-power"
-    ) {
+    if (decision.resume?.type === "mythos-dark-power") {
       return continueDarkPower(
         {
           ...defeatedGame,
 
-          activeInvestigatorId:
-            null,
+          activeInvestigatorId: null,
 
-          pendingDecision:
-            null,
+          pendingDecision: null,
 
-          combatOrder:
-            null,
+          combatOrder: null,
         },
         decision.resume,
       );
     }
 
     /*
-    * Resume the interrupted Mythos special.
-    */
-    if (
-      decision.resume?.type ===
-      "mythos-special"
-    ) {
-      const resume =
-        decision.resume;
+     * Resume the interrupted Mythos special.
+     */
+    if (decision.resume?.type === "mythos-special") {
+      const resume = decision.resume;
 
-      const mythos =
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-            resume.mythosId,
-        );
+      const mythos = [...easyMythos, ...normalMythos, ...hardMythos].find(
+        (definition) => definition.id === resume.mythosId,
+      );
 
       if (!mythos) {
-        throw new Error(
-          `Mythos "${resume.mythosId}" does not exist.`,
-        );
+        throw new Error(`Mythos "${resume.mythosId}" does not exist.`);
       }
 
       return resolveMythosSpecial(
@@ -388,55 +368,75 @@ export function resolveGameFlowChoice(
   }
 
   if (decision.source?.startsWith("condition:deal:")) {
-    const [, , investigatorId, conditionId, conditionDefinitionId] = decision.source.split(":");
-    const investigator = investigatorId ? game.investigators[investigatorId] : undefined;
-    if (!investigator || !conditionId || !conditionDefinitionId) return { ...game, pendingDecision: null };
+    const [, , investigatorId, conditionId, conditionDefinitionId] =
+      decision.source.split(":");
+    const investigator = investigatorId
+      ? game.investigators[investigatorId]
+      : undefined;
+    if (!investigator || !conditionId || !conditionDefinitionId)
+      return { ...game, pendingDecision: null };
     let next: GameState = { ...game, pendingDecision: null };
     if (choiceId === `condition:deal:gain:${investigatorId}:${conditionId}`) {
       next = gainCondition(next, investigatorId, conditionDefinitionId);
-    } else if (choiceId === `condition:deal:refuse:${investigatorId}:${conditionId}`) {
+    } else if (
+      choiceId === `condition:deal:refuse:${investigatorId}:${conditionId}`
+    ) {
       next = advanceDoom(next, 1);
     } else {
       return game;
     }
-    return { ...discardCondition(next, investigatorId, conditionId), pendingDecision: null };
+    return {
+      ...discardCondition(next, investigatorId, conditionId),
+      pendingDecision: null,
+    };
   }
 
   if (decision.source?.startsWith("condition:leg-injury:")) {
     const [, , investigatorId, conditionId] = decision.source.split(":");
-    const investigator = investigatorId ? game.investigators[investigatorId] : undefined;
+    const investigator = investigatorId
+      ? game.investigators[investigatorId]
+      : undefined;
     const condition = conditionId ? game.conditions[conditionId] : undefined;
     if (!investigator || !condition) return { ...game, pendingDecision: null };
-    if (choiceId === `condition:leg-injury:delayed:${investigatorId}:${conditionId}`) {
-      const delayedGame = { ...game, pendingDecision: null, investigators: { ...game.investigators, [investigatorId]: { ...investigator, isDelayed: true } } };
-      return { ...discardCondition(delayedGame, investigatorId, conditionId), pendingDecision: null };
+    if (
+      choiceId ===
+      `condition:leg-injury:delayed:${investigatorId}:${conditionId}`
+    ) {
+      const delayedGame = {
+        ...game,
+        pendingDecision: null,
+        investigators: {
+          ...game.investigators,
+          [investigatorId]: { ...investigator, isDelayed: true },
+        },
+      };
+      return {
+        ...discardCondition(delayedGame, investigatorId, conditionId),
+        pendingDecision: null,
+      };
     }
-    if (choiceId === `condition:leg-injury:flip:${investigatorId}:${conditionId}`) {
-      return { ...game, pendingDecision: null, conditions: { ...game.conditions, [conditionId]: { ...condition, flipped: false } } };
+    if (
+      choiceId === `condition:leg-injury:flip:${investigatorId}:${conditionId}`
+    ) {
+      return {
+        ...game,
+        pendingDecision: null,
+        conditions: {
+          ...game.conditions,
+          [conditionId]: { ...condition, flipped: false },
+        },
+      };
     }
   }
 
-  if (
-    decision.source?.startsWith(
-      "condition:devour-other:",
-    )
-  ) {
-    const [
-      ,
-      ,
-      investigatorId,
-      conditionId,
-    ] = decision.source.split(":");
+  if (decision.source?.startsWith("condition:devour-other:")) {
+    const [, , investigatorId, conditionId] = decision.source.split(":");
 
-    const expectedPrefix =
-      `condition:devour-other:${investigatorId}:${conditionId}:`;
+    const expectedPrefix = `condition:devour-other:${investigatorId}:${conditionId}:`;
 
-    const targetId =
-      choiceId.startsWith(expectedPrefix)
-        ? choiceId.slice(
-            expectedPrefix.length,
-          )
-        : undefined;
+    const targetId = choiceId.startsWith(expectedPrefix)
+      ? choiceId.slice(expectedPrefix.length)
+      : undefined;
 
     if (
       !investigatorId ||
@@ -449,65 +449,106 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * Discard the Dark Pact first.
-    *
-    * This is important because devouring the
-    * target can create a new pendingDecision
-    * (for example, choosing a new Lead
-    * Investigator). We must not clear that
-    * decision afterwards.
-    */
-    const gameAfterDiscard =
-      discardCondition(
-        {
-          ...game,
-          pendingDecision: null,
-        },
-        investigatorId,
-        conditionId,
-      );
-
-    return devourInvestigator(
-      gameAfterDiscard,
-      map,
-      targetId,
+     * Discard the Dark Pact first.
+     *
+     * This is important because devouring the
+     * target can create a new pendingDecision
+     * (for example, choosing a new Lead
+     * Investigator). We must not clear that
+     * decision afterwards.
+     */
+    const gameAfterDiscard = discardCondition(
+      {
+        ...game,
+        pendingDecision: null,
+      },
+      investigatorId,
+      conditionId,
     );
-  }
 
+    return devourInvestigator(gameAfterDiscard, map, targetId);
+  }
 
   if (decision.source === "combat-health-loss") {
     const pending = game.pendingCombatLoss;
     if (!pending) return { ...game, pendingDecision: null };
-    const resumeCombat = (next: GameState, preventHealth = 0, preventSanity = 0) =>
-      resolveCombatTest(next, pending.testDecision, pending.diceTest, { skip: true, preventHealth, preventSanity });
+    const resumeCombat = (
+      next: GameState,
+      preventHealth = 0,
+      preventSanity = 0,
+    ) =>
+      resolveCombatTest(next, pending.testDecision, pending.diceTest, {
+        skip: true,
+        preventHealth,
+        preventSanity,
+      });
     if (choiceId === "combat-loss:skip") {
-      return resumeCombat({ ...game, pendingDecision: null, pendingCombatLoss: null });
+      return resumeCombat({
+        ...game,
+        pendingDecision: null,
+        pendingCombatLoss: null,
+      });
     }
     const targetId = pending.testDecision.investigatorId;
     const target = game.investigators[targetId];
     if (choiceId === "combat-loss:grotesque-statue") {
-      const statueId = target?.artifactIds.find((id) => game.artifacts[id]?.name === "Grotesque Statue");
-      if (!target || !statueId || target.clues < 1 || pending.stat !== "sanity") {
-        return resumeCombat({ ...game, pendingDecision: null, pendingCombatLoss: null });
+      const statueId = target?.artifactIds.find(
+        (id) => game.artifacts[id]?.name === "Grotesque Statue",
+      );
+      if (
+        !target ||
+        !statueId ||
+        target.clues < 1 ||
+        pending.stat !== "sanity"
+      ) {
+        return resumeCombat({
+          ...game,
+          pendingDecision: null,
+          pendingCombatLoss: null,
+        });
       }
       const spentGame = spendInvestigatorClues(game, targetId, 1);
-      return resumeCombat({
-        ...spentGame,
-        pendingDecision: null,
-        pendingCombatLoss: null,
-        cardRerollUsedRound: { ...game.cardRerollUsedRound, [`${targetId}:grotesque-statue`]: game.round },
-      }, 0, Number.MAX_SAFE_INTEGER);
+      return resumeCombat(
+        {
+          ...spentGame,
+          pendingDecision: null,
+          pendingCombatLoss: null,
+          cardRerollUsedRound: {
+            ...game.cardRerollUsedRound,
+            [`${targetId}:grotesque-statue`]: game.round,
+          },
+        },
+        0,
+        Number.MAX_SAFE_INTEGER,
+      );
     }
     if (choiceId.startsWith("combat-loss:spell:")) {
       const [, , spellId, ownerId, rawIndex] = choiceId.split(":");
       const owner = game.investigators[ownerId];
       const spell = game.spells[spellId];
-      const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+      const definition =
+        spell &&
+        coreSpells.find((candidate) => candidate.id === spell.definitionId);
       const effectIndex = Number(rawIndex);
-      const effect = Number.isInteger(effectIndex) ? definition?.frontEffects[effectIndex] : undefined;
-      const expectedType = pending.stat === "health" ? "on-health-loss" : "on-sanity-loss";
-      if (!owner || !spell || !definition || spell.flipped || !owner.spellIds.includes(spellId) || !effect || effect.type !== expectedType) {
-        return resumeCombat({ ...game, pendingDecision: null, pendingCombatLoss: null });
+      const effect = Number.isInteger(effectIndex)
+        ? definition?.frontEffects[effectIndex]
+        : undefined;
+      const expectedType =
+        pending.stat === "health" ? "on-health-loss" : "on-sanity-loss";
+      if (
+        !owner ||
+        !spell ||
+        !definition ||
+        spell.flipped ||
+        !owner.spellIds.includes(spellId) ||
+        !effect ||
+        effect.type !== expectedType
+      ) {
+        return resumeCombat({
+          ...game,
+          pendingDecision: null,
+          pendingCombatLoss: null,
+        });
       }
       const key = `${spellId}:${pending.stat}-loss:${effectIndex}`;
       return {
@@ -530,8 +571,19 @@ export function resolveGameFlowChoice(
     const owner = game.investigators[ownerId];
     const asset = game.assets[assetId];
     const expectedName = pending.stat === "health" ? "Bandages" : "Whiskey";
-    if (!owner || !target || !asset || asset.name !== expectedName || !owner.assetIds.includes(assetId) || owner.spaceId !== target.spaceId) {
-      return resumeCombat({ ...game, pendingDecision: null, pendingCombatLoss: null });
+    if (
+      !owner ||
+      !target ||
+      !asset ||
+      asset.name !== expectedName ||
+      !owner.assetIds.includes(assetId) ||
+      owner.spaceId !== target.spaceId
+    ) {
+      return resumeCombat({
+        ...game,
+        pendingDecision: null,
+        pendingCombatLoss: null,
+      });
     }
     const resolved = {
       ...game,
@@ -539,21 +591,41 @@ export function resolveGameFlowChoice(
       pendingCombatLoss: null,
       investigators: {
         ...game.investigators,
-        [ownerId]: { ...owner, assetIds: owner.assetIds.filter((id) => id !== assetId) },
+        [ownerId]: {
+          ...owner,
+          assetIds: owner.assetIds.filter((id) => id !== assetId),
+        },
       },
-      board: { ...game.board, assetDiscard: [...game.board.assetDiscard, asset] },
+      board: {
+        ...game.board,
+        assetDiscard: [...game.board.assetDiscard, asset],
+      },
     };
-    return resumeCombat(resolved, pending.stat === "health" ? 2 : 0, pending.stat === "sanity" ? 2 : 0);
+    return resumeCombat(
+      resolved,
+      pending.stat === "health" ? 2 : 0,
+      pending.stat === "sanity" ? 2 : 0,
+    );
   }
 
-  if (decision.source?.startsWith("asset:rest:") || decision.source?.startsWith("asset:witch-doctor-rest:")) {
-    const prefix = decision.source.startsWith("asset:rest:") ? "asset:rest:" : "asset:witch-doctor-rest:";
+  if (
+    decision.source?.startsWith("asset:rest:") ||
+    decision.source?.startsWith("asset:witch-doctor-rest:")
+  ) {
+    const prefix = decision.source.startsWith("asset:rest:")
+      ? "asset:rest:"
+      : "asset:witch-doctor-rest:";
     const investigatorId = decision.source.slice(prefix.length);
     const investigator = game.investigators[investigatorId];
-    if (!investigator) throw new Error("Witch Doctor choice references a missing investigator.");
+    if (!investigator)
+      throw new Error("Witch Doctor choice references a missing investigator.");
     if (choiceId.startsWith("use-arcane-tome:")) {
       const assetId = choiceId.slice("use-arcane-tome:".length);
-      if (!investigator.assetIds.includes(assetId) || game.assets[assetId]?.name !== "Arcane Tome") throw new Error("Arcane Tome is not owned by this investigator.");
+      if (
+        !investigator.assetIds.includes(assetId) ||
+        game.assets[assetId]?.name !== "Arcane Tome"
+      )
+        throw new Error("Arcane Tome is not owned by this investigator.");
       return {
         ...game,
         pendingDecision: {
@@ -570,23 +642,36 @@ export function resolveGameFlowChoice(
     }
     if (choiceId.startsWith("use-puzzle-box:")) {
       const assetId = choiceId.slice("use-puzzle-box:".length);
-      if (!investigator.assetIds.includes(assetId) || game.assets[assetId]?.name !== "Puzzle Box") throw new Error("Puzzle Box is not owned by this investigator.");
+      if (
+        !investigator.assetIds.includes(assetId) ||
+        game.assets[assetId]?.name !== "Puzzle Box"
+      )
+        throw new Error("Puzzle Box is not owned by this investigator.");
       return {
         ...game,
         pendingDecision: {
           type: "test",
           title: "Puzzle Box",
-          message: "Test Lore -2. If you pass, you may discard this card to gain 1 Artifact.",
+          message:
+            "Test Lore -2. If you pass, you may discard this card to gain 1 Artifact.",
           skill: "lore",
           modifier: -2,
           investigatorId,
-          onSuccess: [{
-            type: "choice",
-            choices: [
-              { text: "Discard Puzzle Box and gain 1 Artifact", effects: [{ type: "discard-item", amount: 1, assetId }, { type: "gain-artifact", amount: 1 }] },
-              { text: "Keep Puzzle Box", effects: [] },
-            ],
-          }],
+          onSuccess: [
+            {
+              type: "choice",
+              choices: [
+                {
+                  text: "Discard Puzzle Box and gain 1 Artifact",
+                  effects: [
+                    { type: "discard-item", amount: 1, assetId },
+                    { type: "gain-artifact", amount: 1 },
+                  ],
+                },
+                { text: "Keep Puzzle Box", effects: [] },
+              ],
+            },
+          ],
           source: `asset:rest:puzzle-box:${assetId}`,
         },
       };
@@ -597,13 +682,19 @@ export function resolveGameFlowChoice(
         pendingDecision: null,
         investigators: {
           ...game.investigators,
-          [investigatorId]: { ...investigator, health: Math.min(investigator.maxHealth, investigator.health + 1) },
+          [investigatorId]: {
+            ...investigator,
+            health: Math.min(investigator.maxHealth, investigator.health + 1),
+          },
         },
       };
     }
     if (choiceId.startsWith("discard-condition:")) {
       const conditionId = choiceId.slice("discard-condition:".length);
-      return { ...discardCondition(game, investigatorId, conditionId), pendingDecision: null };
+      return {
+        ...discardCondition(game, investigatorId, conditionId),
+        pendingDecision: null,
+      };
     }
     if (choiceId === "skip") return { ...game, pendingDecision: null };
     throw new Error("Invalid Witch Doctor option.");
@@ -612,28 +703,44 @@ export function resolveGameFlowChoice(
   if (decision.source?.startsWith("asset:holy-water:")) {
     const ownerId = decision.source.slice("asset:holy-water:".length);
     const owner = game.investigators[ownerId];
-    const targetId = choiceId.startsWith("holy-water:") ? choiceId.slice("holy-water:".length) : "";
+    const targetId = choiceId.startsWith("holy-water:")
+      ? choiceId.slice("holy-water:".length)
+      : "";
     const target = game.investigators[targetId];
-    if (!owner || !target || !owner.spaceId || target.spaceId !== owner.spaceId) throw new Error("Holy Water target must be an investigator on the same space.");
+    if (!owner || !target || !owner.spaceId || target.spaceId !== owner.spaceId)
+      throw new Error(
+        "Holy Water target must be an investigator on the same space.",
+      );
     const blessed = gainCondition(game, targetId, "condition-blessed");
     return { ...blessed, pendingDecision: null };
   }
 
   if (decision.source?.startsWith("asset:sanctuary:")) {
-    const investigatorId = decision.source.split(":")[3] ?? game.activeInvestigatorId;
+    const investigatorId =
+      decision.source.split(":")[3] ?? game.activeInvestigatorId;
     if (!investigatorId) return { ...game, pendingDecision: null };
-    if (choiceId === "sanctuary:skip") return continueAcquireAssetEffects({ ...game, pendingDecision: null });
-    const conditionId = choiceId.startsWith("sanctuary:discard:") ? choiceId.slice("sanctuary:discard:".length) : "";
-    if (!conditionId) throw new Error("Choose a Condition or keep all Conditions.");
-    return continueAcquireAssetEffects({ ...discardCondition(game, investigatorId, conditionId), pendingDecision: null });
+    if (choiceId === "sanctuary:skip")
+      return continueAcquireAssetEffects({ ...game, pendingDecision: null });
+    const conditionId = choiceId.startsWith("sanctuary:discard:")
+      ? choiceId.slice("sanctuary:discard:".length)
+      : "";
+    if (!conditionId)
+      throw new Error("Choose a Condition or keep all Conditions.");
+    return continueAcquireAssetEffects({
+      ...discardCondition(game, investigatorId, conditionId),
+      pendingDecision: null,
+    });
   }
 
   if (decision.source?.startsWith("asset:delivery-service:")) {
     const giverId = decision.source.split(":")[3] ?? game.activeInvestigatorId;
-    const targetId = choiceId.startsWith("delivery-service:") ? choiceId.slice("delivery-service:".length) : "";
+    const targetId = choiceId.startsWith("delivery-service:")
+      ? choiceId.slice("delivery-service:".length)
+      : "";
     const giver = giverId ? game.investigators[giverId] : undefined;
     const target = game.investigators[targetId];
-    if (!giver || !target || giverId === targetId) throw new Error("Choose another investigator to receive Items.");
+    if (!giver || !target || giverId === targetId)
+      throw new Error("Choose another investigator to receive Items.");
     const itemIds = [
       ...giver.assetIds.filter((id) => game.assets[id]?.type === "item"),
       ...giver.artifactIds.filter((id) => game.artifacts[id]?.type === "item"),
@@ -661,7 +768,14 @@ export function resolveGameFlowChoice(
     const giver = giverId ? game.investigators[giverId] : undefined;
     const target = targetId ? game.investigators[targetId] : undefined;
     const amount = Number(rawAmount);
-    if (!giver || !target || target.id === giver.id || !Number.isInteger(amount) || amount < 0 || amount > giver.clues) {
+    if (
+      !giver ||
+      !target ||
+      target.id === giver.id ||
+      !Number.isInteger(amount) ||
+      amount < 0 ||
+      amount > giver.clues
+    ) {
       throw new Error("Invalid Wireless Report choice.");
     }
     const givenTokens = (giver.clueTokens ?? []).slice(0, amount);
@@ -687,24 +801,41 @@ export function resolveGameFlowChoice(
   if (decision.source?.startsWith("asset:pocket-watch:")) {
     const investigatorId = decision.source.slice("asset:pocket-watch:".length);
     if (choiceId === "pocket-watch:delay") {
-      return resolveEncounterEffects({ ...game, pendingDecision: null }, investigatorId, [
-        { type: "become-delayed", ignorePocketWatch: true },
-        ...(decision.onComplete ?? []),
-      ], map);
+      return resolveEncounterEffects(
+        { ...game, pendingDecision: null },
+        investigatorId,
+        [
+          { type: "become-delayed", ignorePocketWatch: true },
+          ...(decision.onComplete ?? []),
+        ],
+        map,
+      );
     }
     if (choiceId === "pocket-watch:prevent") {
       return decision.onComplete?.length
-        ? resolveEncounterEffects({ ...game, pendingDecision: null }, investigatorId, decision.onComplete, map)
+        ? resolveEncounterEffects(
+            { ...game, pendingDecision: null },
+            investigatorId,
+            decision.onComplete,
+            map,
+          )
         : { ...game, pendingDecision: null };
     }
   }
 
   if (decision.source === "artifact:mi-go-brain-case") {
-    if (choiceId === "brain-case:stay") return { ...game, pendingDecision: null };
+    if (choiceId === "brain-case:stay")
+      return { ...game, pendingDecision: null };
     const [, action, ownerId, targetId, previousSpaceId] = choiceId.split(":");
     const owner = game.investigators[ownerId];
     const target = game.investigators[targetId];
-    if (action !== "move" || !owner?.spaceId || !target || !previousSpaceId || !game.board.spaces[previousSpaceId]) {
+    if (
+      action !== "move" ||
+      !owner?.spaceId ||
+      !target ||
+      !previousSpaceId ||
+      !game.board.spaces[previousSpaceId]
+    ) {
       return { ...game, pendingDecision: null };
     }
     return {
@@ -719,54 +850,141 @@ export function resolveGameFlowChoice(
   }
 
   if (decision.source?.startsWith("spell-loss:")) {
-    const [, stat, targetId, rawAmount] = decision.source.split(":");
-    if ((stat !== "health" && stat !== "sanity") || !targetId) return { ...game, pendingDecision: null };
+    const [, stat, targetId, rawAmount, defeatTiming] =
+      decision.source.split(":");
+    if ((stat !== "health" && stat !== "sanity") || !targetId)
+      return { ...game, pendingDecision: null };
     const spellLossStat: "health" | "sanity" = stat;
     const amount = Number(rawAmount) || 0;
-    const lossEffect = { type: spellLossStat === "health" ? "lose-health" as const : "lose-sanity" as const, amount, ignoreSpellLossReactions: true };
+    const deferDefeat = defeatTiming === "defer";
+    const lossEffect = {
+      type:
+        spellLossStat === "health"
+          ? ("lose-health" as const)
+          : ("lose-sanity" as const),
+      amount,
+      ignoreSpellLossReactions: true,
+      deferDefeat,
+    };
     if (choiceId === "loss-reaction:skip") {
-      return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [lossEffect, ...(decision.onComplete ?? [])], map);
+      return resolveEncounterEffects(
+        { ...game, pendingDecision: null },
+        targetId,
+        [lossEffect, ...(decision.onComplete ?? [])],
+        map,
+      );
     }
     if (choiceId.startsWith("loss-reaction:asset:")) {
       const assetId = choiceId.slice("loss-reaction:asset:".length);
       const asset = game.assets[assetId];
       const target = game.investigators[targetId];
       const expectedName = stat === "health" ? "Bandages" : "Whiskey";
-      const owner = Object.values(game.investigators).find((candidate) => candidate.assetIds.includes(assetId));
-      if (!asset || asset.name !== expectedName || !owner || owner.spaceId !== target?.spaceId) {
-        return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [lossEffect, ...(decision.onComplete ?? [])], map);
+      const owner = Object.values(game.investigators).find((candidate) =>
+        candidate.assetIds.includes(assetId),
+      );
+      if (
+        !asset ||
+        asset.name !== expectedName ||
+        !owner ||
+        owner.spaceId !== target?.spaceId
+      ) {
+        return resolveEncounterEffects(
+          { ...game, pendingDecision: null },
+          targetId,
+          [lossEffect, ...(decision.onComplete ?? [])],
+          map,
+        );
       }
-      return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [
-        { type: "resolve-spell-loss", target: targetId, spellLossStat, lossAmount: amount, preventedAmount: 2, assetId },
-        ...(decision.onComplete ?? []),
-      ], map);
+      return resolveEncounterEffects(
+        { ...game, pendingDecision: null },
+        targetId,
+        [
+          {
+            type: "resolve-spell-loss",
+            target: targetId,
+            spellLossStat,
+            lossAmount: amount,
+            preventedAmount: 2,
+            assetId,
+            deferDefeat,
+          },
+          ...(decision.onComplete ?? []),
+        ],
+        map,
+      );
     }
     if (choiceId === "loss-reaction:artifact:grotesque-statue") {
       const target = game.investigators[targetId];
-      const artifactId = target?.artifactIds.find((id) => game.artifacts[id]?.name === "Grotesque Statue");
+      const artifactId = target?.artifactIds.find(
+        (id) => game.artifacts[id]?.name === "Grotesque Statue",
+      );
       if (!target || !artifactId || target.clues < 1) {
-        return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [lossEffect, ...(decision.onComplete ?? [])], map);
+        return resolveEncounterEffects(
+          { ...game, pendingDecision: null },
+          targetId,
+          [lossEffect, ...(decision.onComplete ?? [])],
+          map,
+        );
       }
-      return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [
-        { type: "resolve-spell-loss", target: targetId, spellLossStat, lossAmount: amount, preventedAmount: amount, artifactId },
-        ...(decision.onComplete ?? []),
-      ], map);
+      return resolveEncounterEffects(
+        { ...game, pendingDecision: null },
+        targetId,
+        [
+          {
+            type: "resolve-spell-loss",
+            target: targetId,
+            spellLossStat,
+            lossAmount: amount,
+            preventedAmount: amount,
+            artifactId,
+            deferDefeat,
+          },
+          ...(decision.onComplete ?? []),
+        ],
+        map,
+      );
     }
-    const selectedSpell = choiceId.startsWith("loss-reaction:spell:") ? choiceId.slice("loss-reaction:spell:".length).split(":") : [];
+    const selectedSpell = choiceId.startsWith("loss-reaction:spell:")
+      ? choiceId.slice("loss-reaction:spell:".length).split(":")
+      : [];
     const spellId = selectedSpell[0] ?? "";
     const ownerId = selectedSpell[1] ?? "";
     const spell = game.spells[spellId];
     const owner = game.investigators[ownerId];
-    const definition = spell && coreSpells.find((candidate) => candidate.id === spell.definitionId);
+    const definition =
+      spell &&
+      coreSpells.find((candidate) => candidate.id === spell.definitionId);
     const type = stat === "health" ? "on-health-loss" : "on-sanity-loss";
-    const frontEffectIndex = definition?.frontEffects.findIndex((effect) => effect.type === type) ?? -1;
-    const frontEffect = frontEffectIndex >= 0 ? definition?.frontEffects[frontEffectIndex] : undefined;
-    if (!spell || spell.flipped || !owner?.spellIds.includes(spellId) || !frontEffect || frontEffect.type !== type) {
-      return resolveEncounterEffects({ ...game, pendingDecision: null }, targetId, [lossEffect, ...(decision.onComplete ?? [])], map);
+    const frontEffectIndex =
+      definition?.frontEffects.findIndex((effect) => effect.type === type) ??
+      -1;
+    const frontEffect =
+      frontEffectIndex >= 0
+        ? definition?.frontEffects[frontEffectIndex]
+        : undefined;
+    if (
+      !spell ||
+      spell.flipped ||
+      !owner?.spellIds.includes(spellId) ||
+      !frontEffect ||
+      frontEffect.type !== type
+    ) {
+      return resolveEncounterEffects(
+        { ...game, pendingDecision: null },
+        targetId,
+        [lossEffect, ...(decision.onComplete ?? [])],
+        map,
+      );
     }
-    const preventEffectType = stat === "health" ? "prevent-health-loss" : "prevent-sanity-loss";
-    const preventEffect = frontEffect.onSuccess.find((effect) => effect.type === preventEffectType);
-    const preventedAmount = preventEffect && preventEffect.type === preventEffectType ? preventEffect.amount : 0;
+    const preventEffectType =
+      stat === "health" ? "prevent-health-loss" : "prevent-sanity-loss";
+    const preventEffect = frontEffect.onSuccess.find(
+      (effect) => effect.type === preventEffectType,
+    );
+    const preventedAmount =
+      preventEffect && preventEffect.type === preventEffectType
+        ? preventEffect.amount
+        : 0;
     const reaction = {
       type: "resolve-spell-loss" as const,
       spellId,
@@ -774,6 +992,7 @@ export function resolveGameFlowChoice(
       spellLossStat,
       lossAmount: amount,
       preventedAmount,
+      deferDefeat,
     };
     const key = `${spellId}:${stat}-loss:${frontEffectIndex}`;
     return {
@@ -797,171 +1016,112 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * CONDITION — SPEND CLUE OR TAKE TEST
-  * ============================================================
-  */
+   * ============================================================
+   * CONDITION — SPEND CLUE OR TAKE TEST
+   * ============================================================
+   */
 
-  if (
-    decision.source?.startsWith(
-      "condition:spend-clue-or-test:",
-    )
-  ) {
-    const sourceParts =
-      decision.source.split(":");
+  if (decision.source?.startsWith("condition:spend-clue-or-test:")) {
+    const sourceParts = decision.source.split(":");
 
-    const investigatorId =
-      sourceParts[2];
+    const investigatorId = sourceParts[2];
 
-    const conditionId =
-      sourceParts[3];
+    const conditionId = sourceParts[3];
 
-    if (
-      !investigatorId ||
-      !conditionId
-    ) {
+    if (!investigatorId || !conditionId) {
       throw new Error(
         "Condition choice is missing investigatorId or conditionId.",
       );
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
-    const condition =
-      game.conditions[
-        conditionId
-      ];
+    const condition = game.conditions[conditionId];
 
-    if (
-      !investigator ||
-      !condition
-    ) {
-      throw new Error(
-        "Condition choice references invalid game state.",
-      );
+    if (!investigator || !condition) {
+      throw new Error("Condition choice references invalid game state.");
     }
 
     /*
-    * ----------------------------------------------------------
-    * SPEND CLUE
-    * ----------------------------------------------------------
-    */
+     * ----------------------------------------------------------
+     * SPEND CLUE
+     * ----------------------------------------------------------
+     */
 
-    if (
-      choiceId ===
-      `condition:spend-clue:${investigatorId}:${conditionId}`
-    ) {
+    if (choiceId === `condition:spend-clue:${investigatorId}:${conditionId}`) {
       const clueCost = 1;
 
-      if (
-        investigator.clues <
-        clueCost
-      ) {
+      if (investigator.clues < clueCost) {
         return game;
       }
 
       const updatedGame = {
         ...spendInvestigatorClues(game, investigatorId, clueCost),
 
-        pendingDecision:
-          null,
+        pendingDecision: null,
       };
 
-      const discardedGame =
-        discardCondition(
-          updatedGame,
-          investigatorId,
-          conditionId,
-        );
-
-      return endInvestigatorEncounter(
-        discardedGame,
+      const discardedGame = discardCondition(
+        updatedGame,
+        investigatorId,
+        conditionId,
       );
+
+      return endInvestigatorEncounter(discardedGame);
     }
 
     /*
-    * ----------------------------------------------------------
-    * TAKE TEST
-    * ----------------------------------------------------------
-    */
+     * ----------------------------------------------------------
+     * TAKE TEST
+     * ----------------------------------------------------------
+     */
 
-    if (
-      choiceId ===
-      `condition:test:${investigatorId}:${conditionId}`
-    ) {
-      let skill:
-        | "will"
-        | "influence"
-        | "strength";
+    if (choiceId === `condition:test:${investigatorId}:${conditionId}`) {
+      let skill: "will" | "influence" | "strength";
 
-      let onFail:
-        Parameters<
-          typeof resolveEncounterEffects
-        >[2];
+      let onFail: Parameters<typeof resolveEncounterEffects>[2];
 
-      if (
-        condition.backId ===
-        "detained-back-1"
-      ) {
+      if (condition.backId === "detained-back-1") {
         skill = "will";
 
         onFail = [
           {
-            type:
-              "lose-sanity",
+            type: "lose-sanity",
             amount: 3,
           },
           {
-            type:
-              "gain-condition",
-            conditionDefinitionId:
-              "condition-paranoia",
+            type: "gain-condition",
+            conditionDefinitionId: "condition-paranoia",
           },
         ];
-      } else if (
-        condition.backId ===
-        "detained-back-2"
-      ) {
+      } else if (condition.backId === "detained-back-2") {
         skill = "influence";
 
         onFail = [
           {
-            type:
-              "lose-health",
+            type: "lose-health",
             amount: 2,
           },
           {
-            type:
-              "lose-sanity",
+            type: "lose-sanity",
             amount: 2,
           },
         ];
-      } else if (
-        condition.backId ===
-        "detained-back-3"
-      ) {
+      } else if (condition.backId === "detained-back-3") {
         skill = "strength";
 
         onFail = [
           {
-            type:
-              "lose-health",
+            type: "lose-health",
             amount: 3,
           },
           {
-            type:
-              "gain-condition",
-            conditionDefinitionId:
-              "condition-internal-injury",
+            type: "gain-condition",
+            conditionDefinitionId: "condition-internal-injury",
           },
         ];
       } else {
-        throw new Error(
-          `Unsupported Detained back "${condition.backId}".`,
-        );
+        throw new Error(`Unsupported Detained back "${condition.backId}".`);
       }
 
       return {
@@ -970,11 +1130,9 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "test",
 
-          title:
-            "Detained",
+          title: "Detained",
 
-          message:
-            "Resolve the Detained Condition.",
+          message: "Resolve the Detained Condition.",
 
           skill,
 
@@ -988,16 +1146,14 @@ export function resolveGameFlowChoice(
 
           onComplete: [
             {
-                type: "discard-condition",
-                conditionDefinitionId: "condition-detained",
+              type: "discard-condition",
+              conditionDefinitionId: "condition-detained",
             },
           ],
 
-          source:
-            `condition:test:${investigatorId}:${conditionId}`,
+          source: `condition:test:${investigatorId}:${conditionId}`,
 
-          image:
-            condition.backImage,
+          image: condition.backImage,
         },
       };
     }
@@ -1006,55 +1162,44 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * OCCULT RESEARCH
-  * ============================================================
-  */
+   * ============================================================
+   * OCCULT RESEARCH
+   * ============================================================
+   */
 
   if (
-    decision.source ===
-      `mystery:${game.mysteries.activeMysteryId}` &&
+    decision.source === `mystery:${game.mysteries.activeMysteryId}` &&
     CORE_MYSTERIES.some(
       (mystery) =>
         mystery.id === game.mysteries.activeMysteryId &&
         mystery.type === "research-encounter",
     )
   ) {
-    const investigatorId =
-      game.activeInvestigatorId;
+    const investigatorId = game.activeInvestigatorId;
 
     if (!investigatorId) {
-      throw new Error(
-        "Occult Research requires an active investigator.",
-      );
+      throw new Error("Occult Research requires an active investigator.");
     }
 
-    const investigator =
-      game.investigators[investigatorId];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
-      throw new Error(
-        `Investigator "${investigatorId}" does not exist.`,
-      );
+      throw new Error(`Investigator "${investigatorId}" does not exist.`);
     }
 
     /*
-    * ----------------------------------------------------------
-    * DECLINE
-    * ----------------------------------------------------------
-    */
+     * ----------------------------------------------------------
+     * DECLINE
+     * ----------------------------------------------------------
+     */
 
-    if (
-      choiceId ===
-      "occult-research:decline"
-    ) {
+    if (choiceId === "occult-research:decline") {
       return endInvestigatorEncounter({
         ...game,
 
         pendingDecision: null,
 
-        currentEncounterIsResearch:
-          false,
+        currentEncounterIsResearch: false,
 
         encounterCluesGained: 0,
         encounterClueTokenIdsGained: [],
@@ -1062,27 +1207,20 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * ----------------------------------------------------------
-    * SPEND 1 CLUE
-    * ----------------------------------------------------------
-    */
+     * ----------------------------------------------------------
+     * SPEND 1 CLUE
+     * ----------------------------------------------------------
+     */
 
-    if (
-      choiceId !==
-      "occult-research:spend"
-    ) {
+    if (choiceId !== "occult-research:spend") {
       return game;
     }
 
-    if (
-      (game.encounterCluesGained ?? 0) <= 0 ||
-      investigator.clues <= 0
-    ) {
+    if ((game.encounterCluesGained ?? 0) <= 0 || investigator.clues <= 0) {
       return game;
     }
 
-    const activeMysteryId =
-      game.mysteries.activeMysteryId;
+    const activeMysteryId = game.mysteries.activeMysteryId;
 
     if (!activeMysteryId) {
       return endInvestigatorEncounter({
@@ -1090,23 +1228,17 @@ export function resolveGameFlowChoice(
 
         pendingDecision: null,
 
-        currentEncounterIsResearch:
-          false,
+        currentEncounterIsResearch: false,
 
         encounterCluesGained: 0,
         encounterClueTokenIdsGained: [],
       });
     }
 
-    const mysteryProgress =
-      game.mysteries.progress[
-        activeMysteryId
-      ];
+    const mysteryProgress = game.mysteries.progress[activeMysteryId];
 
     if (!mysteryProgress) {
-      throw new Error(
-        `No progress exists for Mystery "${activeMysteryId}".`,
-      );
+      throw new Error(`No progress exists for Mystery "${activeMysteryId}".`);
     }
 
     /* Place the physical Clue that was gained from this encounter. */
@@ -1114,9 +1246,7 @@ export function resolveGameFlowChoice(
     const heldClue = investigator.clueTokens?.find(
       (token) => token.id === eligibleTokenId,
     );
-    const drawn = heldClue
-      ? { game, clue: heldClue }
-      : drawClueToken(game); // Compatibility with old saves without token ownership.
+    const drawn = heldClue ? { game, clue: heldClue } : drawClueToken(game); // Compatibility with old saves without token ownership.
     const gameAfterDraw = drawn.game;
     const clue = drawn.clue;
 
@@ -1127,8 +1257,8 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * Spend the Clue gained during this Encounter.
-    */
+     * Spend the Clue gained during this Encounter.
+     */
     const updatedGame: GameState = {
       ...gameAfterDraw,
 
@@ -1138,16 +1268,16 @@ export function resolveGameFlowChoice(
         [investigatorId]: {
           ...investigator,
 
-          clues:
-            investigator.clues - 1,
+          clues: investigator.clues - 1,
           clueTokens: heldClue
-            ? (investigator.clueTokens ?? []).filter((token) => token.id !== heldClue.id)
+            ? (investigator.clueTokens ?? []).filter(
+                (token) => token.id !== heldClue.id,
+              )
             : investigator.clueTokens,
         },
       },
 
-      encounterCluesGained:
-        (gameAfterDraw.encounterCluesGained ?? 0) - 1,
+      encounterCluesGained: (gameAfterDraw.encounterCluesGained ?? 0) - 1,
 
       encounterClueTokenIdsGained: [],
 
@@ -1160,18 +1290,14 @@ export function resolveGameFlowChoice(
           [activeMysteryId]: {
             ...mysteryProgress,
 
-            clueTokenIds: [
-              ...mysteryProgress.clueTokenIds,
-              clue.id,
-            ],
+            clueTokenIds: [...mysteryProgress.clueTokenIds, clue.id],
           },
         },
       },
 
       pendingDecision: null,
 
-      currentEncounterIsResearch:
-        false,
+      currentEncounterIsResearch: false,
 
       currentEncounterId: null,
 
@@ -1183,69 +1309,57 @@ export function resolveGameFlowChoice(
     };
 
     /*
-    * The Mystery is checked at the end of the Mythos Phase,
-    * according to the current Mystery implementation.
-    */
-    return endInvestigatorEncounter(
-      updatedGame,
-    );
+     * The Mystery is checked at the end of the Mythos Phase,
+     * according to the current Mystery implementation.
+     */
+    return endInvestigatorEncounter(updatedGame);
   }
 
   const investigatorHasMonster = (
     state: GameState,
     investigatorId: string,
   ): boolean => {
-    const investigator =
-      state.investigators[investigatorId];
+    const investigator = state.investigators[investigatorId];
 
     if (!investigator?.spaceId) {
       return false;
     }
 
-    const space =
-      state.board.spaces[
-        investigator.spaceId
-      ];
+    const space = state.board.spaces[investigator.spaceId];
 
     if (!space) {
       return false;
     }
 
     return space.monsterIds.some(
-      (monsterId) =>
-        state.monsters[monsterId] !== undefined,
+      (monsterId) => state.monsters[monsterId] !== undefined,
     );
   };
 
   /*
-  * ============================================================
-  * RETURN OF THE ANCIENT ONES — MONSTER DEFEATED
-  * ============================================================
-  */
+   * ============================================================
+   * RETURN OF THE ANCIENT ONES — MONSTER DEFEATED
+   * ============================================================
+   */
 
   if (
     decision.source?.startsWith(
       "mythos:return-of-the-ancient-ones:monster-defeated:",
     )
   ) {
-    const monsterId =
-      decision.source.split(":")[3];
+    const monsterId = decision.source.split(":")[3];
 
     if (!monsterId) {
       return game;
     }
 
-    const investigatorId =
-      game.activeInvestigatorId;
+    const investigatorId = game.activeInvestigatorId;
 
     if (!investigatorId) {
       return game;
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
       return game;
@@ -1257,16 +1371,12 @@ export function resolveGameFlowChoice(
      * ----------------------------------------------------------
      */
 
-    if (
-      choiceId ===
-      "return-of-the-ancient-ones:decline"
-    ) {
+    if (choiceId === "return-of-the-ancient-ones:decline") {
       return resolveCombatEncounterEnd(
         {
           ...game,
 
-          pendingDecision:
-            null,
+          pendingDecision: null,
         },
         map,
         monsterId,
@@ -1279,52 +1389,39 @@ export function resolveGameFlowChoice(
      * ----------------------------------------------------------
      */
 
-    if (
-      choiceId !==
-      "return-of-the-ancient-ones:place"
-    ) {
+    if (choiceId !== "return-of-the-ancient-ones:place") {
       return game;
     }
 
-    if (
-      investigator.clues <= 0
-    ) {
+    if (investigator.clues <= 0) {
       return resolveCombatEncounterEnd(
         {
           ...game,
 
-          pendingDecision:
-            null,
+          pendingDecision: null,
         },
         map,
         monsterId,
       );
     }
 
-    const mythosInPlayIndex =
-      game.board.mythosInPlay.findIndex(
-        (entry) =>
-          entry.definitionId ===
-          "return-of-the-ancient-ones",
-      );
+    const mythosInPlayIndex = game.board.mythosInPlay.findIndex(
+      (entry) => entry.definitionId === "return-of-the-ancient-ones",
+    );
 
-    if (
-      mythosInPlayIndex === -1
-    ) {
+    if (mythosInPlayIndex === -1) {
       return resolveCombatEncounterEnd(
         {
           ...game,
 
-          pendingDecision:
-            null,
+          pendingDecision: null,
         },
         map,
         monsterId,
       );
     }
 
-    const monster =
-      game.monsters[monsterId];
+    const monster = game.monsters[monsterId];
 
     if (!monster) {
       return game;
@@ -1332,14 +1429,10 @@ export function resolveGameFlowChoice(
 
     const monsterDefinition =
       CORE_MONSTERS.find(
-        (definition) =>
-          definition.id ===
-          monster.definitionId,
+        (definition) => definition.id === monster.definitionId,
       ) ??
       CORE_EPIC_MONSTERS.find(
-        (definition) =>
-          definition.id ===
-          monster.definitionId,
+        (definition) => definition.id === monster.definitionId,
       );
 
     if (!monsterDefinition) {
@@ -1348,47 +1441,34 @@ export function resolveGameFlowChoice(
       );
     }
 
-    const mythosInPlay =
-      game.board.mythosInPlay[
-        mythosInPlayIndex
-      ];
+    const mythosInPlay = game.board.mythosInPlay[mythosInPlayIndex];
 
     if (!mythosInPlay) {
       return game;
     }
 
-    const monsterIds =
-      [
-        ...(mythosInPlay.monsterIds ?? []),
-        monsterId,
-      ];
+    const monsterIds = [...(mythosInPlay.monsterIds ?? []), monsterId];
 
-    const updatedMythosInPlay =
-      [...game.board.mythosInPlay];
+    const updatedMythosInPlay = [...game.board.mythosInPlay];
 
-    updatedMythosInPlay[
-      mythosInPlayIndex
-    ] = {
+    updatedMythosInPlay[mythosInPlayIndex] = {
       ...mythosInPlay,
 
       monsterIds,
     };
 
     const gameAfterClue = spendInvestigatorClues(game, investigatorId, 1);
-    const gameWithMonster =
-      {
-        ...gameAfterClue,
+    const gameWithMonster = {
+      ...gameAfterClue,
 
-        board: {
-          ...gameAfterClue.board,
+      board: {
+        ...gameAfterClue.board,
 
-          mythosInPlay:
-            updatedMythosInPlay,
-        },
+        mythosInPlay: updatedMythosInPlay,
+      },
 
-        pendingDecision:
-          null,
-      };
+      pendingDecision: null,
+    };
 
     /*
      * ----------------------------------------------------------
@@ -1396,56 +1476,31 @@ export function resolveGameFlowChoice(
      * ----------------------------------------------------------
      */
 
-    const totalToughness =
-      monsterIds.reduce(
-        (total, id) => {
-          const storedMonster =
-            gameWithMonster.monsters[id];
+    const totalToughness = monsterIds.reduce((total, id) => {
+      const storedMonster = gameWithMonster.monsters[id];
 
-          if (!storedMonster) {
-            return total;
-          }
+      if (!storedMonster) {
+        return total;
+      }
 
-          const definition =
-            CORE_MONSTERS.find(
-              (item) =>
-                item.id ===
-                storedMonster.definitionId,
-            ) ??
-            CORE_EPIC_MONSTERS.find(
-              (item) =>
-                item.id ===
-                storedMonster.definitionId,
-            );
+      const definition =
+        CORE_MONSTERS.find((item) => item.id === storedMonster.definitionId) ??
+        CORE_EPIC_MONSTERS.find(
+          (item) => item.id === storedMonster.definitionId,
+        );
 
-          if (!definition) {
-            return total;
-          }
+      if (!definition) {
+        return total;
+      }
 
-          return (
-            total +
-            resolveMonsterToughness(
-              gameWithMonster,
-              definition,
-            )
-          );
-        },
-        0,
-      );
+      return total + resolveMonsterToughness(gameWithMonster, definition);
+    }, 0);
 
-    const investigatorCount =
-      gameWithMonster.investigatorOrder.length;
+    const investigatorCount = gameWithMonster.investigatorOrder.length;
 
-    const rumor =
-      [
-        ...easyMythos,
-        ...normalMythos,
-        ...hardMythos,
-      ].find(
-        (definition) =>
-          definition.id ===
-          "return-of-the-ancient-ones",
-      );
+    const rumor = [...easyMythos, ...normalMythos, ...hardMythos].find(
+      (definition) => definition.id === "return-of-the-ancient-ones",
+    );
 
     if (!rumor) {
       throw new Error(
@@ -1459,74 +1514,54 @@ export function resolveGameFlowChoice(
      */
 
     const solvedGame =
-      totalToughness >=
-      investigatorCount
-        ? solveMythosRumor(
-            gameWithMonster,
-            rumor,
-          )
+      totalToughness >= investigatorCount
+        ? solveMythosRumor(gameWithMonster, rumor)
         : gameWithMonster;
 
     return resolveCombatEncounterEnd(
       {
         ...solvedGame,
 
-        pendingDecision:
-          null,
+        pendingDecision: null,
       },
       map,
       monsterId,
     );
   }
 
-
   /*
-  * ============================================================
-  * A PROPOSITION
-  * ============================================================
-  */
+   * ============================================================
+   * A PROPOSITION
+   * ============================================================
+   */
 
-  if (
-    decision.source ===
-    "mythos:a-proposition-dark-pact"
-  ) {
-    const leadInvestigatorId =
-      getLeadInvestigatorId(game);
+  if (decision.source === "mythos:a-proposition-dark-pact") {
+    const leadInvestigatorId = getLeadInvestigatorId(game);
 
     if (!leadInvestigatorId) {
       return game;
     }
 
     /*
-    * DECLINE
-    */
+     * DECLINE
+     */
 
-    if (
-      choiceId ===
-      "decline-dark-pact"
-    ) {
+    if (choiceId === "decline-dark-pact") {
       const updatedGame: GameState = {
         ...game,
 
         pendingDecision: null,
       };
 
-      return finishMythosPhase(
-        updatedGame,
-        map,
-      );
+      return finishMythosPhase(updatedGame, map);
     }
 
     /*
-    * GAIN DARK PACT
-    */
+     * GAIN DARK PACT
+     */
 
-    if (
-      choiceId ===
-      "gain-dark-pact"
-    ) {
-      const leadInvestigatorId =
-        getLeadInvestigatorId(game);
+    if (choiceId === "gain-dark-pact") {
+      const leadInvestigatorId = getLeadInvestigatorId(game);
 
       if (!leadInvestigatorId) {
         return game;
@@ -1536,41 +1571,32 @@ export function resolveGameFlowChoice(
        * Give Dark Pact to the Lead Investigator.
        */
 
-      const gameWithDarkPact =
-        gainCondition(
-          game,
-          leadInvestigatorId,
-          "condition-dark-pact",
-        );
+      const gameWithDarkPact = gainCondition(
+        game,
+        leadInvestigatorId,
+        "condition-dark-pact",
+      );
 
       const investigatorAfterDarkPact =
-        gameWithDarkPact.investigators[
-          leadInvestigatorId
-        ];
+        gameWithDarkPact.investigators[leadInvestigatorId];
 
-      if (
-        !investigatorAfterDarkPact
-      ) {
+      if (!investigatorAfterDarkPact) {
         return game;
       }
 
-      const gainedDarkPact =
-        investigatorAfterDarkPact.conditionIds
-          .some((conditionId) => {
-            return (
-              game.conditions[
-                conditionId
-              ]?.definitionId ===
-              "condition-dark-pact"
-            );
-          });
+      const gainedDarkPact = investigatorAfterDarkPact.conditionIds.some(
+        (conditionId) => {
+          return (
+            game.conditions[conditionId]?.definitionId === "condition-dark-pact"
+          );
+        },
+      );
 
       if (!gainedDarkPact) {
         return {
           ...gameWithDarkPact,
 
-          pendingDecision:
-            null,
+          pendingDecision: null,
         };
       }
 
@@ -1578,29 +1604,15 @@ export function resolveGameFlowChoice(
        * Find Rumors currently in play.
        */
 
-      const rumorIds =
-        gameWithDarkPact.board.mythosInPlay
-          .filter((entry) => {
-            const mythos =
-              [
-                ...easyMythos,
-                ...normalMythos,
-                ...hardMythos,
-              ].find(
-                (definition) =>
-                  definition.id ===
-                  entry.definitionId,
-              );
-
-            return (
-              mythos?.type ===
-              "rumor"
-            );
-          })
-          .map(
-            (entry) =>
-              entry.definitionId,
+      const rumorIds = gameWithDarkPact.board.mythosInPlay
+        .filter((entry) => {
+          const mythos = [...easyMythos, ...normalMythos, ...hardMythos].find(
+            (definition) => definition.id === entry.definitionId,
           );
+
+          return mythos?.type === "rumor";
+        })
+        .map((entry) => entry.definitionId);
 
       /*
        * Dark Pact was gained, but if there
@@ -1615,10 +1627,7 @@ export function resolveGameFlowChoice(
           pendingDecision: null,
         };
 
-        return finishMythosPhase(
-          updatedGame,
-          map,
-        );
+        return finishMythosPhase(updatedGame, map);
       }
 
       /*
@@ -1631,44 +1640,27 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "choice",
 
-          title:
-            "Choose a Rumor",
+          title: "Choose a Rumor",
 
-          message:
-            "Choose 1 Rumor Mythos to solve.",
+          message: "Choose 1 Rumor Mythos to solve.",
 
-          options:
-            rumorIds.map(
-              (rumorId) => {
-                const rumor =
-                  [
-                    ...easyMythos,
-                    ...normalMythos,
-                    ...hardMythos,
-                  ].find(
-                    (definition) =>
-                      definition.id ===
-                      rumorId,
-                  );
+          options: rumorIds.map((rumorId) => {
+            const rumor = [...easyMythos, ...normalMythos, ...hardMythos].find(
+              (definition) => definition.id === rumorId,
+            );
 
-                return {
-                  id: rumorId,
+            return {
+              id: rumorId,
 
-                  title:
-                    rumor?.name ??
-                    rumorId,
+              title: rumor?.name ?? rumorId,
 
-                  description:
-                    rumor?.text,
+              description: rumor?.text,
 
-                  image:
-                    rumor?.image,
-                };
-              },
-            ),
+              image: rumor?.image,
+            };
+          }),
 
-          source:
-            "mythos:a-proposition-select-rumor",
+          source: "mythos:a-proposition-select-rumor",
         },
       };
     }
@@ -1677,39 +1669,24 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * A PROPOSITION — SELECT RUMOR
-  * ============================================================
-  */
+   * ============================================================
+   * A PROPOSITION — SELECT RUMOR
+   * ============================================================
+   */
 
-  if (
-    decision.source ===
-    "mythos:a-proposition-select-rumor"
-  ) {
-    const selectedRumorId =
-      choiceId;
+  if (decision.source === "mythos:a-proposition-select-rumor") {
+    const selectedRumorId = choiceId;
 
-    const rumor =
-      [
-        ...easyMythos,
-        ...normalMythos,
-        ...hardMythos,
-      ].find(
-        (definition) =>
-          definition.id ===
-          selectedRumorId &&
-          definition.type === "rumor",
-      );
+    const rumor = [...easyMythos, ...normalMythos, ...hardMythos].find(
+      (definition) =>
+        definition.id === selectedRumorId && definition.type === "rumor",
+    );
 
     if (!rumor) {
       return game;
     }
 
-    const solvedGame =
-      solveMythosRumor(
-        game,
-        rumor,
-      );
+    const solvedGame = solveMythosRumor(game, rumor);
 
     const updatedGame: GameState = {
       ...solvedGame,
@@ -1717,217 +1694,144 @@ export function resolveGameFlowChoice(
       pendingDecision: null,
     };
 
-    return finishMythosPhase(
-      updatedGame,
-      map,
-    );
+    return finishMythosPhase(updatedGame, map);
   }
 
   /*
-  * ============================================================
-  * ALL FOR NOTHING
-  * ============================================================
-  */
+   * ============================================================
+   * ALL FOR NOTHING
+   * ============================================================
+   */
 
-  if (
-      decision.source ===
-      "mythos:all-for-nothing"
-  ) {
-      const clueCost =
-          Math.ceil(
-              game.investigatorOrder.length /
-                  2,
-          );
+  if (decision.source === "mythos:all-for-nothing") {
+    const clueCost = Math.ceil(game.investigatorOrder.length / 2);
+
+    /*
+     * ==========================================================
+     * SPEND CLUES
+     * ==========================================================
+     */
+
+    if (choiceId === "all-for-nothing:spend-clues") {
+      const totalClues = game.investigatorOrder.reduce(
+        (total, investigatorId) =>
+          total + (game.investigators[investigatorId]?.clues ?? 0),
+        0,
+      );
 
       /*
-      * ==========================================================
-      * SPEND CLUES
-      * ==========================================================
-      */
+       * Not enough Clues as a group.
+       */
 
-      if (
-          choiceId ===
-          "all-for-nothing:spend-clues"
-      ) {
-          const totalClues =
-              game.investigatorOrder.reduce(
-                  (
-                      total,
-                      investigatorId,
-                  ) =>
-                      total +
-                      (
-                          game.investigators[
-                              investigatorId
-                          ]?.clues ?? 0
-                      ),
-                  0,
-              );
-
-          /*
-          * Not enough Clues as a group.
-          */
-
-          if (
-              totalClues <
-              clueCost
-          ) {
-              return game;
-          }
-
-          let remainingClues =
-              clueCost;
-
-          let updatedGame = game;
-
-          /*
-          * Spend the required Clues from the group.
-          */
-
-          for (
-              const investigatorId of
-                  game.investigatorOrder
-          ) {
-              if (
-                  remainingClues <=
-                  0
-              ) {
-                  break;
-              }
-
-              const investigator =
-                  updatedGame.investigators[
-                      investigatorId
-                  ];
-
-              if (!investigator) {
-                  continue;
-              }
-
-              const spent =
-                  Math.min(
-                      investigator.clues,
-                      remainingClues,
-                  );
-
-              if (
-                  spent <= 0
-              ) {
-                  continue;
-              }
-
-              updatedGame = spendInvestigatorClues(updatedGame, investigatorId, spent);
-
-              remainingClues -=
-                  spent;
-          }
-
-          /*
-          * The Mythos card itself is finished.
-          */
-
-          const finishedGame: GameState = {
-              ...updatedGame,
-
-              pendingDecision:
-                  null,
-
-              activeInvestigatorId:
-                  null,
-          };
-
-          return finishMythosPhase(
-              finishedGame,
-              map,
-          );
+      if (totalClues < clueCost) {
+        return game;
       }
 
+      let remainingClues = clueCost;
+
+      let updatedGame = game;
+
       /*
-      * ==========================================================
-      * DO NOT SPEND
-      * ==========================================================
-      */
+       * Spend the required Clues from the group.
+       */
 
-      if (
-          choiceId ===
-          "all-for-nothing:do-not-spend"
-      ) {
-          const updatedMysteries =
-            returnRandomSolvedMysteryToDeck(
-                game.mysteries,
-            );
+      for (const investigatorId of game.investigatorOrder) {
+        if (remainingClues <= 0) {
+          break;
+        }
 
-        const updatedGame: GameState = {
-            ...game,
+        const investigator = updatedGame.investigators[investigatorId];
 
-            mysteries:
-                updatedMysteries,
+        if (!investigator) {
+          continue;
+        }
 
-            pendingDecision:
-                null,
+        const spent = Math.min(investigator.clues, remainingClues);
 
-            activeInvestigatorId:
-                null,
-        };
+        if (spent <= 0) {
+          continue;
+        }
 
-        return finishMythosPhase(
-            updatedGame,
-            map,
+        updatedGame = spendInvestigatorClues(
+          updatedGame,
+          investigatorId,
+          spent,
         );
+
+        remainingClues -= spent;
       }
 
-      return game;
+      /*
+       * The Mythos card itself is finished.
+       */
+
+      const finishedGame: GameState = {
+        ...updatedGame,
+
+        pendingDecision: null,
+
+        activeInvestigatorId: null,
+      };
+
+      return finishMythosPhase(finishedGame, map);
+    }
+
+    /*
+     * ==========================================================
+     * DO NOT SPEND
+     * ==========================================================
+     */
+
+    if (choiceId === "all-for-nothing:do-not-spend") {
+      const updatedMysteries = returnRandomSolvedMysteryToDeck(game.mysteries);
+
+      const updatedGame: GameState = {
+        ...game,
+
+        mysteries: updatedMysteries,
+
+        pendingDecision: null,
+
+        activeInvestigatorId: null,
+      };
+
+      return finishMythosPhase(updatedGame, map);
+    }
+
+    return game;
   }
 
   /*
-  * ============================================================
-  * EVERYONE HAS A PRICE
-  * ============================================================
-  */
+   * ============================================================
+   * EVERYONE HAS A PRICE
+   * ============================================================
+   */
 
-  if (
-    decision.source?.startsWith(
-      "mythos:everyone-has-a-price:",
-    )
-  ) {
-    const sourceParts =
-      decision.source.split(":");
+  if (decision.source?.startsWith("mythos:everyone-has-a-price:")) {
+    const sourceParts = decision.source.split(":");
 
-    const investigatorId =
-      sourceParts[2];
+    const investigatorId = sourceParts[2];
 
-    const investigator =
-      investigatorId
-        ? game.investigators[investigatorId]
-        : undefined;
+    const investigator = investigatorId
+      ? game.investigators[investigatorId]
+      : undefined;
 
-    if (
-      !investigator ||
-      !investigatorId
-    ) {
+    if (!investigator || !investigatorId) {
       return game;
     }
 
-    const currentIndex =
-      Number(sourceParts[3] ?? "0");
+    const currentIndex = Number(sourceParts[3] ?? "0");
 
     /*
-    * ==========================================================
-    * DECLINE DEBT
-    * ==========================================================
-    */
+     * ==========================================================
+     * DECLINE DEBT
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `decline-debt:${investigatorId}`
-    ) {
-      const nextIndex =
-        currentIndex + 1;
+    if (choiceId === `decline-debt:${investigatorId}`) {
+      const nextIndex = currentIndex + 1;
 
-      const nextInvestigatorId =
-        game.investigatorOrder[
-          nextIndex
-        ];
+      const nextInvestigatorId = game.investigatorOrder[nextIndex];
 
       if (!nextInvestigatorId) {
         const updatedGame: GameState = {
@@ -1936,10 +1840,7 @@ export function resolveGameFlowChoice(
           pendingDecision: null,
         };
 
-        return finishMythosPhase(
-          updatedGame,
-          map,
-        );
+        return finishMythosPhase(updatedGame, map);
       }
 
       return {
@@ -1948,67 +1849,50 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "choice",
 
-          title:
-            "Everyone Has a Price",
+          title: "Everyone Has a Price",
 
           message:
             "May this Investigator gain a Debt Condition to discard 1 Condition?",
 
           options: [
             {
-              id:
-                `gain-debt:${nextInvestigatorId}`,
+              id: `gain-debt:${nextInvestigatorId}`,
 
-              title:
-                "Gain Debt",
+              title: "Gain Debt",
 
-              description:
-                "Gain a Debt Condition and discard 1 Condition.",
+              description: "Gain a Debt Condition and discard 1 Condition.",
             },
 
             {
-              id:
-                `decline-debt:${nextInvestigatorId}`,
+              id: `decline-debt:${nextInvestigatorId}`,
 
-              title:
-                "Do Not Gain Debt",
+              title: "Do Not Gain Debt",
 
-              description:
-                "Do not gain a Debt Condition.",
+              description: "Do not gain a Debt Condition.",
             },
           ],
 
-          source:
-            `mythos:everyone-has-a-price:${nextInvestigatorId}:${nextIndex}`,
+          source: `mythos:everyone-has-a-price:${nextInvestigatorId}:${nextIndex}`,
         },
       };
     }
 
     /*
-    * ==========================================================
-    * GAIN DEBT
-    * ==========================================================
-    */
+     * ==========================================================
+     * GAIN DEBT
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `gain-debt:${investigatorId}`
-    ) {
+    if (choiceId === `gain-debt:${investigatorId}`) {
       /*
-      * This investigator must have a Condition
-      * to discard.
-      */
+       * This investigator must have a Condition
+       * to discard.
+       */
 
-      if (
-        investigator.conditionIds.length === 0
-      ) {
-        const nextIndex =
-          currentIndex + 1;
+      if (investigator.conditionIds.length === 0) {
+        const nextIndex = currentIndex + 1;
 
-        const nextInvestigatorId =
-          game.investigatorOrder[
-            nextIndex
-          ];
+        const nextInvestigatorId = game.investigatorOrder[nextIndex];
 
         if (!nextInvestigatorId) {
           const updatedGame: GameState = {
@@ -2017,10 +1901,7 @@ export function resolveGameFlowChoice(
             pendingDecision: null,
           };
 
-          return finishMythosPhase(
-            updatedGame,
-            map,
-          );
+          return finishMythosPhase(updatedGame, map);
         }
 
         return {
@@ -2029,80 +1910,62 @@ export function resolveGameFlowChoice(
           pendingDecision: {
             type: "choice",
 
-            title:
-              "Everyone Has a Price",
+            title: "Everyone Has a Price",
 
             message:
               "May this Investigator gain a Debt Condition to discard 1 Condition?",
 
             options: [
               {
-                id:
-                  `gain-debt:${nextInvestigatorId}`,
+                id: `gain-debt:${nextInvestigatorId}`,
 
-                title:
-                  "Gain Debt",
+                title: "Gain Debt",
 
-                description:
-                  "Gain a Debt Condition and discard 1 Condition.",
+                description: "Gain a Debt Condition and discard 1 Condition.",
               },
 
               {
-                id:
-                  `decline-debt:${nextInvestigatorId}`,
+                id: `decline-debt:${nextInvestigatorId}`,
 
-                title:
-                  "Do Not Gain Debt",
+                title: "Do Not Gain Debt",
 
-                description:
-                  "Do not gain a Debt Condition.",
+                description: "Do not gain a Debt Condition.",
               },
             ],
 
-            source:
-              `mythos:everyone-has-a-price:${nextInvestigatorId}:${nextIndex}`,
+            source: `mythos:everyone-has-a-price:${nextInvestigatorId}:${nextIndex}`,
           },
         };
       }
 
       /*
-      * ==========================================================
-      * GAIN DEBT CONDITION
-      * ==========================================================
-      */
+       * ==========================================================
+       * GAIN DEBT CONDITION
+       * ==========================================================
+       */
 
-      const gameWithDebt =
-        gainCondition(
-          game,
-          investigatorId,
-          "condition-debt",
-        );
+      const gameWithDebt = gainCondition(
+        game,
+        investigatorId,
+        "condition-debt",
+      );
 
-      const investigatorWithDebt =
-        gameWithDebt.investigators[
-          investigatorId
-        ];
+      const investigatorWithDebt = gameWithDebt.investigators[investigatorId];
 
-      if (
-        !investigatorWithDebt
-      ) {
+      if (!investigatorWithDebt) {
         return game;
       }
 
       /*
-      * Check that the Debt Condition was
-      * actually drawn and assigned.
-      */
+       * Check that the Debt Condition was
+       * actually drawn and assigned.
+       */
 
-      const gainedDebt =
-        investigatorWithDebt.conditionIds
-          .some(
-            (conditionId) =>
-              gameWithDebt.conditions[
-                conditionId
-              ]?.definitionId ===
-              "condition-debt",
-          );
+      const gainedDebt = investigatorWithDebt.conditionIds.some(
+        (conditionId) =>
+          gameWithDebt.conditions[conditionId]?.definitionId ===
+          "condition-debt",
+      );
 
       if (!gainedDebt) {
         const updatedGame: GameState = {
@@ -2111,17 +1974,14 @@ export function resolveGameFlowChoice(
           pendingDecision: null,
         };
 
-        return finishMythosPhase(
-          updatedGame,
-          map,
-        );
+        return finishMythosPhase(updatedGame, map);
       }
 
       /*
-      * ==========================================================
-      * CHOOSE CONDITION TO DISCARD
-      * ==========================================================
-      */
+       * ==========================================================
+       * CHOOSE CONDITION TO DISCARD
+       * ==========================================================
+       */
 
       return {
         ...gameWithDebt,
@@ -2129,70 +1989,47 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "choice",
 
-          title:
-            "Choose a Condition",
+          title: "Choose a Condition",
 
-          message:
-            "Choose 1 Condition to discard.",
+          message: "Choose 1 Condition to discard.",
 
-          options:
-            investigatorWithDebt.conditionIds
-              .filter(
-                (conditionId) =>
-                  conditionId !==
-                  investigatorWithDebt
-                    .conditionIds[
-                    investigatorWithDebt
-                      .conditionIds
-                      .length - 1
-                  ],
-              )
-              .map(
-                (conditionId) => {
-                  const condition =
-                    gameWithDebt.conditions[
-                      conditionId
-                    ];
+          options: investigatorWithDebt.conditionIds
+            .filter(
+              (conditionId) =>
+                conditionId !==
+                investigatorWithDebt.conditionIds[
+                  investigatorWithDebt.conditionIds.length - 1
+                ],
+            )
+            .map((conditionId) => {
+              const condition = gameWithDebt.conditions[conditionId];
 
-                  return {
-                    id:
-                      `discard-condition:${investigatorId}:${conditionId}`,
+              return {
+                id: `discard-condition:${investigatorId}:${conditionId}`,
 
-                    title:
-                      condition?.definitionId ??
-                      conditionId,
+                title: condition?.definitionId ?? conditionId,
 
-                    description:
-                      "Discard this Condition.",
-                  };
-                },
-              ),
+                description: "Discard this Condition.",
+              };
+            }),
 
-          source:
-            `mythos:everyone-has-a-price-discard:${investigatorId}:${currentIndex}`,
+          source: `mythos:everyone-has-a-price-discard:${investigatorId}:${currentIndex}`,
         },
       };
     }
 
     /*
-    * ==========================================================
-    * DISCARD CONDITION
-    * ==========================================================
-    */
+     * ==========================================================
+     * DISCARD CONDITION
+     * ==========================================================
+     */
 
-    if (
-      decision.source?.startsWith(
-        "mythos:everyone-has-a-price-discard:",
-      )
-    ) {
-      const selectedConditionId =
-        choiceId.split(":")[2];
+    if (decision.source?.startsWith("mythos:everyone-has-a-price-discard:")) {
+      const selectedConditionId = choiceId.split(":")[2];
 
       if (
         !selectedConditionId ||
-        !investigator.conditionIds.includes(
-          selectedConditionId,
-        )
+        !investigator.conditionIds.includes(selectedConditionId)
       ) {
         return game;
       }
@@ -2200,11 +2037,9 @@ export function resolveGameFlowChoice(
       const updatedInvestigator = {
         ...investigator,
 
-        conditionIds:
-          investigator.conditionIds.filter(
-            (id) =>
-              id !== selectedConditionId,
-          ),
+        conditionIds: investigator.conditionIds.filter(
+          (id) => id !== selectedConditionId,
+        ),
       };
 
       const updatedGame: GameState = {
@@ -2213,8 +2048,7 @@ export function resolveGameFlowChoice(
         investigators: {
           ...game.investigators,
 
-          [investigatorId]:
-            updatedInvestigator,
+          [investigatorId]: updatedInvestigator,
         },
 
         board: {
@@ -2230,16 +2064,12 @@ export function resolveGameFlowChoice(
       };
 
       /*
-      * Continue with the next investigator.
-      */
+       * Continue with the next investigator.
+       */
 
-      const nextIndex =
-        currentIndex + 1;
+      const nextIndex = currentIndex + 1;
 
-      const nextInvestigatorId =
-        game.investigatorOrder[
-          nextIndex
-        ];
+      const nextInvestigatorId = game.investigatorOrder[nextIndex];
 
       if (!nextInvestigatorId) {
         return updatedGame;
@@ -2251,120 +2081,88 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "choice",
 
-          title:
-            "Everyone Has a Price",
+          title: "Everyone Has a Price",
 
           message:
             "May this Investigator gain a Debt Condition to discard 1 Condition?",
 
           options: [
             {
-              id:
-                `gain-debt:${nextInvestigatorId}`,
+              id: `gain-debt:${nextInvestigatorId}`,
 
-              title:
-                "Gain Debt",
+              title: "Gain Debt",
 
-              description:
-                "Gain a Debt Condition and discard 1 Condition.",
+              description: "Gain a Debt Condition and discard 1 Condition.",
             },
 
             {
-              id:
-                `decline-debt:${nextInvestigatorId}`,
+              id: `decline-debt:${nextInvestigatorId}`,
 
-              title:
-                "Do Not Gain Debt",
+              title: "Do Not Gain Debt",
 
-              description:
-                "Do not gain a Debt Condition.",
+              description: "Do not gain a Debt Condition.",
             },
           ],
 
-          source:
-            `mythos:everyone-has-a-price:${nextInvestigatorId}:${nextIndex}`,
+          source: `mythos:everyone-has-a-price:${nextInvestigatorId}:${nextIndex}`,
         },
       };
     }
   }
 
   /*
-  * ============================================================
-  * BYAKHEE DEFEAT
-  * ============================================================
-  *
-  * After defeating a Byakhee, the investigator may either:
-  *
-  * - resolve the normal additional encounter
-  * - lose 1 Sanity and move up to 3 spaces
-  */
+   * ============================================================
+   * BYAKHEE DEFEAT
+   * ============================================================
+   *
+   * After defeating a Byakhee, the investigator may either:
+   *
+   * - resolve the normal additional encounter
+   * - lose 1 Sanity and move up to 3 spaces
+   */
 
-  if (
-    decision.source?.startsWith(
-      "byakhee-defeat:",
-    )
-  ) {
-    return resolveByakheeDefeat(
-      game,
-      map,
-      choiceId,
-    );
+  if (decision.source?.startsWith("byakhee-defeat:")) {
+    return resolveByakheeDefeat(game, map, choiceId);
   }
 
   /*
-  * ============================================================
-  * BYAKHEE MOVE CHOICE
-  * ============================================================
-  *
-  * After each Byakhee movement, the investigator may:
-  *
-  * - move again
-  * - stop the movement
-  *
-  * Maximum: 3 spaces total.
-  */
+   * ============================================================
+   * BYAKHEE MOVE CHOICE
+   * ============================================================
+   *
+   * After each Byakhee movement, the investigator may:
+   *
+   * - move again
+   * - stop the movement
+   *
+   * Maximum: 3 spaces total.
+   */
 
-  if (
-    decision.source?.startsWith(
-      "byakhee-move-choice:",
-    )
-  ) {
-    const moveNumber =
-      Number(
-        decision.source.split(":")[1] ??
-          "1",
-      );
+  if (decision.source?.startsWith("byakhee-move-choice:")) {
+    const moveNumber = Number(decision.source.split(":")[1] ?? "1");
 
-    if (
-      !Number.isInteger(moveNumber) ||
-      moveNumber < 1 ||
-      moveNumber >= 3
-    ) {
+    if (!Number.isInteger(moveNumber) || moveNumber < 1 || moveNumber >= 3) {
       return game;
     }
 
-    const investigatorId =
-      game.activeInvestigatorId;
+    const investigatorId = game.activeInvestigatorId;
 
     if (!investigatorId) {
       return game;
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
       return game;
     }
 
     /*
-    * STOP
-    *
-    * The Byakhee effect ends and the investigator's
-    * Encounter turn is finished.
-    */
+     * STOP
+     *
+     * The Byakhee effect ends and the investigator's
+     * Encounter turn is finished.
+     */
 
     if (choiceId === "stop") {
       return endInvestigatorEncounter({
@@ -2374,8 +2172,8 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * MOVE AGAIN
-    */
+     * MOVE AGAIN
+     */
 
     if (choiceId !== "move") {
       return game;
@@ -2385,12 +2183,9 @@ export function resolveGameFlowChoice(
       return game;
     }
 
-    const currentSpace =
-      map.spaces.find(
-        (space) =>
-          space.id ===
-          investigator.spaceId,
-      );
+    const currentSpace = map.spaces.find(
+      (space) => space.id === investigator.spaceId,
+    );
 
     if (!currentSpace) {
       throw new Error(
@@ -2404,42 +2199,28 @@ export function resolveGameFlowChoice(
       pendingDecision: {
         type: "select-space",
 
-        title:
-          "BYAKHEE — MOVE",
+        title: "BYAKHEE — MOVE",
 
-        message:
-          `Choose a space to move to (${3 - moveNumber} movement${3 - moveNumber === 1 ? "" : "s"} remaining).`,
+        message: `Choose a space to move to (${3 - moveNumber} movement${3 - moveNumber === 1 ? "" : "s"} remaining).`,
 
-        spaceIds:
-          currentSpace.paths.map(
-            (path) =>
-              path.toSpaceId,
-          ),
+        spaceIds: currentSpace.paths.map((path) => path.toSpaceId),
 
         onSpaceSelected: [],
 
-        source:
-          `byakhee-move:${moveNumber + 1}`,
+        source: `byakhee-move:${moveNumber + 1}`,
       },
     };
   }
 
   /*
-  * ============================================================
-  * PATROLLING THE BORDER — ENTERS PLAY
-  * ============================================================
-  */
+   * ============================================================
+   * PATROLLING THE BORDER — ENTERS PLAY
+   * ============================================================
+   */
 
-  if (
-    decision.source ===
-    "mythos:patrolling-the-border:choose-investigator"
-  ) {
-    const investigatorId = choiceId.startsWith(
-      "patrolling-the-border:",
-    )
-      ? choiceId.substring(
-          "patrolling-the-border:".length,
-        )
+  if (decision.source === "mythos:patrolling-the-border:choose-investigator") {
+    const investigatorId = choiceId.startsWith("patrolling-the-border:")
+      ? choiceId.substring("patrolling-the-border:".length)
       : "";
     const investigator = game.investigators[investigatorId];
 
@@ -2465,87 +2246,56 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * SILVER TWILIGHT AID
-  * ============================================================
-  */
+   * ============================================================
+   * SILVER TWILIGHT AID
+   * ============================================================
+   */
 
-  if (
-    decision.source?.startsWith(
-      "mythos:silver-twilight-aid:",
-    )
-  ) {
-    const sourceParts =
-      decision.source.split(":");
+  if (decision.source?.startsWith("mythos:silver-twilight-aid:")) {
+    const sourceParts = decision.source.split(":");
 
-    const investigatorIndex =
-      Number(
-        sourceParts[2] ?? "0",
-      );
+    const investigatorIndex = Number(sourceParts[2] ?? "0");
 
-    if (
-      !Number.isInteger(
-        investigatorIndex,
-      ) ||
-      investigatorIndex < 0
-    ) {
+    if (!Number.isInteger(investigatorIndex) || investigatorIndex < 0) {
       return game;
     }
 
-    const investigatorId =
-      game.investigatorOrder[
-        investigatorIndex
-      ];
+    const investigatorId = game.investigatorOrder[investigatorIndex];
 
     if (!investigatorId) {
       return game;
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
       return game;
     }
 
     /*
-    * ==========================================================
-    * GAIN CLUE
-    * ==========================================================
-    */
+     * ==========================================================
+     * GAIN CLUE
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `silver-twilight-aid:clue:${investigatorIndex}`
-    ) {
+    if (choiceId === `silver-twilight-aid:clue:${investigatorIndex}`) {
       const updatedGame: GameState = {
         ...gainInvestigatorClues(game, investigatorId, 1),
 
         pendingDecision: null,
       };
 
-      return continueSilverTwilightAid(
-        updatedGame,
-        map,
-        investigatorIndex + 1,
-      );
+      return continueSilverTwilightAid(updatedGame, map, investigatorIndex + 1);
     }
 
     /*
-    * ==========================================================
-    * GAIN ASSET
-    * ==========================================================
-    */
+     * ==========================================================
+     * GAIN ASSET
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `silver-twilight-aid:asset:${investigatorIndex}`
-    ) {
-      if (
-        game.board.assetDeck.length === 0
-      ) {
+    if (choiceId === `silver-twilight-aid:asset:${investigatorIndex}`) {
+      if (game.board.assetDeck.length === 0) {
         return continueSilverTwilightAid(
           {
             ...game,
@@ -2557,21 +2307,11 @@ export function resolveGameFlowChoice(
         );
       }
 
-      const assetDeck = [
-        ...game.board.assetDeck,
-      ];
+      const assetDeck = [...game.board.assetDeck];
 
-      const randomIndex =
-        Math.floor(
-          Math.random() *
-            assetDeck.length,
-        );
+      const randomIndex = Math.floor(Math.random() * assetDeck.length);
 
-      const selectedAsset =
-        assetDeck.splice(
-          randomIndex,
-          1,
-        )[0];
+      const selectedAsset = assetDeck.splice(randomIndex, 1)[0];
 
       if (!selectedAsset) {
         return continueSilverTwilightAid(
@@ -2594,10 +2334,7 @@ export function resolveGameFlowChoice(
           [investigatorId]: {
             ...investigator,
 
-            assetIds: [
-              ...investigator.assetIds,
-              selectedAsset.id,
-            ],
+            assetIds: [...investigator.assetIds, selectedAsset.id],
           },
         },
 
@@ -2610,23 +2347,16 @@ export function resolveGameFlowChoice(
         pendingDecision: null,
       };
 
-      return continueSilverTwilightAid(
-        updatedGame,
-        map,
-        investigatorIndex + 1,
-      );
+      return continueSilverTwilightAid(updatedGame, map, investigatorIndex + 1);
     }
 
     /*
-    * ==========================================================
-    * GAIN SPELL
-    * ==========================================================
-    */
+     * ==========================================================
+     * GAIN SPELL
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `silver-twilight-aid:spell:${investigatorIndex}`
-    ) {
+    if (choiceId === `silver-twilight-aid:spell:${investigatorIndex}`) {
       const spellIds = getGainableSpellIds(game, investigatorId);
 
       if (spellIds.length === 0) {
@@ -2647,17 +2377,13 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "select-card",
 
-          title:
-            "Silver Twilight Aid — Choose a Spell",
+          title: "Silver Twilight Aid — Choose a Spell",
 
-          message:
-            "Choose 1 Spell.",
+          message: "Choose 1 Spell.",
 
-          cardIds:
-            spellIds,
+          cardIds: spellIds,
 
-          selectableCardIds:
-            spellIds,
+          selectableCardIds: spellIds,
 
           minSelections: 1,
 
@@ -2665,8 +2391,7 @@ export function resolveGameFlowChoice(
 
           selectedCardIds: [],
 
-          source:
-            `mythos:silver-twilight-aid:spell:${investigatorIndex}`,
+          source: `mythos:silver-twilight-aid:spell:${investigatorIndex}`,
 
           investigatorId,
         },
@@ -2674,15 +2399,12 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * ==========================================================
-    * DO NOTHING
-    * ==========================================================
-    */
+     * ==========================================================
+     * DO NOTHING
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `silver-twilight-aid:pass:${investigatorIndex}`
-    ) {
+    if (choiceId === `silver-twilight-aid:pass:${investigatorIndex}`) {
       return continueSilverTwilightAid(
         {
           ...game,
@@ -2697,37 +2419,21 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * HAUNTING NIGHTMARES
-  * ============================================================
-  */
+   * ============================================================
+   * HAUNTING NIGHTMARES
+   * ============================================================
+   */
 
-  if (
-    decision.source?.startsWith(
-      "mythos:haunting-nightmares:",
-    )
-  ) {
-    const sourceParts =
-      decision.source.split(":");
+  if (decision.source?.startsWith("mythos:haunting-nightmares:")) {
+    const sourceParts = decision.source.split(":");
 
-    const investigatorIndex =
-      Number(
-        sourceParts[2] ?? "0",
-      );
+    const investigatorIndex = Number(sourceParts[2] ?? "0");
 
-    if (
-      !Number.isInteger(
-        investigatorIndex,
-      ) ||
-      investigatorIndex < 0
-    ) {
+    if (!Number.isInteger(investigatorIndex) || investigatorIndex < 0) {
       return game;
     }
 
-    const investigatorId =
-      game.investigatorOrder[
-        investigatorIndex
-      ];
+    const investigatorId = game.investigatorOrder[investigatorIndex];
 
     if (!investigatorId) {
       const finishedGame: GameState = {
@@ -2738,58 +2444,42 @@ export function resolveGameFlowChoice(
         pendingDecision: null,
       };
 
-      return finishMythosPhase(
-        finishedGame,
-        map,
-      );
+      return finishMythosPhase(finishedGame, map);
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
       return game;
     }
 
     /*
-    * ==========================================================
-    * SPEND 1 CLUE
-    * ==========================================================
-    *
-    * The Investigator avoids both effects.
-    */
+     * ==========================================================
+     * SPEND 1 CLUE
+     * ==========================================================
+     *
+     * The Investigator avoids both effects.
+     */
 
-    if (
-      choiceId ===
-      `haunting-nightmares:spend-clue:${investigatorIndex}`
-    ) {
-      if (
-        investigator.clues <= 0
-      ) {
+    if (choiceId === `haunting-nightmares:spend-clue:${investigatorIndex}`) {
+      if (investigator.clues <= 0) {
         return game;
       }
 
       const updatedGame: GameState = {
         ...spendInvestigatorClues(game, investigatorId, 1),
 
-        pendingDecision:
-          null,
+        pendingDecision: null,
       };
 
-      const nextIndex =
-        investigatorIndex + 1;
+      const nextIndex = investigatorIndex + 1;
 
-      const nextInvestigatorId =
-        updatedGame.investigatorOrder[
-          nextIndex
-        ];
+      const nextInvestigatorId = updatedGame.investigatorOrder[nextIndex];
 
       /*
-      * All Investigators have resolved
-      * Haunting Nightmares.
-      */
+       * All Investigators have resolved
+       * Haunting Nightmares.
+       */
 
       if (!nextInvestigatorId) {
         const finishedGame: GameState = {
@@ -2800,16 +2490,10 @@ export function resolveGameFlowChoice(
           pendingDecision: null,
         };
 
-        return finishMythosPhase(
-          finishedGame,
-          map,
-        );
+        return finishMythosPhase(finishedGame, map);
       }
 
-      const nextInvestigator =
-        updatedGame.investigators[
-          nextInvestigatorId
-        ];
+      const nextInvestigator = updatedGame.investigators[nextInvestigatorId];
 
       if (!nextInvestigator) {
         return updatedGame;
@@ -2817,15 +2501,11 @@ export function resolveGameFlowChoice(
 
       const nextOptions = [];
 
-      if (
-        nextInvestigator.clues > 0
-      ) {
+      if (nextInvestigator.clues > 0) {
         nextOptions.push({
-          id:
-            `haunting-nightmares:spend-clue:${nextIndex}`,
+          id: `haunting-nightmares:spend-clue:${nextIndex}`,
 
-          title:
-            "Spend 1 Clue",
+          title: "Spend 1 Clue",
 
           description:
             "Spend 1 Clue to avoid losing Sanity and gaining a Madness Condition.",
@@ -2833,93 +2513,75 @@ export function resolveGameFlowChoice(
       }
 
       nextOptions.push({
-        id:
-          `haunting-nightmares:do-not-spend:${nextIndex}`,
+        id: `haunting-nightmares:do-not-spend:${nextIndex}`,
 
-        title:
-          "Do Not Spend Clue",
+        title: "Do Not Spend Clue",
 
-        description:
-          "Lose 2 Sanity and gain 1 Madness Condition.",
+        description: "Lose 2 Sanity and gain 1 Madness Condition.",
       });
 
       return {
         ...updatedGame,
 
-        activeInvestigatorId:
-          nextInvestigatorId,
+        activeInvestigatorId: nextInvestigatorId,
 
         pendingDecision: {
           type: "choice",
 
-          title:
-            "Haunting Nightmares",
+          title: "Haunting Nightmares",
 
           message:
             "This Investigator may spend 1 Clue to avoid losing 2 Sanity and gaining a Madness Condition.",
 
-          options:
-            nextOptions,
+          options: nextOptions,
 
-          source:
-            `mythos:haunting-nightmares:${nextIndex}`,
+          source: `mythos:haunting-nightmares:${nextIndex}`,
         },
       };
     }
 
     /*
-    * ==========================================================
-    * DO NOT SPEND CLUE
-    * ==========================================================
-    *
-    * Lose 2 Sanity and gain 1 Madness Condition.
-    */
+     * ==========================================================
+     * DO NOT SPEND CLUE
+     * ==========================================================
+     *
+     * Lose 2 Sanity and gain 1 Madness Condition.
+     */
 
-    if (
-      choiceId ===
-      `haunting-nightmares:do-not-spend:${investigatorIndex}`
-    ) {
-      let currentGame =
-        gainConditionByCategory(
-          game,
-          investigatorId,
-          "madness",
-        );
+    if (choiceId === `haunting-nightmares:do-not-spend:${investigatorIndex}`) {
+      let currentGame = gainConditionByCategory(
+        game,
+        investigatorId,
+        "madness",
+      );
 
-      currentGame =
-        resolveEncounterEffects(
-          currentGame,
-          investigatorId,
-          [
-            {
-              type:
-                "lose-sanity",
+      currentGame = resolveEncounterEffects(
+        currentGame,
+        investigatorId,
+        [
+          {
+            type: "lose-sanity",
 
-              amount: 2,
-            },
-          ],
-          map,
-        );
+            amount: 2,
+          },
+        ],
+        map,
+      );
 
       currentGame = {
         ...currentGame,
 
-        pendingDecision:
-          null,
+        pendingDecision: null,
       };
 
-      const nextIndex =
-        investigatorIndex + 1;
+      const nextIndex = investigatorIndex + 1;
 
-      const nextInvestigatorId =
-        currentGame.investigatorOrder[
-          nextIndex
-        ];
+      const nextInvestigatorId = currentGame.investigatorOrder[nextIndex];
 
       /*
-      * All Investigators have resolved
-      * Haunting Nightmares.
-      */
+       * All Investigators have resolved
+       * Haunting Nightmares.
+       */
 
       if (!nextInvestigatorId) {
         const finishedGame: GameState = {
@@ -2930,16 +2592,10 @@ export function resolveGameFlowChoice(
           pendingDecision: null,
         };
 
-        return finishMythosPhase(
-          finishedGame,
-          map,
-        );
+        return finishMythosPhase(finishedGame, map);
       }
 
-      const nextInvestigator =
-        currentGame.investigators[
-          nextInvestigatorId
-        ];
+      const nextInvestigator = currentGame.investigators[nextInvestigatorId];
 
       if (!nextInvestigator) {
         return currentGame;
@@ -2947,15 +2603,11 @@ export function resolveGameFlowChoice(
 
       const nextOptions = [];
 
-      if (
-        nextInvestigator.clues > 0
-      ) {
+      if (nextInvestigator.clues > 0) {
         nextOptions.push({
-          id:
-            `haunting-nightmares:spend-clue:${nextIndex}`,
+          id: `haunting-nightmares:spend-clue:${nextIndex}`,
 
-          title:
-            "Spend 1 Clue",
+          title: "Spend 1 Clue",
 
           description:
             "Spend 1 Clue to avoid losing Sanity and gaining a Madness Condition.",
@@ -2963,36 +2615,29 @@ export function resolveGameFlowChoice(
       }
 
       nextOptions.push({
-        id:
-          `haunting-nightmares:do-not-spend:${nextIndex}`,
+        id: `haunting-nightmares:do-not-spend:${nextIndex}`,
 
-        title:
-          "Do Not Spend Clue",
+        title: "Do Not Spend Clue",
 
-        description:
-          "Lose 2 Sanity and gain 1 Madness Condition.",
+        description: "Lose 2 Sanity and gain 1 Madness Condition.",
       });
 
       return {
         ...currentGame,
 
-        activeInvestigatorId:
-          nextInvestigatorId,
+        activeInvestigatorId: nextInvestigatorId,
 
         pendingDecision: {
           type: "choice",
 
-          title:
-            "Haunting Nightmares",
+          title: "Haunting Nightmares",
 
           message:
             "This Investigator may spend 1 Clue to avoid losing 2 Sanity and gaining a Madness Condition.",
 
-          options:
-            nextOptions,
+          options: nextOptions,
 
-          source:
-            `mythos:haunting-nightmares:${nextIndex}`,
+          source: `mythos:haunting-nightmares:${nextIndex}`,
         },
       };
     }
@@ -3001,37 +2646,21 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * HEAT WAVE SINGES THE GLOBE
-  * ============================================================
-  */
+   * ============================================================
+   * HEAT WAVE SINGES THE GLOBE
+   * ============================================================
+   */
 
-  if (
-    decision.source?.startsWith(
-      "mythos:heat-wave-singes-the-globe:",
-    )
-  ) {
-    const sourceParts =
-      decision.source.split(":");
+  if (decision.source?.startsWith("mythos:heat-wave-singes-the-globe:")) {
+    const sourceParts = decision.source.split(":");
 
-    const investigatorIndex =
-      Number(
-        sourceParts[2] ?? "0",
-      );
+    const investigatorIndex = Number(sourceParts[2] ?? "0");
 
-    if (
-      !Number.isInteger(
-        investigatorIndex,
-      ) ||
-      investigatorIndex < 0
-    ) {
+    if (!Number.isInteger(investigatorIndex) || investigatorIndex < 0) {
       return game;
     }
 
-    const investigatorId =
-      game.investigatorOrder[
-        investigatorIndex
-      ];
+    const investigatorId = game.investigatorOrder[investigatorIndex];
 
     if (!investigatorId) {
       return finishMythosPhase(
@@ -3044,24 +2673,20 @@ export function resolveGameFlowChoice(
       );
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
       return game;
     }
 
     /*
-    * ==========================================================
-    * BECOME DELAYED
-    * ==========================================================
-    */
+     * ==========================================================
+     * BECOME DELAYED
+     * ==========================================================
+     */
 
     if (
-      choiceId ===
-      `heat-wave-singes-the-globe:delayed:${investigatorIndex}`
+      choiceId === `heat-wave-singes-the-globe:delayed:${investigatorIndex}`
     ) {
       const updatedGame: GameState = {
         ...game,
@@ -3072,22 +2697,16 @@ export function resolveGameFlowChoice(
           [investigatorId]: {
             ...investigator,
 
-            isDelayed:
-              true,
+            isDelayed: true,
           },
         },
 
-        pendingDecision:
-          null,
+        pendingDecision: null,
       };
 
-      const nextIndex =
-        investigatorIndex + 1;
+      const nextIndex = investigatorIndex + 1;
 
-      const nextInvestigatorId =
-        updatedGame.investigatorOrder[
-          nextIndex
-        ];
+      const nextInvestigatorId = updatedGame.investigatorOrder[nextIndex];
 
       if (!nextInvestigatorId) {
         return finishMythosPhase(
@@ -3103,97 +2722,74 @@ export function resolveGameFlowChoice(
       return {
         ...updatedGame,
 
-        activeInvestigatorId:
-          nextInvestigatorId,
+        activeInvestigatorId: nextInvestigatorId,
 
         pendingDecision: {
           type: "choice",
 
-          title:
-            "Heat Wave Singes the Globe",
+          title: "Heat Wave Singes the Globe",
 
           message:
             "This Investigator may become Delayed to avoid losing 3 Health.",
 
           options: [
-            ...(
-              !updatedGame.investigators[
-                nextInvestigatorId
-              ]?.isDelayed
-                ? [
-                    {
-                      id:
-                        `heat-wave-singes-the-globe:delayed:${nextIndex}`,
+            ...(!updatedGame.investigators[nextInvestigatorId]?.isDelayed
+              ? [
+                  {
+                    id: `heat-wave-singes-the-globe:delayed:${nextIndex}`,
 
-                      title:
-                        "Become Delayed",
+                    title: "Become Delayed",
 
-                      description:
-                        "Become Delayed and do not lose Health.",
-                    },
-                  ]
-                : []
-            ),
+                    description: "Become Delayed and do not lose Health.",
+                  },
+                ]
+              : []),
 
             {
-              id:
-                `heat-wave-singes-the-globe:health:${nextIndex}`,
+              id: `heat-wave-singes-the-globe:health:${nextIndex}`,
 
-              title:
-                "Do Not Become Delayed",
+              title: "Do Not Become Delayed",
 
-              description:
-                "Lose 3 Health.",
+              description: "Lose 3 Health.",
             },
           ],
 
-          source:
-            `mythos:heat-wave-singes-the-globe:${nextIndex}`,
+          source: `mythos:heat-wave-singes-the-globe:${nextIndex}`,
         },
       };
     }
 
     /*
-    * ==========================================================
-    * DO NOT BECOME DELAYED
-    * ==========================================================
-    *
-    * Lose 3 Health.
-    */
+     * ==========================================================
+     * DO NOT BECOME DELAYED
+     * ==========================================================
+     *
+     * Lose 3 Health.
+     */
 
-    if (
-      choiceId ===
-      `heat-wave-singes-the-globe:health:${investigatorIndex}`
-    ) {
-      let currentGame =
-        resolveEncounterEffects(
-          game,
-          investigatorId,
-          [
-            {
-              type:
-                "lose-health",
+    if (choiceId === `heat-wave-singes-the-globe:health:${investigatorIndex}`) {
+      let currentGame = resolveEncounterEffects(
+        game,
+        investigatorId,
+        [
+          {
+            type: "lose-health",
 
-              amount: 3,
-            },
-          ],
-          map,
-        );
+            amount: 3,
+          },
+        ],
+        map,
+      );
 
       currentGame = {
         ...currentGame,
 
-        pendingDecision:
-          null,
+        pendingDecision: null,
       };
 
-      const nextIndex =
-        investigatorIndex + 1;
+      const nextIndex = investigatorIndex + 1;
 
-      const nextInvestigatorId =
-        currentGame.investigatorOrder[
-          nextIndex
-        ];
+      const nextInvestigatorId = currentGame.investigatorOrder[nextIndex];
 
       if (!nextInvestigatorId) {
         return finishMythosPhase(
@@ -3209,52 +2805,39 @@ export function resolveGameFlowChoice(
       return {
         ...currentGame,
 
-        activeInvestigatorId:
-          nextInvestigatorId,
+        activeInvestigatorId: nextInvestigatorId,
 
         pendingDecision: {
           type: "choice",
 
-          title:
-            "Heat Wave Singes the Globe",
+          title: "Heat Wave Singes the Globe",
 
           message:
             "This Investigator may become Delayed to avoid losing 3 Health.",
 
           options: [
-            ...(
-              !currentGame.investigators[
-                nextInvestigatorId
-              ]?.isDelayed
-                ? [
-                    {
-                      id:
-                        `heat-wave-singes-the-globe:delayed:${nextIndex}`,
+            ...(!currentGame.investigators[nextInvestigatorId]?.isDelayed
+              ? [
+                  {
+                    id: `heat-wave-singes-the-globe:delayed:${nextIndex}`,
 
-                      title:
-                        "Become Delayed",
+                    title: "Become Delayed",
 
-                      description:
-                        "Become Delayed and do not lose Health.",
-                    },
-                  ]
-                : []
-            ),
+                    description: "Become Delayed and do not lose Health.",
+                  },
+                ]
+              : []),
 
             {
-              id:
-                `heat-wave-singes-the-globe:health:${nextIndex}`,
+              id: `heat-wave-singes-the-globe:health:${nextIndex}`,
 
-              title:
-                "Do Not Become Delayed",
+              title: "Do Not Become Delayed",
 
-              description:
-                "Lose 3 Health.",
+              description: "Lose 3 Health.",
             },
           ],
 
-          source:
-            `mythos:heat-wave-singes-the-globe:${nextIndex}`,
+          source: `mythos:heat-wave-singes-the-globe:${nextIndex}`,
         },
       };
     }
@@ -3263,61 +2846,39 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * THE WORLD FIGHTS BACK
-  * ============================================================
-  */
+   * ============================================================
+   * THE WORLD FIGHTS BACK
+   * ============================================================
+   */
 
-  if (
-    decision.source?.startsWith(
-      "mythos:world-fights-back:",
-    )
-  ) {
-    const sourceParts =
-      decision.source.split(":");
+  if (decision.source?.startsWith("mythos:world-fights-back:")) {
+    const sourceParts = decision.source.split(":");
 
-    const investigatorIndex =
-      Number(
-        sourceParts[2] ?? "0",
-      );
+    const investigatorIndex = Number(sourceParts[2] ?? "0");
 
-    if (
-      !Number.isInteger(
-        investigatorIndex,
-      ) ||
-      investigatorIndex < 0
-    ) {
+    if (!Number.isInteger(investigatorIndex) || investigatorIndex < 0) {
       return game;
     }
 
-    const investigatorId =
-      game.investigatorOrder[
-        investigatorIndex
-      ];
+    const investigatorId = game.investigatorOrder[investigatorIndex];
 
     if (!investigatorId) {
       return game;
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
       return game;
     }
 
     /*
-    * ==========================================================
-    * RECOVER 2 HEALTH
-    * ==========================================================
-    */
+     * ==========================================================
+     * RECOVER 2 HEALTH
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `world-fights-back:health:${investigatorIndex}`
-    ) {
+    if (choiceId === `world-fights-back:health:${investigatorIndex}`) {
       const updatedGame: GameState = {
         ...game,
 
@@ -3327,23 +2888,16 @@ export function resolveGameFlowChoice(
           [investigatorId]: {
             ...investigator,
 
-            health: Math.min(
-              investigator.maxHealth,
-              investigator.health + 2,
-            ),
+            health: Math.min(investigator.maxHealth, investigator.health + 2),
           },
         },
 
         pendingDecision: null,
       };
 
-      const nextIndex =
-        investigatorIndex + 1;
+      const nextIndex = investigatorIndex + 1;
 
-      const nextInvestigatorId =
-        game.investigatorOrder[
-          nextIndex
-        ];
+      const nextInvestigatorId = game.investigatorOrder[nextIndex];
 
       if (!nextInvestigatorId) {
         return finishMythosPhase(
@@ -3362,84 +2916,62 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "choice",
 
-          title:
-            "The World Fights Back",
+          title: "The World Fights Back",
 
           message:
             "This Investigator may recover 2 Health, recover 2 Sanity, or discard 1 Monster from his space.",
 
-          options:
-            [
-              {
-                id:
-                  `world-fights-back:health:${nextIndex}`,
+          options: [
+            {
+              id: `world-fights-back:health:${nextIndex}`,
 
-                title:
-                  "Recover 2 Health",
+              title: "Recover 2 Health",
 
-                description:
-                  "Recover 2 Health.",
-              },
+              description: "Recover 2 Health.",
+            },
 
-              {
-                id:
-                  `world-fights-back:sanity:${nextIndex}`,
+            {
+              id: `world-fights-back:sanity:${nextIndex}`,
 
-                title:
-                  "Recover 2 Sanity",
+              title: "Recover 2 Sanity",
 
-                description:
-                  "Recover 2 Sanity.",
-              },
+              description: "Recover 2 Sanity.",
+            },
 
-              ...(
-                investigatorHasMonster(
-                  updatedGame,
-                  nextInvestigatorId,
-                )
-                  ? [
-                      {
-                        id:
-                          `world-fights-back:monster:${nextIndex}`,
+            ...(investigatorHasMonster(updatedGame, nextInvestigatorId)
+              ? [
+                  {
+                    id: `world-fights-back:monster:${nextIndex}`,
 
-                        title:
-                          "Discard 1 Monster",
+                    title: "Discard 1 Monster",
 
-                        description:
-                          "Choose 1 Monster on this Investigator's space to discard.",
-                      },
-                    ]
-                  : []
-              ),
+                    description:
+                      "Choose 1 Monster on this Investigator's space to discard.",
+                  },
+                ]
+              : []),
 
-              {
-                id:
-                  `world-fights-back:pass:${nextIndex}`,
+            {
+              id: `world-fights-back:pass:${nextIndex}`,
 
-                title:
-                  "Do Nothing",
+              title: "Do Nothing",
 
-                description:
-                  "Do not use the effect.",
-              },
-            ],
+              description: "Do not use the effect.",
+            },
+          ],
 
-          source:
-            `mythos:world-fights-back:${nextIndex}`,
+          source: `mythos:world-fights-back:${nextIndex}`,
         },
       };
     }
 
     /*
-    * ==========================================================
-    * RECOVER 2 SANITY
-    * ==========================================================
-    */
+     * ==========================================================
+     * RECOVER 2 SANITY
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `world-fights-back:sanity:${investigatorIndex}`
-    ) {
+    if (choiceId === `world-fights-back:sanity:${investigatorIndex}`) {
       const updatedGame: GameState = {
         ...game,
 
@@ -3449,23 +2981,16 @@ export function resolveGameFlowChoice(
           [investigatorId]: {
             ...investigator,
 
-            sanity: Math.min(
-              investigator.maxSanity,
-              investigator.sanity + 2,
-            ),
+            sanity: Math.min(investigator.maxSanity, investigator.sanity + 2),
           },
         },
 
         pendingDecision: null,
       };
 
-      const nextIndex =
-        investigatorIndex + 1;
+      const nextIndex = investigatorIndex + 1;
 
-      const nextInvestigatorId =
-        game.investigatorOrder[
-          nextIndex
-        ];
+      const nextInvestigatorId = game.investigatorOrder[nextIndex];
 
       if (!nextInvestigatorId) {
         return finishMythosPhase(
@@ -3484,110 +3009,79 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "choice",
 
-          title:
-            "The World Fights Back",
+          title: "The World Fights Back",
 
           message:
             "This Investigator may recover 2 Health, recover 2 Sanity, or discard 1 Monster from his space.",
 
-          options:
-            [
-              {
-                id:
-                  `world-fights-back:health:${nextIndex}`,
+          options: [
+            {
+              id: `world-fights-back:health:${nextIndex}`,
 
-                title:
-                  "Recover 2 Health",
+              title: "Recover 2 Health",
 
-                description:
-                  "Recover 2 Health.",
-              },
+              description: "Recover 2 Health.",
+            },
 
-              {
-                id:
-                  `world-fights-back:sanity:${nextIndex}`,
+            {
+              id: `world-fights-back:sanity:${nextIndex}`,
 
-                title:
-                  "Recover 2 Sanity",
+              title: "Recover 2 Sanity",
 
-                description:
-                  "Recover 2 Sanity.",
-              },
+              description: "Recover 2 Sanity.",
+            },
 
-              ...(
-                investigatorHasMonster(
-                  updatedGame,
-                  nextInvestigatorId,
-                )
-                  ? [
-                      {
-                        id:
-                          `world-fights-back:monster:${nextIndex}`,
+            ...(investigatorHasMonster(updatedGame, nextInvestigatorId)
+              ? [
+                  {
+                    id: `world-fights-back:monster:${nextIndex}`,
 
-                        title:
-                          "Discard 1 Monster",
+                    title: "Discard 1 Monster",
 
-                        description:
-                          "Choose 1 Monster on this Investigator's space to discard.",
-                      },
-                    ]
-                  : []
-              ),
+                    description:
+                      "Choose 1 Monster on this Investigator's space to discard.",
+                  },
+                ]
+              : []),
 
-              {
-                id:
-                  `world-fights-back:pass:${nextIndex}`,
+            {
+              id: `world-fights-back:pass:${nextIndex}`,
 
-                title:
-                  "Do Nothing",
+              title: "Do Nothing",
 
-                description:
-                  "Do not use the effect.",
-              },
-            ],
+              description: "Do not use the effect.",
+            },
+          ],
 
-          source:
-            `mythos:world-fights-back:${nextIndex}`,
+          source: `mythos:world-fights-back:${nextIndex}`,
         },
       };
     }
 
     /*
-    * ==========================================================
-    * DISCARD MONSTER
-    * ==========================================================
-    */
+     * ==========================================================
+     * DISCARD MONSTER
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `world-fights-back:monster:${investigatorIndex}`
-    ) {
-      const spaceId =
-        investigator.spaceId;
+    if (choiceId === `world-fights-back:monster:${investigatorIndex}`) {
+      const spaceId = investigator.spaceId;
 
       if (!spaceId) {
         return game;
       }
 
-      const space =
-        game.board.spaces[
-          spaceId
-        ];
+      const space = game.board.spaces[spaceId];
 
       if (!space) {
         return game;
       }
 
-      const monsterIds =
-        space.monsterIds.filter(
-          (id) =>
-            game.monsters[id] !==
-            undefined,
-        );
+      const monsterIds = space.monsterIds.filter(
+        (id) => game.monsters[id] !== undefined,
+      );
 
-      if (
-        monsterIds.length === 0
-      ) {
+      if (monsterIds.length === 0) {
         return game;
       }
 
@@ -3597,25 +3091,21 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "select-monster",
 
-          title:
-            "The World Fights Back — Choose Monster",
+          title: "The World Fights Back — Choose Monster",
 
-          message:
-            "Choose 1 Monster on this Investigator's space to discard.",
+          message: "Choose 1 Monster on this Investigator's space to discard.",
 
           monsterIds,
 
           onMonsterSelected: [
             {
-              type:
-                "discard-selected-monster",
+              type: "discard-selected-monster",
             },
           ],
 
           onComplete: [],
 
-          source:
-            `mythos:world-fights-back-monster:${investigatorIndex}`,
+          source: `mythos:world-fights-back-monster:${investigatorIndex}`,
 
           investigatorId,
         },
@@ -3623,22 +3113,15 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * ==========================================================
-    * DO NOTHING
-    * ==========================================================
-    */
+     * ==========================================================
+     * DO NOTHING
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `world-fights-back:pass:${investigatorIndex}`
-    ) {
-      const nextIndex =
-        investigatorIndex + 1;
+    if (choiceId === `world-fights-back:pass:${investigatorIndex}`) {
+      const nextIndex = investigatorIndex + 1;
 
-      const nextInvestigatorId =
-        game.investigatorOrder[
-          nextIndex
-        ];
+      const nextInvestigatorId = game.investigatorOrder[nextIndex];
 
       if (!nextInvestigatorId) {
         return finishMythosPhase(
@@ -3651,10 +3134,7 @@ export function resolveGameFlowChoice(
         );
       }
 
-      const nextInvestigator =
-        game.investigators[
-          nextInvestigatorId
-        ];
+      const nextInvestigator = game.investigators[nextInvestigatorId];
 
       if (!nextInvestigator) {
         return game;
@@ -3666,69 +3146,51 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           type: "choice",
 
-          title:
-            "The World Fights Back",
+          title: "The World Fights Back",
 
           message:
             "This Investigator may recover 2 Health, recover 2 Sanity, or discard 1 Monster from his space.",
 
           options: [
             {
-              id:
-                `world-fights-back:health:${nextIndex}`,
+              id: `world-fights-back:health:${nextIndex}`,
 
-              title:
-                "Recover 2 Health",
+              title: "Recover 2 Health",
 
-              description:
-                "Recover 2 Health.",
+              description: "Recover 2 Health.",
             },
 
             {
-              id:
-                `world-fights-back:sanity:${nextIndex}`,
+              id: `world-fights-back:sanity:${nextIndex}`,
 
-              title:
-                "Recover 2 Sanity",
+              title: "Recover 2 Sanity",
 
-              description:
-                "Recover 2 Sanity.",
+              description: "Recover 2 Sanity.",
             },
 
-            ...(
-              investigatorHasMonster(
-                game,
-                nextInvestigatorId,
-              )
-                ? [
-                    {
-                      id:
-                        `world-fights-back:monster:${nextIndex}`,
+            ...(investigatorHasMonster(game, nextInvestigatorId)
+              ? [
+                  {
+                    id: `world-fights-back:monster:${nextIndex}`,
 
-                      title:
-                        "Discard 1 Monster",
+                    title: "Discard 1 Monster",
 
-                      description:
-                        "Choose 1 Monster on this Investigator's space to discard.",
-                    },
-                  ]
-                : []
-            ),
+                    description:
+                      "Choose 1 Monster on this Investigator's space to discard.",
+                  },
+                ]
+              : []),
 
             {
-              id:
-                `world-fights-back:pass:${nextIndex}`,
+              id: `world-fights-back:pass:${nextIndex}`,
 
-              title:
-                "Do Nothing",
+              title: "Do Nothing",
 
-              description:
-                "Do not use the effect.",
+              description: "Do not use the effect.",
             },
           ],
 
-          source:
-            `mythos:world-fights-back:${nextIndex}`,
+          source: `mythos:world-fights-back:${nextIndex}`,
         },
       };
     }
@@ -3737,42 +3199,83 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * TIDE OF DESPAIR
-  * ============================================================
-  */
+   * ============================================================
+   * TIDE OF DESPAIR
+   * ============================================================
+   */
 
-  if (
-    decision.source?.startsWith(
-      "mythos:tide-of-despair:",
-    )
-  ) {
-    const sourceParts =
-      decision.source.split(":");
-
-    const investigatorIndex =
-      Number(
-        sourceParts[2] ?? "0",
-      );
+  if (decision.source?.startsWith("mythos:tide-of-despair:")) {
+    const investigatorId = decision.source.split(":")[2];
+    const investigator = investigatorId
+      ? game.investigators[investigatorId]
+      : undefined;
+    const resume = decision.resume;
 
     if (
-      !Number.isInteger(
-        investigatorIndex,
-      ) ||
-      investigatorIndex < 0
+      !investigatorId ||
+      !investigator ||
+      resume?.type !== "mythos-special" ||
+      resume.mythosId !== "tide-of-despair"
     ) {
       return game;
     }
 
-    const investigatorId =
-      game.investigatorOrder[
-        investigatorIndex
-      ];
+    if (choiceId === `tide-of-despair:discard-blessed:${investigatorId}`) {
+      const blessedConditionId = investigator.conditionIds.find(
+        (conditionId) =>
+          game.conditions[conditionId]?.definitionId === "condition-blessed",
+      );
 
-    if (!investigatorId) {
+      if (!blessedConditionId) {
+        return game;
+      }
+
+      return resolveMythosSpecial(
+        {
+          ...discardCondition(game, investigatorId, blessedConditionId),
+          pendingDecision: null,
+        },
+        getMythosById("tide-of-despair"),
+        resume.step,
+        map,
+      );
+    }
+
+    if (choiceId === `tide-of-despair:keep-blessed:${investigatorId}`) {
+      return resolveTideOfDespairLoss(game, investigatorId, resume.step, map);
+    }
+
+    return game;
+  }
+  /*
+   * ============================================================
+   * DESPERATE TIMES
+   * ============================================================
+   */
+
+  if (decision.source === "mythos:desperate-times") {
+    const leadInvestigatorId = getLeadInvestigatorId(game);
+
+    if (!leadInvestigatorId) {
+      return game;
+    }
+
+    /*
+     * ==========================================================
+     * GAIN DARK PACT
+     * ==========================================================
+     */
+
+    if (choiceId === "desperate-times:dark-pact") {
+      const updatedGame = gainCondition(
+        game,
+        leadInvestigatorId,
+        "condition-dark-pact",
+      );
+
       return finishMythosPhase(
         {
-          ...game,
+          ...updatedGame,
           pendingDecision: null,
           activeInvestigatorId: null,
         },
@@ -3780,210 +3283,40 @@ export function resolveGameFlowChoice(
       );
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
-
-    if (!investigator) {
-      return game;
-    }
-
     /*
-    * ==========================================================
-    * DISCARD BLESSED
-    * ==========================================================
-    */
+     * ==========================================================
+     * DOOM +2
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      `tide-of-despair:discard-blessed:${investigatorIndex}`
-    ) {
-      const blessedConditionId =
-        investigator.conditionIds.find(
-          (conditionId) =>
-            game.conditions[
-              conditionId
-            ]?.definitionId ===
-            "condition-blessed",
-        );
+    if (choiceId === "desperate-times:doom") {
+      const wasAwakened = game.ancientOne.awakened;
 
-      if (!blessedConditionId) {
-        return game;
-      }
-
-      const updatedGame: GameState = {
-        ...game,
-
-        investigators: {
-          ...game.investigators,
-
-          [investigatorId]: {
-            ...investigator,
-
-            conditionIds:
-              investigator.conditionIds.filter(
-                (conditionId) =>
-                  conditionId !==
-                  blessedConditionId,
-              ),
-          },
-        },
-
-        pendingDecision:
-          null,
-      };
-
-      const nextIndex =
-        investigatorIndex + 1;
-
-      const nextInvestigatorId =
-        updatedGame.investigatorOrder[
-          nextIndex
-        ];
+      const updatedGame = advanceDoom(game, 2);
 
       /*
-      * Todos os Investigators foram tratados.
-      */
+       * If advancing Doom awakens the Ancient One,
+       * let the normal Awakening flow handle it.
+       */
 
-      if (!nextInvestigatorId) {
-        return finishMythosPhase(
+      if (!wasAwakened && updatedGame.ancientOne.awakened) {
+        return resolveAncientOneAwakening(
           {
             ...updatedGame,
-            pendingDecision: null,
-            activeInvestigatorId: null,
+
+            currentMythosId: game.currentMythosId,
           },
           map,
+          getMythosById("desperate-times").icons.length + 1,
         );
       }
 
-      return resolveMythosSpecial(
-        updatedGame,
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-            "tide-of-despair",
-        )!,
-        `tide-of-despair:${nextIndex}`,
-        map,
-      );
-    }
-
-    /*
-    * ==========================================================
-    * KEEP BLESSED
-    * ==========================================================
-    */
-
-    if (
-      choiceId ===
-      `tide-of-despair:keep-blessed:${investigatorIndex}`
-    ) {
-      const newHealth =
-        Math.max(
-          0,
-          investigator.health - 2,
-        );
-
-      const newSanity =
-        Math.max(
-          0,
-          investigator.sanity - 2,
-        );
-
-      let updatedGame: GameState = {
-        ...game,
-
-        investigators: {
-          ...game.investigators,
-
-          [investigatorId]: {
-            ...investigator,
-
-            health:
-              newHealth,
-
-            sanity:
-              newSanity,
-          },
+      return finishMythosPhase(
+        {
+          ...updatedGame,
+          pendingDecision: null,
+          activeInvestigatorId: null,
         },
-
-        pendingDecision:
-          null,
-      };
-
-      /*
-      * ========================================================
-      * INVESTIGATOR DEFEATED
-      * ========================================================
-      */
-      const nextIndex =
-        investigatorIndex + 1;
-
-      if (
-        newHealth <= 0 ||
-        newSanity <= 0
-      ) {
-        updatedGame =
-          defeatInvestigator(
-            updatedGame,
-            map,
-            investigatorId,
-            undefined,
-            undefined,
-            {
-              type: "mythos-special",
-              mythosId: "tide-of-despair",
-              step: `tide-of-despair:${nextIndex}`,
-            },
-          );
-
-        /*
-        * defeatInvestigator() pode criar uma decisão:
-        *
-        * - escolha Crippled / Insane;
-        * - escolha de novo Lead Investigator.
-        *
-        * Nesse caso o fluxo do Mythos tem de parar aqui.
-        */
-
-        if (updatedGame.pendingDecision) {
-          return updatedGame;
-        }
-      }
-
-      const nextInvestigatorId =
-        updatedGame.investigatorOrder[
-          nextIndex
-        ];
-
-      if (!nextInvestigatorId) {
-        return finishMythosPhase(
-          {
-            ...updatedGame,
-            pendingDecision: null,
-            activeInvestigatorId: null,
-          },
-          map,
-        );
-      }
-
-      return resolveMythosSpecial(
-        updatedGame,
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-            "tide-of-despair",
-        )!,
-        `tide-of-despair:${nextIndex}`,
         map,
       );
     }
@@ -3992,197 +3325,60 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * DESPERATE TIMES
-  * ============================================================
-  */
+   * ============================================================
+   * FROM BEYOND
+   * ============================================================
+   */
 
-  if (
-      decision.source ===
-      "mythos:desperate-times"
-  ) {
-      const leadInvestigatorId =
-          getLeadInvestigatorId(game);
-
-      if (!leadInvestigatorId) {
-          return game;
-      }
-
-      /*
-      * ==========================================================
-      * GAIN DARK PACT
-      * ==========================================================
-      */
-
-      if (
-          choiceId ===
-          "desperate-times:dark-pact"
-      ) {
-          const updatedGame =
-              gainCondition(
-                  game,
-                  leadInvestigatorId,
-                  "condition-dark-pact",
-              );
-
-          return finishMythosPhase(
-              {
-                  ...updatedGame,
-                  pendingDecision: null,
-                  activeInvestigatorId: null,
-              },
-              map,
-          );
-      }
-
-      /*
-      * ==========================================================
-      * DOOM +2
-      * ==========================================================
-      */
-
-      if (
-          choiceId ===
-          "desperate-times:doom"
-      ) {
-          const wasAwakened =
-              game.ancientOne.awakened;
-
-          const updatedGame =
-              advanceDoom(
-                  game,
-                  2,
-              );
-
-          /*
-          * If advancing Doom awakens the Ancient One,
-          * let the normal Awakening flow handle it.
-          */
-
-          if (
-              !wasAwakened &&
-              updatedGame.ancientOne.awakened
-          ) {
-              return resolveAncientOneAwakening(
-                  {
-                      ...updatedGame,
-
-                      currentMythosId:
-                          game.currentMythosId,
-                  },
-                  map,
-                  getMythosById("desperate-times").icons.length + 1,
-              );
-          }
-
-          return finishMythosPhase(
-              {
-                  ...updatedGame,
-                  pendingDecision: null,
-                  activeInvestigatorId: null,
-              },
-              map,
-          );
-      }
-
-      return game;
-  }
-
-  /*
-  * ============================================================
-  * FROM BEYOND
-  * ============================================================
-  */
-
-  if (
-    decision.source ===
-    "mythos:from-beyond"
-  ) {
-    const clueCost =
-      Math.ceil(
-        game.investigatorOrder.length /
-          2,
-      );
+  if (decision.source === "mythos:from-beyond") {
+    const clueCost = Math.ceil(game.investigatorOrder.length / 2);
 
     /*
-    * ==========================================================
-    * SPEND CLUES
-    * ==========================================================
-    */
+     * ==========================================================
+     * SPEND CLUES
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      "from-beyond:spend-clues"
-    ) {
-      const totalClues =
-        game.investigatorOrder.reduce(
-          (
-            total,
-            investigatorId,
-          ) =>
-            total +
-            (
-              game.investigators[
-                investigatorId
-              ]?.clues ?? 0
-            ),
-          0,
-        );
+    if (choiceId === "from-beyond:spend-clues") {
+      const totalClues = game.investigatorOrder.reduce(
+        (total, investigatorId) =>
+          total + (game.investigators[investigatorId]?.clues ?? 0),
+        0,
+      );
 
-      if (
-        totalClues <
-        clueCost
-      ) {
+      if (totalClues < clueCost) {
         return game;
       }
 
-      let remainingClues =
-        clueCost;
+      let remainingClues = clueCost;
 
       let updatedGame = game;
 
-      for (
-        const investigatorId of
-          game.investigatorOrder
-      ) {
-        if (
-          remainingClues <=
-          0
-        ) {
+      for (const investigatorId of game.investigatorOrder) {
+        if (remainingClues <= 0) {
           break;
         }
 
-        const investigator =
-          updatedGame.investigators[
-            investigatorId
-          ];
+        const investigator = updatedGame.investigators[investigatorId];
 
         if (!investigator) {
           continue;
         }
 
-        const spent =
-          Math.min(
-            investigator.clues,
-            remainingClues,
-          );
+        const spent = Math.min(investigator.clues, remainingClues);
 
-        updatedGame = spendInvestigatorClues(updatedGame, investigatorId, spent);
+        updatedGame = spendInvestigatorClues(
+          updatedGame,
+          investigatorId,
+          spent,
+        );
 
-        remainingClues -=
-          spent;
+        remainingClues -= spent;
       }
 
-      const fromBeyond =
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-            "from-beyond",
-        );
+      const fromBeyond = [...easyMythos, ...normalMythos, ...hardMythos].find(
+        (definition) => definition.id === "from-beyond",
+      );
 
       if (!fromBeyond) {
         return game;
@@ -4199,21 +3395,17 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * ==========================================================
-    * DO NOT SPEND CLUES
-    * ==========================================================
-    */
+     * ==========================================================
+     * DO NOT SPEND CLUES
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      "from-beyond:resolve-reckonings"
-    ) {
+    if (choiceId === "from-beyond:resolve-reckonings") {
       return startMythosCardReckoning(
         {
           ...game,
 
-          pendingDecision:
-            null,
+          pendingDecision: null,
         },
         map,
         getMythosById("from-beyond").icons.length + 1,
@@ -4225,173 +3417,115 @@ export function resolveGameFlowChoice(
   }
 
   /*
-  * ============================================================
-  * WEB BETWEEN WORLDS — RECKONING
-  * ============================================================
-  */
+   * ============================================================
+   * WEB BETWEEN WORLDS — RECKONING
+   * ============================================================
+   */
 
-  if (
-    decision.source?.startsWith(
-      "mythos:web-between-worlds:",
-    )
-  ) {
-    const encodedDecision =
-      decision.source.substring(
-        "mythos:web-between-worlds:"
-          .length,
-      );
+  if (decision.source?.startsWith("mythos:web-between-worlds:")) {
+    const encodedDecision = decision.source.substring(
+      "mythos:web-between-worlds:".length,
+    );
 
-    let reckoningDecision:
-      Extract<
-        GameState["pendingDecision"],
-        {
-          type:
-            "mythos-card-reckoning";
-        }
-      >;
+    let reckoningDecision: Extract<
+      GameState["pendingDecision"],
+      {
+        type: "mythos-card-reckoning";
+      }
+    >;
 
     try {
-      reckoningDecision =
-        JSON.parse(
-          decodeURIComponent(
-            encodedDecision,
-          ),
-        );
+      reckoningDecision = JSON.parse(decodeURIComponent(encodedDecision));
     } catch {
       return game;
     }
 
     if (
       !reckoningDecision ||
-      reckoningDecision.type !==
-        "mythos-card-reckoning"
+      reckoningDecision.type !== "mythos-card-reckoning"
     ) {
       return game;
     }
 
-    const mythosId =
-      reckoningDecision.mythosIds.find(
-        (id) =>
-          !reckoningDecision.resolvedMythosIds.includes(
-            id,
-          ),
-      );
+    const mythosId = reckoningDecision.mythosIds.find(
+      (id) => !reckoningDecision.resolvedMythosIds.includes(id),
+    );
 
     if (!mythosId) {
       return game;
     }
 
-    const mythosInPlayIndex =
-      game.board.mythosInPlay.findIndex(
-        (entry) =>
-          entry.definitionId ===
-          mythosId,
-      );
+    const mythosInPlayIndex = game.board.mythosInPlay.findIndex(
+      (entry) => entry.definitionId === mythosId,
+    );
 
-    if (
-      mythosInPlayIndex === -1
-    ) {
+    if (mythosInPlayIndex === -1) {
       return game;
     }
 
-    const mythosInPlay =
-      game.board.mythosInPlay[
-        mythosInPlayIndex
-      ];
+    const mythosInPlay = game.board.mythosInPlay[mythosInPlayIndex];
 
     if (!mythosInPlay) {
       return game;
     }
 
     /*
-    * ==========================================================
-    * SPEND CLUES
-    * ==========================================================
-    */
+     * ==========================================================
+     * SPEND CLUES
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      "web-between-worlds:spend-clues"
-    ) {
-      const clueCost =
-        Math.ceil(
-          game.investigatorOrder.length /
-            2,
-        );
+    if (choiceId === "web-between-worlds:spend-clues") {
+      const clueCost = Math.ceil(game.investigatorOrder.length / 2);
 
-      const totalClues =
-        game.investigatorOrder.reduce(
-          (
-            total,
-            investigatorId,
-          ) =>
-            total +
-            (
-              game.investigators[
-                investigatorId
-              ]?.clues ?? 0
-            ),
-          0,
-        );
+      const totalClues = game.investigatorOrder.reduce(
+        (total, investigatorId) =>
+          total + (game.investigators[investigatorId]?.clues ?? 0),
+        0,
+      );
 
-      if (
-        totalClues <
-        clueCost
-      ) {
+      if (totalClues < clueCost) {
         return game;
       }
 
-      let remainingClues =
-        clueCost;
+      let remainingClues = clueCost;
 
       let updatedGame = game;
 
       /*
-      * Spend the Clues as a group.
-      */
+       * Spend the Clues as a group.
+       */
 
-      for (
-        const investigatorId of
-          game.investigatorOrder
-      ) {
-        if (
-          remainingClues <=
-          0
-        ) {
+      for (const investigatorId of game.investigatorOrder) {
+        if (remainingClues <= 0) {
           break;
         }
 
-        const investigator =
-          updatedGame.investigators[
-            investigatorId
-          ];
+        const investigator = updatedGame.investigators[investigatorId];
 
         if (!investigator) {
           continue;
         }
 
-        const spent =
-          Math.min(
-            investigator.clues,
-            remainingClues,
-          );
+        const spent = Math.min(investigator.clues, remainingClues);
 
-        if (
-          spent <= 0
-        ) {
+        if (spent <= 0) {
           continue;
         }
 
-        updatedGame = spendInvestigatorClues(updatedGame, investigatorId, spent);
+        updatedGame = spendInvestigatorClues(
+          updatedGame,
+          investigatorId,
+          spent,
+        );
 
-        remainingClues -=
-          spent;
+        remainingClues -= spent;
       }
 
       /*
-      * The Mythos Reckoning itself is resolved,
-      * but the Eldritch token remains.
-      */
+       * The Mythos Reckoning itself is resolved,
+       * but the Eldritch token remains.
+       */
 
       return {
         ...updatedGame,
@@ -4399,43 +3533,29 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           ...reckoningDecision,
 
-          resolvedMythosIds: [
-            ...reckoningDecision.resolvedMythosIds,
-            mythosId,
-          ],
+          resolvedMythosIds: [...reckoningDecision.resolvedMythosIds, mythosId],
         },
       };
     }
 
     /*
-    * ==========================================================
-    * DISCARD ELDRITCH TOKEN
-    * ==========================================================
-    */
+     * ==========================================================
+     * DISCARD ELDRITCH TOKEN
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      "web-between-worlds:discard-token"
-    ) {
-      const remainingEldritchTokens =
-        Math.max(
-          0,
-          mythosInPlay.eldritchTokens -
-            1,
-        );
+    if (choiceId === "web-between-worlds:discard-token") {
+      const remainingEldritchTokens = Math.max(
+        0,
+        mythosInPlay.eldritchTokens - 1,
+      );
 
-      const updatedMythosInPlay =
-        [
-          ...game.board.mythosInPlay,
-        ];
+      const updatedMythosInPlay = [...game.board.mythosInPlay];
 
-      updatedMythosInPlay[
-        mythosInPlayIndex
-      ] = {
+      updatedMythosInPlay[mythosInPlayIndex] = {
         ...mythosInPlay,
 
-        eldritchTokens:
-          remainingEldritchTokens,
+        eldritchTokens: remainingEldritchTokens,
       };
 
       const updatedGame: GameState = {
@@ -4444,42 +3564,36 @@ export function resolveGameFlowChoice(
         board: {
           ...game.board,
 
-          mythosInPlay:
-            updatedMythosInPlay,
+          mythosInPlay: updatedMythosInPlay,
         },
       };
 
       /*
-      * ========================================================
-      * LAST ELDRITCH TOKEN
-      * ========================================================
-      *
-      * If the last token is removed, the investigators
-      * immediately lose the game.
-      */
+       * ========================================================
+       * LAST ELDRITCH TOKEN
+       * ========================================================
+       *
+       * If the last token is removed, the investigators
+       * immediately lose the game.
+       */
 
-      if (
-        remainingEldritchTokens === 0
-      ) {
+      if (remainingEldritchTokens === 0) {
         return {
           ...updatedGame,
 
-          status:
-            "defeat",
+          status: "defeat",
 
-          pendingDecision:
-            null,
+          pendingDecision: null,
 
-          activeInvestigatorId:
-            null,
+          activeInvestigatorId: null,
         };
       }
 
       /*
-      * ========================================================
-      * CONTINUE MYTHOS RECKONING
-      * ========================================================
-      */
+       * ========================================================
+       * CONTINUE MYTHOS RECKONING
+       * ========================================================
+       */
 
       return {
         ...updatedGame,
@@ -4487,17 +3601,13 @@ export function resolveGameFlowChoice(
         pendingDecision: {
           ...reckoningDecision,
 
-          resolvedMythosIds: [
-            ...reckoningDecision.resolvedMythosIds,
-            mythosId,
-          ],
+          resolvedMythosIds: [...reckoningDecision.resolvedMythosIds, mythosId],
         },
       };
     }
 
     return game;
   }
-
 
   /*
    * ============================================================
@@ -4508,43 +3618,30 @@ export function resolveGameFlowChoice(
    * to use.
    */
 
-  if (
-    decision.source?.startsWith(
-      "encounter-selection:",
-    )
-  ) {
+  if (decision.source?.startsWith("encounter-selection:")) {
     /*
-    * ==========================================================
-    * FRACTURED REALITY — ANCIENT PORTAL
-    * ==========================================================
-    */
+     * ==========================================================
+     * FRACTURED REALITY — ANCIENT PORTAL
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      "fractured-reality-encounter"
-    ) {
-      const fracturedReality =
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-              "fractured-reality" &&
-            definition.type === "rumor",
-        );
+    if (choiceId === "fractured-reality-encounter") {
+      const fracturedReality = [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ].find(
+        (definition) =>
+          definition.id === "fractured-reality" && definition.type === "rumor",
+      );
 
       if (!fracturedReality) {
         return game;
       }
 
-      const isFracturedRealityInPlay =
-        game.board.mythosInPlay.some(
-          (entry) =>
-            entry.definitionId ===
-            "fractured-reality",
-        );
+      const isFracturedRealityInPlay = game.board.mythosInPlay.some(
+        (entry) => entry.definitionId === "fractured-reality",
+      );
 
       if (!isFracturedRealityInPlay) {
         return game;
@@ -4559,37 +3656,28 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * ==========================================================
-    * GROWING MADNESS — UNCHARTED ISLE
-    * ==========================================================
-    */
+     * ==========================================================
+     * GROWING MADNESS — UNCHARTED ISLE
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      "growing-madness-encounter"
-    ) {
-      const growingMadness =
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-              "growing-madness" &&
-            definition.type === "rumor",
-        );
+    if (choiceId === "growing-madness-encounter") {
+      const growingMadness = [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ].find(
+        (definition) =>
+          definition.id === "growing-madness" && definition.type === "rumor",
+      );
 
       if (!growingMadness) {
         return game;
       }
 
-      const isGrowingMadnessInPlay =
-        game.board.mythosInPlay.some(
-          (entry) =>
-            entry.definitionId ===
-            "growing-madness",
-        );
+      const isGrowingMadnessInPlay = game.board.mythosInPlay.some(
+        (entry) => entry.definitionId === "growing-madness",
+      );
 
       if (!isGrowingMadnessInPlay) {
         return game;
@@ -4604,37 +3692,24 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * ==========================================================
-    * STARS ALIGNED — ASTRONOMICAL RESEARCH
-    * ==========================================================
-    */
+     * ==========================================================
+     * STARS ALIGNED — ASTRONOMICAL RESEARCH
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      "stars-aligned-encounter"
-    ) {
-      const starsAligned =
-        [
-          ...easyMythos,
-          ...normalMythos,
-          ...hardMythos,
-        ].find(
-          (definition) =>
-            definition.id ===
-              "stars-aligned" &&
-            definition.type === "rumor",
-        );
+    if (choiceId === "stars-aligned-encounter") {
+      const starsAligned = [...easyMythos, ...normalMythos, ...hardMythos].find(
+        (definition) =>
+          definition.id === "stars-aligned" && definition.type === "rumor",
+      );
 
       if (!starsAligned) {
         return game;
       }
 
-      const isStarsAlignedInPlay =
-        game.board.mythosInPlay.some(
-          (entry) =>
-            entry.definitionId ===
-            "stars-aligned",
-        );
+      const isStarsAlignedInPlay = game.board.mythosInPlay.some(
+        (entry) => entry.definitionId === "stars-aligned",
+      );
 
       if (!isStarsAlignedInPlay) {
         return game;
@@ -4649,178 +3724,129 @@ export function resolveGameFlowChoice(
     }
 
     /*
-    * ==========================================================
-    * DIMENSIONS COLLIDE — HIDDEN TCHO-TCHO SECT
-    * ==========================================================
-    */
+     * ==========================================================
+     * DIMENSIONS COLLIDE — HIDDEN TCHO-TCHO SECT
+     * ==========================================================
+     */
 
-    if (
-        choiceId ===
-        "dimensions-collide-encounter"
-    ) {
-        const dimensionsCollide =
-            [
-                ...easyMythos,
-                ...normalMythos,
-                ...hardMythos,
-            ].find(
-                (definition) =>
-                    definition.id ===
-                        "dimensions-collide" &&
-                    definition.type ===
-                        "rumor",
-            );
+    if (choiceId === "dimensions-collide-encounter") {
+      const dimensionsCollide = [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ].find(
+        (definition) =>
+          definition.id === "dimensions-collide" && definition.type === "rumor",
+      );
 
-        if (!dimensionsCollide) {
-            return game;
-        }
+      if (!dimensionsCollide) {
+        return game;
+      }
 
-        const isDimensionsCollideInPlay =
-            game.board.mythosInPlay.some(
-                (entry) =>
-                    entry.definitionId ===
-                    "dimensions-collide",
-            );
+      const isDimensionsCollideInPlay = game.board.mythosInPlay.some(
+        (entry) => entry.definitionId === "dimensions-collide",
+      );
 
-        if (
-            !isDimensionsCollideInPlay
-        ) {
-            return game;
-        }
+      if (!isDimensionsCollideInPlay) {
+        return game;
+      }
 
-        return resolveMythosSpecial(
-            game,
-            dimensionsCollide,
-            "dimensions-collide-encounter",
-            map,
-        );
+      return resolveMythosSpecial(
+        game,
+        dimensionsCollide,
+        "dimensions-collide-encounter",
+        map,
+      );
     }
 
     /*
-    * ============================================================
-    * MYSTERIOUS LIGHTS — MI-GO OUTPOST
-    * ============================================================
-    */
+     * ============================================================
+     * MYSTERIOUS LIGHTS — MI-GO OUTPOST
+     * ============================================================
+     */
 
-    if (
-        choiceId ===
-        "mysterious-lights-encounter"
-    ) {
-        const mysteriousLights =
-            [
-                ...easyMythos,
-                ...normalMythos,
-                ...hardMythos,
-            ].find(
-                (definition) =>
-                    definition.id ===
-                        "mysterious-lights" &&
-                    definition.type ===
-                        "rumor",
-            );
+    if (choiceId === "mysterious-lights-encounter") {
+      const mysteriousLights = [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ].find(
+        (definition) =>
+          definition.id === "mysterious-lights" && definition.type === "rumor",
+      );
 
-        if (!mysteriousLights) {
-            return game;
-        }
+      if (!mysteriousLights) {
+        return game;
+      }
 
-        const isMysteriousLightsInPlay =
-            game.board.mythosInPlay.some(
-                (entry) =>
-                    entry.definitionId ===
-                    "mysterious-lights",
-            );
+      const isMysteriousLightsInPlay = game.board.mythosInPlay.some(
+        (entry) => entry.definitionId === "mysterious-lights",
+      );
 
-        if (
-            !isMysteriousLightsInPlay
-        ) {
-            return game;
-        }
+      if (!isMysteriousLightsInPlay) {
+        return game;
+      }
 
-        return resolveMythosSpecial(
-            game,
-            mysteriousLights,
-            "mysterious-lights-encounter",
-            map,
-        );
+      return resolveMythosSpecial(
+        game,
+        mysteriousLights,
+        "mysterious-lights-encounter",
+        map,
+      );
     }
 
     /*
-    * ============================================================
-    * SPREADING SICKNESS — BOMBAY DOCTORS
-    * ============================================================
-    */
+     * ============================================================
+     * SPREADING SICKNESS — BOMBAY DOCTORS
+     * ============================================================
+     */
 
-    if (
-        choiceId ===
-        "spreading-sickness-encounter"
-    ) {
-        const spreadingSickness =
-            [
-                ...easyMythos,
-                ...normalMythos,
-                ...hardMythos,
-            ].find(
-                (definition) =>
-                    definition.id ===
-                        "spreading-sickness" &&
-                    definition.type ===
-                        "rumor",
-            );
+    if (choiceId === "spreading-sickness-encounter") {
+      const spreadingSickness = [
+        ...easyMythos,
+        ...normalMythos,
+        ...hardMythos,
+      ].find(
+        (definition) =>
+          definition.id === "spreading-sickness" && definition.type === "rumor",
+      );
 
-        if (!spreadingSickness) {
-            return game;
-        }
+      if (!spreadingSickness) {
+        return game;
+      }
 
-        const isSpreadingSicknessInPlay =
-            game.board.mythosInPlay.some(
-                (entry) =>
-                    entry.definitionId ===
-                    "spreading-sickness",
-            );
+      const isSpreadingSicknessInPlay = game.board.mythosInPlay.some(
+        (entry) => entry.definitionId === "spreading-sickness",
+      );
 
-        if (
-            !isSpreadingSicknessInPlay
-        ) {
-            return game;
-        }
+      if (!isSpreadingSicknessInPlay) {
+        return game;
+      }
 
-        return resolveMythosSpecial(
-            game,
-            spreadingSickness,
-            "spreading-sickness-encounter",
-            map,
-        );
+      return resolveMythosSpecial(
+        game,
+        spreadingSickness,
+        "spreading-sickness-encounter",
+        map,
+      );
     }
-    
-    const deckType =
-      choiceId as Parameters<
-        typeof drawEncounter
-      >[1];
 
-    const investigatorId =
-      game.activeInvestigatorId;
+    const deckType = choiceId as Parameters<typeof drawEncounter>[1];
+
+    const investigatorId = game.activeInvestigatorId;
 
     if (!investigatorId) {
-      throw new Error(
-        "There is no active investigator.",
-      );
+      throw new Error("There is no active investigator.");
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
-      throw new Error(
-        `Investigator "${investigatorId}" does not exist.`,
-      );
+      throw new Error(`Investigator "${investigatorId}" does not exist.`);
     }
 
     if (!investigator.spaceId) {
-      throw new Error(
-        "Investigator has no current space.",
-      );
+      throw new Error("Investigator has no current space.");
     }
 
     /*
@@ -4829,17 +3855,12 @@ export function resolveGameFlowChoice(
      * ==========================================================
      */
 
-    const currentSpace =
-      map.spaces.find(
-        (space) =>
-          space.id ===
-          investigator.spaceId,
-      );
+    const currentSpace = map.spaces.find(
+      (space) => space.id === investigator.spaceId,
+    );
 
     if (!currentSpace) {
-      throw new Error(
-        "Current investigator space could not be found.",
-      );
+      throw new Error("Current investigator space could not be found.");
     }
 
     /*
@@ -4850,13 +3871,8 @@ export function resolveGameFlowChoice(
 
     const drawnEncounter =
       deckType === "expedition"
-        ? drawExpeditionEncounter(
-            game,
-          )
-        : drawEncounter(
-            game,
-            deckType,
-          );
+        ? drawExpeditionEncounter(game)
+        : drawEncounter(game, deckType);
 
     /*
      * ==========================================================
@@ -4876,17 +3892,12 @@ export function resolveGameFlowChoice(
       const revealedGame: GameState = {
         ...drawnEncounter.game,
 
-        currentEncounterRevealed:
-          true,
+        currentEncounterRevealed: true,
 
-        pendingDecision:
-          null,
+        pendingDecision: null,
       };
 
-      return resolveCurrentEncounter(
-        revealedGame,
-        map,
-      );
+      return resolveCurrentEncounter(revealedGame, map);
     }
 
     /*
@@ -4901,96 +3912,73 @@ export function resolveGameFlowChoice(
     const revealedGame: GameState = {
       ...drawnEncounter.game,
 
-      currentEncounterRevealed:
-        true,
+      currentEncounterRevealed: true,
 
-      pendingDecision:
-        null,
+      pendingDecision: null,
     };
 
-    return resolveCurrentEncounter(
-      revealedGame,
-      map,
-    );
+    return resolveCurrentEncounter(revealedGame, map);
   }
 
   /*
-  * ============================================================
-  * OMEN OF GOOD FORTUNE
-  * ============================================================
-  *
-  * The Lead Investigator may move the Omen to any
-  * position on the Omen track without advancing Doom.
-  */
+   * ============================================================
+   * OMEN OF GOOD FORTUNE
+   * ============================================================
+   *
+   * The Lead Investigator may move the Omen to any
+   * position on the Omen track without advancing Doom.
+   */
 
-  if (
-    decision.source ===
-    "mythos:omen-of-good-fortune"
-  ) {
-    const leadInvestigatorId =
-      getLeadInvestigatorId(game);
+  if (decision.source === "mythos:omen-of-good-fortune") {
+    const leadInvestigatorId = getLeadInvestigatorId(game);
 
     if (!leadInvestigatorId) {
       return game;
     }
 
     /*
-    * ==========================================================
-    * DO NOT MOVE THE OMEN
-    * ==========================================================
-    */
+     * ==========================================================
+     * DO NOT MOVE THE OMEN
+     * ==========================================================
+     */
 
-    if (
-      choiceId ===
-      "omen-position:pass"
-    ) {
+    if (choiceId === "omen-position:pass") {
       const updatedGame: GameState = {
         ...game,
 
         pendingDecision: null,
       };
 
-      return finishMythosPhase(
-        updatedGame,
-        map,
-      );
+      return finishMythosPhase(updatedGame, map);
     }
 
     /*
-    * ==========================================================
-    * SELECT OMEN POSITION
-    * ==========================================================
-    */
+     * ==========================================================
+     * SELECT OMEN POSITION
+     * ==========================================================
+     */
 
-    const omenPositionMap: Record<
-      string,
-      number
-    > = {
+    const omenPositionMap: Record<string, number> = {
       "omen-position:0": 0,
       "omen-position:1": 1,
       "omen-position:2": 2,
       "omen-position:3": 3,
     };
 
-    const targetPosition =
-      omenPositionMap[
-        choiceId
-      ];
+    const targetPosition = omenPositionMap[choiceId];
 
-    if (
-      targetPosition === undefined
-    ) {
+    if (targetPosition === undefined) {
       return game;
     }
 
     /*
-    * ==========================================================
-    * MOVE OMEN
-    * ==========================================================
-    *
-    * IMPORTANT:
-    * This does NOT advance Doom.
-    */
+     * ==========================================================
+     * MOVE OMEN
+     * ==========================================================
+     *
+     * IMPORTANT:
+     * This does NOT advance Doom.
+     */
 
     const updatedGame: GameState = {
       ...game,
@@ -4998,17 +3986,13 @@ export function resolveGameFlowChoice(
       ancientOne: {
         ...game.ancientOne,
 
-        omenPosition:
-          targetPosition,
+        omenPosition: targetPosition,
       },
 
       pendingDecision: null,
     };
 
-    return finishMythosPhase(
-      updatedGame,
-      map,
-    );
+    return finishMythosPhase(updatedGame, map);
   }
 
   /*
@@ -5017,21 +4001,17 @@ export function resolveGameFlowChoice(
    * ============================================================
    */
 
-  if (
-    decision.source ===
-      "mythos-selection" &&
-    choiceId === "draw-mythos"
-  ) {
-    const drawnGame =
-      drawMythos(game);
+  if (decision.source === "mythos-selection" && choiceId === "draw-mythos") {
+    const drawnGame = drawMythos(game, map);
 
-    const mythosId =
-      drawnGame.currentMythosId;
+    if (drawnGame.status !== "playing") {
+      return drawnGame;
+    }
+
+    const mythosId = drawnGame.currentMythosId;
 
     if (!mythosId) {
-      throw new Error(
-        "Mythos card was drawn but no current Mythos was set.",
-      );
+      throw new Error("Mythos card was drawn but no current Mythos was set.");
     }
 
     /*
@@ -5040,21 +4020,12 @@ export function resolveGameFlowChoice(
      * ==========================================================
      */
 
-    const mythos =
-      [
-        ...easyMythos,
-        ...normalMythos,
-        ...hardMythos,
-      ].find(
-        (definition) =>
-          definition.id ===
-          mythosId,
-      );
+    const mythos = [...easyMythos, ...normalMythos, ...hardMythos].find(
+      (definition) => definition.id === mythosId,
+    );
 
     if (!mythos) {
-      throw new Error(
-        `Mythos "${mythosId}" does not exist.`,
-      );
+      throw new Error(`Mythos "${mythosId}" does not exist.`);
     }
 
     /*
@@ -5069,17 +4040,13 @@ export function resolveGameFlowChoice(
       pendingDecision: {
         type: "continue",
 
-        title:
-          mythos.name,
+        title: mythos.name,
 
-        message:
-          mythos.text,
+        message: mythos.text,
 
-        image:
-          mythos.image,
+        image: mythos.image,
 
-        source:
-          "mythos-card:0",
+        source: "mythos-card:0",
       },
     };
   }
@@ -5090,11 +4057,7 @@ export function resolveGameFlowChoice(
    * ============================================================
    */
 
-  if (
-    decision.source?.startsWith(
-      "improve-skill:",
-    )
-  ) {
+  if (decision.source?.startsWith("improve-skill:")) {
     const validSkills = [
       "strength",
       "influence",
@@ -5103,11 +4066,7 @@ export function resolveGameFlowChoice(
       "observation",
     ] as const;
 
-    if (
-      !validSkills.includes(
-        choiceId as (typeof validSkills)[number],
-      )
-    ) {
+    if (!validSkills.includes(choiceId as (typeof validSkills)[number])) {
       return game;
     }
 
@@ -5118,10 +4077,7 @@ export function resolveGameFlowChoice(
       return game;
     }
 
-    const investigator =
-      game.investigators[
-        investigatorId
-      ];
+    const investigator = game.investigators[investigatorId];
 
     if (!investigator) {
       return game;
@@ -5133,10 +4089,7 @@ export function resolveGameFlowChoice(
      * improve-skill:investigatorId:amount
      */
 
-    const amount =
-      Number(
-        sourceParts[2] ?? "1",
-      );
+    const amount = Number(sourceParts[2] ?? "1");
 
     if (
       !Number.isFinite(amount) ||
@@ -5168,17 +4121,13 @@ export function resolveGameFlowChoice(
      * ==========================================================
      */
 
-    if (
-      decision.onComplete &&
-      decision.onComplete.length > 0
-    ) {
-      currentGame =
-        resolveEncounterEffects(
-          currentGame,
-          investigatorId,
-          decision.onComplete,
-          map,
-        );
+    if (decision.onComplete && decision.onComplete.length > 0) {
+      currentGame = resolveEncounterEffects(
+        currentGame,
+        investigatorId,
+        decision.onComplete,
+        map,
+      );
     }
 
     return currentGame;
@@ -5193,16 +4142,14 @@ export function resolveGameFlowChoice(
   if (decision.source?.startsWith("silver-key-clue-discount:")) {
     const choiceIndex = Number(decision.source.split(":")[1]);
 
-    if (!Number.isInteger(choiceIndex) || (choiceId !== "use" && choiceId !== "decline")) {
+    if (
+      !Number.isInteger(choiceIndex) ||
+      (choiceId !== "use" && choiceId !== "decline")
+    ) {
       return game;
     }
 
-    return resolveEncounterChoice(
-      game,
-      choiceIndex,
-      map,
-      choiceId === "use",
-    );
+    return resolveEncounterChoice(game, choiceIndex, map, choiceId === "use");
   }
 
   /*
@@ -5214,21 +4161,11 @@ export function resolveGameFlowChoice(
    * by numeric choice IDs.
    */
 
-  const choiceIndex =
-    Number(choiceId);
+  const choiceIndex = Number(choiceId);
 
-  if (
-    !Number.isInteger(
-      choiceIndex,
-    ) ||
-    choiceIndex < 0
-  ) {
+  if (!Number.isInteger(choiceIndex) || choiceIndex < 0) {
     return game;
   }
 
-  return resolveEncounterChoice(
-    game,
-    choiceIndex,
-    map,
-  );
+  return resolveEncounterChoice(game, choiceIndex, map);
 }

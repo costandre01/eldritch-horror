@@ -178,7 +178,7 @@ export const normalMythos: MythosDefinition[] = [
                 type: "mythos-reckoning",
             },
             {
-                type: "spawn-clues",
+                type: "spawn-gates",
             },
         ],
 
@@ -379,7 +379,7 @@ export const normalMythos: MythosDefinition[] = [
                 type: "mythos-reckoning",
             },
             {
-                type: "spawn-clues",
+                type: "spawn-gates",
             },
         ],
 
@@ -417,7 +417,7 @@ export const normalMythos: MythosDefinition[] = [
                 type: "mythos-reckoning",
             },
             {
-                type: "spawn-clues",
+                type: "spawn-gates",
             },
         ],
 
@@ -455,7 +455,7 @@ export const normalMythos: MythosDefinition[] = [
                 type: "mythos-reckoning",
             },
             {
-                type: "spawn-clues",
+                type: "spawn-gates",
             },
         ],
 

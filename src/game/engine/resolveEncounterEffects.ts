@@ -35,6 +35,52 @@ import {
   spawnCluesAtSpace,
 } from "./clueEngine";
 import { getImprovableSkills, improveInvestigatorSkill } from "./improvementEngine";
+import { resolveMythosSpecial } from "./resolveMythosSpecial";
+
+function getMythosSpecialResume(
+  effects: EncounterEffect[],
+) {
+  const continuation = effects.find(
+    (effect) => effect.type === "continue-mythos-special",
+  );
+
+  if (
+    !continuation?.mythosId ||
+    !continuation.mythosStep
+  ) {
+    return undefined;
+  }
+
+  return {
+    type: "mythos-special" as const,
+    mythosId: continuation.mythosId,
+    step: continuation.mythosStep,
+  };
+}
+
+function resumeMythosSpecial(
+  game: GameState,
+  mythosId: string,
+  step: string,
+  map: MapDefinition,
+): GameState {
+  const mythos = [
+    ...easyMythos,
+    ...normalMythos,
+    ...hardMythos,
+  ].find((definition) => definition.id === mythosId);
+
+  if (!mythos) {
+    throw new Error(`Mythos "${mythosId}" does not exist.`);
+  }
+
+  return resolveMythosSpecial(
+    game,
+    mythos,
+    step,
+    map,
+  );
+}
 
 function gainEncounterClues(
   game: GameState,
@@ -283,7 +329,7 @@ export function resolveEncounterEffects(
                   ...protectorAssets.map(({ assetId }) => ({ id: `loss-reaction:asset:${assetId}`, title: currentGame.assets[assetId]?.name ?? assetId, description: "Discard to prevent up to 2 Health loss." })),
                   { id: "loss-reaction:skip", title: "Do not prevent this loss" },
                 ],
-                source: `spell-loss:health:${investigatorId}:${amount}`,
+                source: `spell-loss:health:${investigatorId}:${amount}${effect.deferDefeat ? ":defer" : ""}`,
                 onComplete: effects.slice(effectIndex + 1),
               },
             };
@@ -313,15 +359,39 @@ export function resolveEncounterEffects(
         * or if Sanity was already 0.
         */
         if (
-          newHealth <= 0 ||
-          investigator.sanity <= 0
+          !effect.deferDefeat &&
+          (
+            newHealth <= 0 ||
+            investigator.sanity <= 0
+          )
         ) {
+          const mythosResume =
+            getMythosSpecialResume(
+              effects.slice(effectIndex + 1),
+            );
+
           currentGame =
             defeatInvestigator(
               currentGame,
               map,
               investigatorId,
+              undefined,
+              undefined,
+              mythosResume,
             );
+
+          if (
+            !currentGame.pendingDecision &&
+            mythosResume &&
+            currentGame.status === "playing"
+          ) {
+            return resumeMythosSpecial(
+              currentGame,
+              mythosResume.mythosId,
+              mythosResume.step,
+              map,
+            );
+          }
 
           return currentGame;
         }
@@ -382,7 +452,7 @@ export function resolveEncounterEffects(
                   ...(canUseStatue ? [{ id: "loss-reaction:artifact:grotesque-statue", title: "Grotesque Statue", description: "Spend 1 Clue to prevent all Sanity loss." }] : []),
                   { id: "loss-reaction:skip", title: "Do not prevent this loss" },
                 ],
-                source: `spell-loss:sanity:${investigatorId}:${amount}`,
+                source: `spell-loss:sanity:${investigatorId}:${amount}${effect.deferDefeat ? ":defer" : ""}`,
                 onComplete: effects.slice(effectIndex + 1),
               },
             };
@@ -412,8 +482,11 @@ export function resolveEncounterEffects(
         * or if Health was already 0.
         */
         if (
-          investigator.health <= 0 ||
-          newSanity <= 0
+          !effect.deferDefeat &&
+          (
+            investigator.health <= 0 ||
+            newSanity <= 0
+          )
         ) {
           currentGame =
             defeatInvestigator(
@@ -618,21 +691,45 @@ export function resolveEncounterEffects(
         */
 
         if (
-          nextValue <= 0 ||
+          !effect.deferDefeat &&
           (
-            stat === "sanity"
-              ? updatedTarget.health <=
-                0
-              : updatedTarget.sanity <=
-                0
+            nextValue <= 0 ||
+            (
+              stat === "sanity"
+                ? updatedTarget.health <=
+                  0
+                : updatedTarget.sanity <=
+                  0
+            )
           )
         ) {
+          const mythosResume =
+            getMythosSpecialResume(
+              effects.slice(effectIndex + 1),
+            );
+
           currentGame =
             defeatInvestigator(
               currentGame,
               map,
               targetId,
+              undefined,
+              undefined,
+              mythosResume,
             );
+
+          if (
+            !currentGame.pendingDecision &&
+            mythosResume &&
+            currentGame.status === "playing"
+          ) {
+            return resumeMythosSpecial(
+              currentGame,
+              mythosResume.mythosId,
+              mythosResume.step,
+              map,
+            );
+          }
 
           return currentGame;
         }
@@ -4542,6 +4639,63 @@ export function resolveEncounterEffects(
           );
 
         break;
+      }
+
+      case "continue-mythos-special": {
+        if (!effect.mythosId || !effect.mythosStep) {
+          throw new Error(
+            "Continue Mythos special requires mythosId and mythosStep.",
+          );
+        }
+
+        return resumeMythosSpecial(
+          currentGame,
+          effect.mythosId,
+          effect.mythosStep,
+          map,
+        );
+      }
+
+      case "resolve-investigator-defeat": {
+        const investigator = currentGame.investigators[investigatorId];
+
+        if (!investigator) {
+          throw new Error(
+            `Investigator "${investigatorId}" does not exist.`,
+          );
+        }
+
+        if (investigator.health > 0 && investigator.sanity > 0) {
+          break;
+        }
+
+        const mythosResume = getMythosSpecialResume(
+          effects.slice(effectIndex + 1),
+        );
+
+        currentGame = defeatInvestigator(
+          currentGame,
+          map,
+          investigatorId,
+          undefined,
+          undefined,
+          mythosResume,
+        );
+
+        if (
+          !currentGame.pendingDecision &&
+          mythosResume &&
+          currentGame.status === "playing"
+        ) {
+          return resumeMythosSpecial(
+            currentGame,
+            mythosResume.mythosId,
+            mythosResume.step,
+            map,
+          );
+        }
+
+        return currentGame;
       }
 
       /*

@@ -7,6 +7,7 @@ import {
 import {
   resolveMythosCardReckoning,
 } from "../engine/resolveMythosCardReckoning";
+import { resolveGameFlowChoice } from "../engine/resolveGameFlowChoice";
 
 import {
   createTestGame,
@@ -852,6 +853,157 @@ describe(
           resolvedMythosIds: [
             "the-wind-walker",
           ],
+        });
+      },
+    );
+
+    it(
+      "delays every investigator, resolves the Health loss, and solves The Wind-Walker",
+      () => {
+        const game = prepareGame(
+          "the-wind-walker",
+          1,
+        );
+
+        for (const investigatorId of game.investigatorOrder) {
+          game.investigators[investigatorId] = {
+            ...game.investigators[investigatorId],
+            health: 8,
+            maxHealth: 8,
+          };
+        }
+
+        const result = resolveMythosCardReckoning(
+          game,
+          createTestMap(),
+        );
+
+        for (const investigatorId of game.investigatorOrder) {
+          expect(result.investigators[investigatorId]).toMatchObject({
+            health: 2,
+            isDelayed: true,
+            isDefeated: false,
+          });
+        }
+
+        expect(result.board.mythosInPlay).not.toContainEqual(
+          expect.objectContaining({ definitionId: "the-wind-walker" }),
+        );
+        expect(result.pendingDecision).toMatchObject({
+          type: "mythos-card-reckoning",
+          resolvedMythosIds: ["the-wind-walker"],
+        });
+      },
+    );
+
+    it(
+      "offers Health-loss prevention before resolving The Wind-Walker consequence",
+      () => {
+        const game = prepareGame(
+          "the-wind-walker",
+          1,
+        );
+        const map = createTestMap();
+        const bandages = {
+          id: "asset-test-bandages",
+          name: "Bandages",
+          type: "service" as const,
+          traits: [],
+          value: 1,
+          description: "Prevent Health loss.",
+        };
+
+        game.investigatorOrder = ["investigator-1"];
+        game.investigators["investigator-1"] = {
+          ...game.investigators["investigator-1"],
+          health: 8,
+          maxHealth: 8,
+          assetIds: [bandages.id],
+        };
+        game.assets[bandages.id] = bandages;
+
+        const prevention = resolveMythosCardReckoning(game, map);
+
+        expect(prevention.investigators["investigator-1"]).toMatchObject({
+          health: 8,
+          isDelayed: true,
+        });
+        expect(prevention.pendingDecision).toMatchObject({
+          type: "choice",
+          source: "spell-loss:health:investigator-1:6",
+        });
+
+        const result = resolveGameFlowChoice(
+          prevention,
+          `loss-reaction:asset:${bandages.id}`,
+          map,
+        );
+
+        expect(result.investigators["investigator-1"].health).toBe(4);
+        expect(result.investigators["investigator-1"].assetIds).not.toContain(
+          bandages.id,
+        );
+        expect(result.board.mythosInPlay).not.toContainEqual(
+          expect.objectContaining({ definitionId: "the-wind-walker" }),
+        );
+        expect(result.pendingDecision).toMatchObject({
+          type: "mythos-card-reckoning",
+          resolvedMythosIds: ["the-wind-walker"],
+        });
+      },
+    );
+
+    it(
+      "uses the full defeat procedure for lethal Wind-Walker Health loss",
+      () => {
+        const game = prepareGame(
+          "the-wind-walker",
+          1,
+        );
+
+        game.investigatorOrder = ["investigator-1"];
+        game.leadInvestigatorId = "investigator-1";
+        game.ancientOne = {
+          id: "cthulhu",
+          name: "Cthulhu",
+          doom: 10,
+          omenPosition: 0,
+          eldritchTokens: 0,
+          eldritchTokenPositions: [],
+          eldritchTokenSpaceIds: [],
+          awakened: false,
+          sanityTokens: 0,
+          gateCount: 0,
+        };
+        game.investigators["investigator-1"] = {
+          ...game.investigators["investigator-1"],
+          health: 5,
+          improvementTokens: { lore: 2 },
+        };
+
+        const result = resolveMythosCardReckoning(
+          game,
+          createTestMap(),
+        );
+        const defeated = result.investigators["investigator-1"];
+
+        expect(defeated).toMatchObject({
+          health: 0,
+          isDelayed: true,
+          isDefeated: true,
+          defeatType: "crippled",
+          improvementTokens: {},
+        });
+        expect(result.ancientOne.doom).toBe(9);
+        expect(result.pendingInvestigatorReplacements).toContain(
+          "investigator-1",
+        );
+        expect(result.board.mythosInPlay).not.toContainEqual(
+          expect.objectContaining({ definitionId: "the-wind-walker" }),
+        );
+        expect(result.pendingDecision).toMatchObject({
+          type: "mythos-card-reckoning",
+          resolvedMythosIds: ["the-wind-walker"],
         });
       },
     );

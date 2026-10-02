@@ -184,7 +184,7 @@ describe("startMythosPhase", () => {
     );
   });
 
-  it("ends the game in defeat when the Mythos deck is empty", () => {
+  it("ends the Mythos Phase in defeat when the deck is empty and no Mystery wins the game", () => {
     const game = makeGame({
       phase: "mythos",
 
@@ -222,6 +222,43 @@ describe("startMythosPhase", () => {
     expect(result.combatOrder).toBeNull();
 
     expect(result.phase).toBe("mythos");
+  });
+
+  it("checks and solves the final Mystery before resolving an empty Mythos deck defeat", () => {
+    const game = makeGame({
+      phase: "mythos",
+      status: "playing",
+      mysteries: {
+        selectedMysteryIds: [
+          "first-mystery",
+          "second-mystery",
+          "azathoth-occult-research",
+        ],
+        activeMysteryId: "azathoth-occult-research",
+        solvedMysteryIds: ["first-mystery", "second-mystery"],
+        progress: {
+          "azathoth-occult-research": {
+            mysteryId: "azathoth-occult-research",
+            clueTokenIds: ["clue-1"],
+            eldritchTokenCount: 0,
+            monsterIds: [],
+            gateIds: [],
+            mysteryTokenSpaceId: null,
+            eldritchTokenSpaceIds: [],
+          },
+        },
+      },
+    });
+
+    const result = startMythosPhase(game);
+
+    expect(result.status).toBe("victory");
+    expect(result.mysteries.solvedMysteryIds).toEqual([
+      "first-mystery",
+      "second-mystery",
+      "azathoth-occult-research",
+    ]);
+    expect(result.pendingDecision).toBeNull();
   });
 
   it("creates the Mythos card draw decision when the deck has cards", () => {

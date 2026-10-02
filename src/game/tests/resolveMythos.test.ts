@@ -4,6 +4,7 @@ import {
   getMythosById,
   resolveMythos,
 } from "../engine/resolveMythos";
+import { resolveMythosSpecial } from "../engine/resolveMythosSpecial";
 
 import { createTestGame } from "./helpers/createTestGame";
 import { eldritchBaseMap } from "../../content/core/maps/eldritchBaseMap";
@@ -22,6 +23,12 @@ describe("getMythosById", () => {
       getMythosById("mythos-that-does-not-exist"),
     ).toThrow(
       'Mythos "mythos-that-does-not-exist" does not exist.',
+    );
+  });
+
+  it("uses the official errata text for Lost Knowledge", () => {
+    expect(getMythosById("lost-knowledge").text).toContain(
+      "each investigator discards all Clues, and then discard all Clues on the game board and solve this Rumor.",
     );
   });
 });
@@ -53,6 +60,83 @@ describe("resolveMythos", () => {
     game.pendingInvestigatorReplacements = [];
     return game;
   }
+
+  it("resolves Lost Knowledge in the official Clue discard order", () => {
+    const game = prepareCard("lost-knowledge");
+    const mythos = getMythosById("lost-knowledge");
+
+    game.investigatorOrder = ["investigator-1", "investigator-2"];
+    game.investigators["investigator-1"].clues = 1;
+    game.investigators["investigator-1"].clueTokens = [
+      { id: "investigator-clue-1", spaceId: "arkham" },
+    ];
+    game.investigators["investigator-2"].clues = 1;
+    game.investigators["investigator-2"].clueTokens = [
+      { id: "investigator-clue-2", spaceId: "tokyo" },
+    ];
+    game.board.spaces = {
+      arkham: {
+        spaceId: "arkham",
+        clues: 1,
+        clueTokenIds: ["board-clue-1"],
+        monsterIds: [],
+        gates: [],
+        expedition: false,
+        rumor: false,
+        eldritchTokenCount: 0,
+      },
+      tokyo: {
+        spaceId: "tokyo",
+        clues: 1,
+        clueTokenIds: ["board-clue-2"],
+        monsterIds: [],
+        gates: [],
+        expedition: false,
+        rumor: false,
+        eldritchTokenCount: 0,
+      },
+    };
+    game.board.clueDiscard = [];
+    game.board.mythosInPlay = [
+      { definitionId: "lost-knowledge", eldritchTokens: 0 },
+    ];
+
+    const result = resolveMythosSpecial(
+      game,
+      mythos,
+      "lost-knowledge",
+      eldritchBaseMap,
+    );
+
+    expect(result.investigators["investigator-1"]).toMatchObject({
+      clues: 0,
+      clueTokens: [],
+    });
+    expect(result.investigators["investigator-2"]).toMatchObject({
+      clues: 0,
+      clueTokens: [],
+    });
+    expect(result.board.spaces.arkham).toMatchObject({
+      clues: 0,
+      clueTokenIds: [],
+    });
+    expect(result.board.spaces.tokyo).toMatchObject({
+      clues: 0,
+      clueTokenIds: [],
+    });
+    expect(result.board.clueDiscard.map((clue) => clue.id)).toEqual([
+      "investigator-clue-1",
+      "investigator-clue-2",
+      "board-clue-1",
+      "board-clue-2",
+    ]);
+    expect(result.board.mythosInPlay).not.toContainEqual(
+      expect.objectContaining({ definitionId: "lost-knowledge" }),
+    );
+    expect(result.board.mythosDiscard).toContainEqual(
+      expect.objectContaining({ id: "lost-knowledge" }),
+    );
+  });
 
   it("keeps a Mythos special choice active and finishes it into the next round", () => {
     const game = prepareCard("heat-wave-singes-the-globe");
@@ -98,6 +182,701 @@ describe("resolveMythos", () => {
 
     expect(result.phase).toBe("action");
     expect(result.currentMythosId).toBeNull();
+  });
+
+  it("advances the Omen and Doom for Torn Asunder when no Gate matches the current Omen", () => {
+    const game = prepareCard("torn-asunder");
+
+    game.ancientOne = {
+      id: "cthulhu",
+      name: "Cthulhu",
+      doom: 10,
+      omenPosition: 0,
+      eldritchTokens: 0,
+      eldritchTokenPositions: [],
+      eldritchTokenSpaceIds: [],
+      awakened: false,
+      sanityTokens: 0,
+      gateCount: 1,
+    };
+    game.board.spaces = {
+      arkham: {
+        spaceId: "arkham",
+        clues: 0,
+        clueTokenIds: [],
+        monsterIds: [],
+        gates: [
+          {
+            id: "blue-gate",
+            spaceId: "arkham",
+            omen: "blue",
+          },
+        ],
+        expedition: false,
+        rumor: false,
+        eldritchTokenCount: 0,
+      },
+    };
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("torn-asunder").icons.length,
+    );
+
+    expect(result.ancientOne.omenPosition).toBe(1);
+    expect(result.ancientOne.doom).toBe(9);
+    expect(result.phase).toBe("action");
+  });
+
+  it("does not advance the Omen for Torn Asunder when Gates match the current Omen", () => {
+    const game = prepareCard("torn-asunder");
+
+    game.ancientOne = {
+      id: "cthulhu",
+      name: "Cthulhu",
+      doom: 10,
+      omenPosition: 0,
+      eldritchTokens: 0,
+      eldritchTokenPositions: [],
+      eldritchTokenSpaceIds: [],
+      awakened: false,
+      sanityTokens: 0,
+      gateCount: 2,
+    };
+    game.board.spaces = {
+      arkham: {
+        spaceId: "arkham",
+        clues: 0,
+        clueTokenIds: [],
+        monsterIds: [],
+        gates: [
+          {
+            id: "green-gate-1",
+            spaceId: "arkham",
+            omen: "green",
+          },
+          {
+            id: "green-gate-2",
+            spaceId: "arkham",
+            omen: "green",
+          },
+        ],
+        expedition: false,
+        rumor: false,
+        eldritchTokenCount: 0,
+      },
+    };
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("torn-asunder").icons.length,
+    );
+
+    expect(result.ancientOne.omenPosition).toBe(0);
+    expect(result.ancientOne.doom).toBe(10);
+    expect(result.investigators["investigator-1"]?.health).toBe(3);
+    expect(result.phase).toBe("action");
+  });
+
+  it("resolves Unexpected Betrayal Health loss before asking for an Ally", () => {
+    const game = prepareCard("unexpected-betrayal");
+    const ally = {
+      id: "asset-test-ally",
+      name: "Test Ally",
+      type: "ally" as const,
+      traits: [],
+      value: 1,
+      description: "Test Ally",
+    };
+
+    game.assets[ally.id] = ally;
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      health: 5,
+      assetIds: [ally.id],
+    };
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("unexpected-betrayal").icons.length,
+    );
+
+    expect(result.investigators["investigator-1"].health).toBe(2);
+    expect(result.pendingDecision).toMatchObject({
+      type: "select-card",
+      source: "mythos:unexpected-betrayal:0",
+      cardIds: [ally.id],
+    });
+  });
+
+  it("offers normal Health-loss prevention during Unexpected Betrayal", () => {
+    const game = prepareCard("unexpected-betrayal");
+    const ally = {
+      id: "asset-test-ally",
+      name: "Test Ally",
+      type: "ally" as const,
+      traits: [],
+      value: 1,
+      description: "Test Ally",
+    };
+    const bandages = {
+      id: "asset-test-bandages",
+      name: "Bandages",
+      type: "service" as const,
+      traits: [],
+      value: 1,
+      description: "Prevent Health loss.",
+    };
+
+    game.assets[ally.id] = ally;
+    game.assets[bandages.id] = bandages;
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      assetIds: [ally.id, bandages.id],
+    };
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("unexpected-betrayal").icons.length,
+    );
+
+    expect(result.investigators["investigator-1"].health).toBe(5);
+    expect(result.pendingDecision).toMatchObject({
+      type: "choice",
+      source: "spell-loss:health:investigator-1:3",
+    });
+    if (result.pendingDecision?.type !== "choice") {
+      throw new Error("Expected a Health-loss prevention choice.");
+    }
+    expect(result.pendingDecision.options).toContainEqual(
+      expect.objectContaining({
+        id: `loss-reaction:asset:${bandages.id}`,
+      }),
+    );
+  });
+
+  it("uses the full defeat procedure when Unexpected Betrayal reduces Health to zero", () => {
+    const game = prepareCard("unexpected-betrayal");
+    const ally = {
+      id: "asset-test-ally",
+      name: "Test Ally",
+      type: "ally" as const,
+      traits: [],
+      value: 1,
+      description: "Test Ally",
+    };
+
+    game.ancientOne = {
+      id: "cthulhu",
+      name: "Cthulhu",
+      doom: 10,
+      omenPosition: 0,
+      eldritchTokens: 0,
+      eldritchTokenPositions: [],
+      eldritchTokenSpaceIds: [],
+      awakened: false,
+      sanityTokens: 0,
+      gateCount: 0,
+    };
+    game.assets[ally.id] = ally;
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      health: 3,
+      improvementTokens: { strength: 2 },
+      assetIds: [ally.id],
+    };
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("unexpected-betrayal").icons.length,
+    );
+    const defeated = result.investigators["investigator-1"];
+
+    expect(defeated.health).toBe(0);
+    expect(defeated.isDefeated).toBe(true);
+    expect(defeated.defeatType).toBe("crippled");
+    expect(defeated.improvementTokens).toEqual({});
+    expect(defeated.assetIds).toContain(ally.id);
+    expect(result.ancientOne.doom).toBe(9);
+    expect(result.pendingInvestigatorReplacements).toContain(
+      "investigator-1",
+    );
+  });
+
+  it("resolves The World Shakes for investigators on or adjacent to the Active Expedition", () => {
+    const game = prepareCard("the-world-shakes");
+    game.investigatorOrder = [
+      "investigator-1",
+      "investigator-2",
+      "investigator-3",
+    ];
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      spaceId: "the-amazon",
+    };
+    game.investigators["investigator-2"] = {
+      ...game.investigators["investigator-2"],
+      spaceId: "buenos-aires",
+    };
+    game.investigators["investigator-3"] = {
+      ...game.investigators["investigator-3"],
+      spaceId: "arkham",
+    };
+    game.board.activeExpeditionSpaceId = "the-amazon";
+    game.board.encounterDecks = {
+      america: [],
+      europe: [],
+      "asia-australia": [],
+      general: [],
+      research: [],
+      "other-world": [],
+      special: [],
+      expedition: ["amazon-1", "himalayas-1", "amazon-2"],
+    };
+    game.encounters = {
+      "amazon-1": { id: "amazon-1", name: "The Amazon" },
+      "amazon-2": { id: "amazon-2", name: "The Amazon" },
+      "himalayas-1": { id: "himalayas-1", name: "The Himalayas" },
+    };
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("the-world-shakes").icons.length,
+    );
+
+    expect(result.investigators["investigator-1"]).toMatchObject({
+      health: 3,
+      isDelayed: true,
+    });
+    expect(result.investigators["investigator-2"]).toMatchObject({
+      health: 3,
+      isDelayed: true,
+    });
+    expect(result.investigators["investigator-3"]).toMatchObject({
+      health: 5,
+      isDelayed: false,
+    });
+    expect(result.board.encounterDecks.expedition).toEqual([
+      "himalayas-1",
+    ]);
+    expect(result.board.activeExpeditionSpaceId).toBe("the-himalayas");
+    expect(result.pendingDecision).toMatchObject({
+      type: "continue",
+      source: "mythos-card:4",
+    });
+  });
+
+  it("offers Health-loss prevention during The World Shakes and resumes the card", () => {
+    const game = prepareCard("the-world-shakes");
+    const bandages = {
+      id: "asset-test-bandages",
+      name: "Bandages",
+      type: "service" as const,
+      traits: [],
+      value: 1,
+      description: "Prevent Health loss.",
+    };
+
+    game.assets[bandages.id] = bandages;
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      spaceId: "the-amazon",
+      assetIds: [bandages.id],
+    };
+    game.board.activeExpeditionSpaceId = "the-amazon";
+    game.board.encounterDecks = {
+      america: [],
+      europe: [],
+      "asia-australia": [],
+      general: [],
+      research: [],
+      "other-world": [],
+      special: [],
+      expedition: ["amazon-1", "himalayas-1"],
+    };
+    game.encounters = {
+      "amazon-1": { id: "amazon-1", name: "The Amazon" },
+      "himalayas-1": { id: "himalayas-1", name: "The Himalayas" },
+    };
+
+    const prevention = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("the-world-shakes").icons.length,
+    );
+
+    expect(prevention.pendingDecision).toMatchObject({
+      type: "choice",
+      source: "spell-loss:health:investigator-1:2",
+    });
+
+    const result = resolveGameFlowChoice(
+      prevention,
+      `loss-reaction:asset:${bandages.id}`,
+      eldritchBaseMap,
+    );
+
+    expect(result.investigators["investigator-1"]).toMatchObject({
+      health: 5,
+      isDelayed: true,
+    });
+    expect(result.investigators["investigator-1"].assetIds).not.toContain(
+      bandages.id,
+    );
+    expect(result.board.encounterDecks.expedition).toEqual([
+      "himalayas-1",
+    ]);
+    expect(result.pendingDecision).toMatchObject({
+      type: "continue",
+      source: "mythos-card:4",
+    });
+  });
+
+  it("uses the full defeat procedure for lethal Health loss from The World Shakes", () => {
+    const game = prepareCard("the-world-shakes");
+    game.ancientOne = {
+      id: "cthulhu",
+      name: "Cthulhu",
+      doom: 10,
+      omenPosition: 0,
+      eldritchTokens: 0,
+      eldritchTokenPositions: [],
+      eldritchTokenSpaceIds: [],
+      awakened: false,
+      sanityTokens: 0,
+      gateCount: 0,
+    };
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      health: 2,
+      spaceId: "the-amazon",
+      improvementTokens: { observation: 2 },
+    };
+    game.board.activeExpeditionSpaceId = "the-amazon";
+    game.board.encounterDecks = {
+      america: [],
+      europe: [],
+      "asia-australia": [],
+      general: [],
+      research: [],
+      "other-world": [],
+      special: [],
+      expedition: ["amazon-1", "himalayas-1"],
+    };
+    game.encounters = {
+      "amazon-1": { id: "amazon-1", name: "The Amazon" },
+      "himalayas-1": { id: "himalayas-1", name: "The Himalayas" },
+    };
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("the-world-shakes").icons.length,
+    );
+    const defeated = result.investigators["investigator-1"];
+
+    expect(defeated).toMatchObject({
+      health: 0,
+      isDefeated: true,
+      defeatType: "crippled",
+      improvementTokens: {},
+    });
+    expect(result.ancientOne.doom).toBe(9);
+    expect(result.pendingInvestigatorReplacements).toContain(
+      "investigator-1",
+    );
+    expect(result.board.encounterDecks.expedition).toEqual([
+      "himalayas-1",
+    ]);
+    expect(result.pendingDecision).toMatchObject({
+      type: "continue",
+      source: "mythos-card:4",
+    });
+  });
+
+  it("applies both losses from Tide of Despair and returns to the Mythos card", () => {
+    const game = prepareCard("tide-of-despair");
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("tide-of-despair").icons.length,
+    );
+
+    expect(result.investigators["investigator-1"]).toMatchObject({
+      health: 3,
+      sanity: 3,
+      isDefeated: false,
+    });
+    expect(result.pendingDecision).toMatchObject({
+      type: "continue",
+      source: "mythos-card:4",
+    });
+  });
+
+  it("offers prevention separately for both Tide of Despair losses", () => {
+    const game = prepareCard("tide-of-despair");
+    const bandages = {
+      id: "asset-test-bandages",
+      name: "Bandages",
+      type: "service" as const,
+      traits: [],
+      value: 1,
+      description: "Prevent Health loss.",
+    };
+    const whiskey = {
+      id: "asset-test-whiskey",
+      name: "Whiskey",
+      type: "item" as const,
+      traits: [],
+      value: 1,
+      description: "Prevent Sanity loss.",
+    };
+
+    game.assets[bandages.id] = bandages;
+    game.assets[whiskey.id] = whiskey;
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      assetIds: [bandages.id, whiskey.id],
+    };
+
+    const healthPrevention = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("tide-of-despair").icons.length,
+    );
+
+    expect(healthPrevention.pendingDecision).toMatchObject({
+      type: "choice",
+      source: "spell-loss:health:investigator-1:2:defer",
+    });
+
+    const sanityPrevention = resolveGameFlowChoice(
+      healthPrevention,
+      `loss-reaction:asset:${bandages.id}`,
+      eldritchBaseMap,
+    );
+
+    expect(sanityPrevention.pendingDecision).toMatchObject({
+      type: "choice",
+      source: "spell-loss:sanity:investigator-1:2:defer",
+    });
+
+    const result = resolveGameFlowChoice(
+      sanityPrevention,
+      `loss-reaction:asset:${whiskey.id}`,
+      eldritchBaseMap,
+    );
+
+    expect(result.investigators["investigator-1"]).toMatchObject({
+      health: 5,
+      sanity: 5,
+      isDefeated: false,
+    });
+    expect(result.pendingDecision).toMatchObject({
+      type: "continue",
+      source: "mythos-card:4",
+    });
+  });
+
+  it("returns a discarded Blessed Condition to its deck during Tide of Despair", () => {
+    const game = prepareCard("tide-of-despair");
+    const blessedId = "condition-test-blessed";
+
+    game.board.conditionDeck = [];
+    game.conditions[blessedId] = {
+      id: blessedId,
+      definitionId: "condition-blessed",
+      instanceNumber: 1,
+      frontImage: "blessed-front.png",
+      backImage: "blessed-back.png",
+      backId: "blessed-back-1",
+      flipped: false,
+    };
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      conditionIds: [blessedId],
+    };
+
+    const choice = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("tide-of-despair").icons.length,
+    );
+
+    expect(choice.pendingDecision).toMatchObject({
+      type: "choice",
+      source: "mythos:tide-of-despair:investigator-1",
+    });
+
+    const result = resolveGameFlowChoice(
+      choice,
+      `tide-of-despair:discard-blessed:investigator-1`,
+      eldritchBaseMap,
+    );
+
+    expect(result.investigators["investigator-1"]).toMatchObject({
+      health: 5,
+      sanity: 5,
+      conditionIds: [],
+    });
+    expect(result.board.conditionDeck).toContain(blessedId);
+    expect(result.pendingDecision).toMatchObject({
+      type: "continue",
+      source: "mythos-card:4",
+    });
+  });
+
+  it("keeps Blessed and resolves both Tide of Despair losses when chosen", () => {
+    const game = prepareCard("tide-of-despair");
+    const blessedId = "condition-test-blessed";
+
+    game.board.conditionDeck = [];
+    game.conditions[blessedId] = {
+      id: blessedId,
+      definitionId: "condition-blessed",
+      instanceNumber: 1,
+      frontImage: "blessed-front.png",
+      backImage: "blessed-back.png",
+      backId: "blessed-back-1",
+      flipped: false,
+    };
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      conditionIds: [blessedId],
+    };
+
+    const choice = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("tide-of-despair").icons.length,
+    );
+    const result = resolveGameFlowChoice(
+      choice,
+      "tide-of-despair:keep-blessed:investigator-1",
+      eldritchBaseMap,
+    );
+
+    expect(result.investigators["investigator-1"]).toMatchObject({
+      health: 3,
+      sanity: 3,
+      conditionIds: [blessedId],
+      isDefeated: false,
+    });
+    expect(result.pendingDecision).toMatchObject({
+      type: "continue",
+      source: "mythos-card:4",
+    });
+  });
+
+  it("allows choosing the defeat type when both Tide of Despair losses reach zero", () => {
+    const game = prepareCard("tide-of-despair");
+    game.ancientOne = {
+      id: "cthulhu",
+      name: "Cthulhu",
+      doom: 10,
+      omenPosition: 0,
+      eldritchTokens: 0,
+      eldritchTokenPositions: [],
+      eldritchTokenSpaceIds: [],
+      awakened: false,
+      sanityTokens: 0,
+      gateCount: 0,
+    };
+    game.investigators["investigator-1"] = {
+      ...game.investigators["investigator-1"],
+      health: 2,
+      sanity: 2,
+      improvementTokens: { will: 2 },
+    };
+
+    const defeatChoice = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("tide-of-despair").icons.length,
+    );
+
+    expect(defeatChoice.investigators["investigator-1"]).toMatchObject({
+      health: 0,
+      sanity: 0,
+      isDefeated: false,
+    });
+    expect(defeatChoice.pendingDecision).toMatchObject({
+      type: "choice",
+      source: "defeat-type:investigator-1",
+    });
+
+    const result = resolveGameFlowChoice(
+      defeatChoice,
+      "defeat-type:crippled:investigator-1",
+      eldritchBaseMap,
+    );
+
+    expect(result.investigators["investigator-1"]).toMatchObject({
+      isDefeated: true,
+      defeatType: "crippled",
+      improvementTokens: {},
+    });
+    expect(result.ancientOne.doom).toBe(9);
+    expect(result.pendingInvestigatorReplacements).toContain(
+      "investigator-1",
+    );
+    expect(result.pendingDecision).toMatchObject({
+      type: "continue",
+      source: "mythos-card:4",
+    });
+  });
+
+  it("resolves awakening when Torn Asunder advances the Omen to Doom zero", () => {
+    const game = prepareCard("torn-asunder");
+
+    game.ancientOne = {
+      id: "azathoth",
+      name: "Azathoth",
+      doom: 1,
+      omenPosition: 0,
+      eldritchTokens: 0,
+      eldritchTokenPositions: [],
+      eldritchTokenSpaceIds: [],
+      awakened: false,
+      sanityTokens: 0,
+      gateCount: 1,
+    };
+    game.board.spaces = {
+      arkham: {
+        spaceId: "arkham",
+        clues: 0,
+        clueTokenIds: [],
+        monsterIds: [],
+        gates: [
+          {
+            id: "blue-gate",
+            spaceId: "arkham",
+            omen: "blue",
+          },
+        ],
+        expedition: false,
+        rumor: false,
+        eldritchTokenCount: 0,
+      },
+    };
+
+    const result = resolveMythos(
+      game,
+      eldritchBaseMap,
+      getMythosById("torn-asunder").icons.length,
+    );
+
+    expect(result.ancientOne.omenPosition).toBe(1);
+    expect(result.ancientOne.doom).toBe(0);
+    expect(result.ancientOne.awakened).toBe(true);
+    expect(result.status).toBe("defeat");
   });
 
   it("implements Driven to Bankruptcy entering play", () => {

@@ -1,7 +1,11 @@
 import type { GameState } from "../models/GameState";
+import type { MapDefinition } from "../models/MapDefinition";
+import { eldritchBaseMap } from "../../content/core/maps/eldritchBaseMap";
+import { finishEmptyMythosPhase } from "./finishEmptyMythosPhase";
 
 export function drawMythos(
   game: GameState,
+  map: MapDefinition = eldritchBaseMap,
 ): GameState {
   /*
    * ============================================================
@@ -22,15 +26,7 @@ export function drawMythos(
    */
 
   if (game.board.mythosDeck.length === 0) {
-    return {
-      ...game,
-      status: "defeat",
-      activeInvestigatorId: null,
-      pendingDecision: null,
-      pendingEncounterChoice: null,
-      currentMythosId: null,
-      combatOrder: null,
-    };
+    return finishEmptyMythosPhase(game, map);
   }
 
   /*

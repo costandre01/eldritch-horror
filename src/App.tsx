@@ -111,6 +111,8 @@ import { gainInvestigatorClues, spendInvestigatorClues } from "./game/engine/clu
 import { CORE_MONSTERS } from "./content/core/coreMonsters";
 import { CORE_EPIC_MONSTERS } from "./content/core/coreEpicMonsters";
 import { getImprovableSkills, startNextStartingImprovement } from "./game/engine/improvementEngine";
+import { activateInvestigatorAbility } from "./game/engine/activateInvestigatorAbility.ts";
+import { isRestrictedByDetained } from "./game/engine/conditionRestrictions.ts";
 
 interface TestRerollOption {
   id: string;
@@ -602,18 +604,7 @@ function App() {
       const result = resolveSpellFrontEffects(game, investigatorId, spellId, effect, eldritchBaseMap, {
         deferTriggeredEffects: true,
       });
-      let resolvedGame = effect.type === "action-test"
-        ? {
-            ...result.game,
-            investigators: {
-              ...result.game.investigators,
-              [investigatorId]: {
-                ...result.game.investigators[investigatorId],
-                actionsPerformed: [...result.game.investigators[investigatorId].actionsPerformed, "component" as const],
-              },
-            },
-          }
-          : result.game;
+      let resolvedGame = result.game;
       if (effect.type === "on-combat-encounter" && game.pendingDecision?.type === "combat") {
         resolvedGame = {
           ...resolvedGame,
@@ -1061,9 +1052,33 @@ function App() {
           { brainCase: brainCaseTrade },
         );
 
+      const gameAfterTrade =
+        brainCaseTrade && activeId
+          ? {
+              ...updatedGame,
+
+              investigators: {
+                ...updatedGame.investigators,
+
+                [activeId]: {
+                  ...updatedGame.investigators[
+                    activeId
+                  ],
+
+                  actionsPerformed: [
+                    ...updatedGame.investigators[
+                      activeId
+                    ].actionsPerformed,
+                    "component" as const,
+                  ],
+                },
+              },
+            }
+          : updatedGame;
+
       setGame(brainCaseTrade && activeId && target
         ? {
-            ...updatedGame,
+            ...gameAfterTrade,
             pendingDecision: {
               type: "choice",
               title: "Mi-Go Brain Case",
@@ -3385,6 +3400,15 @@ function App() {
         ]
       : null;
 
+  const activeInvestigatorDefinition =
+    activeInvestigator
+      ? coreInvestigators.find(
+          (definition) =>
+            definition.id ===
+            activeInvestigator.definitionId,
+        ) ?? null
+      : null;
+
   const activeInvestigatorIsDetained = activeInvestigator
     ? hasDetainedActionRestriction(game, activeInvestigator.id)
     : false;
@@ -3947,6 +3971,26 @@ function App() {
               )
             }
 
+            investigatorAbilities={
+              activeInvestigatorDefinition?.abilities ?? []
+            }
+
+            canUseInvestigatorAction={
+              currentGame.phase === "action" &&
+              currentGame.activeInvestigatorId ===
+                activeInvestigator.id &&
+              !currentGame.pendingDecision &&
+              !currentGame.pendingEncounterChoice &&
+              !isRestrictedByDetained(
+                currentGame,
+                activeInvestigator.id,
+              ) &&
+              canPerformAction(
+                activeInvestigator,
+                "component",
+              )
+            }
+
             assets={
               coreAssets.filter(
                 (asset) =>
@@ -4009,6 +4053,29 @@ function App() {
                 activeInvestigator.id,
               )
             }
+
+            onUseInvestigatorAction={() => {
+              const actionAbility =
+                activeInvestigatorDefinition?.abilities.find(
+                  (ability) =>
+                    ability.type === "action",
+                );
+
+              if (!actionAbility) {
+                return;
+              }
+
+              setGame((currentGame) => {
+                if (!currentGame) {
+                  return currentGame;
+                }
+
+                return activateInvestigatorAbility(
+                  currentGame,
+                  actionAbility.id,
+                );
+              });
+            }}
             onInspectSpace={handleInspectSpace}
             onActivateSpell={handleActivateSpell}
             onActivatePossession={handleActivatePossession}

@@ -50,7 +50,7 @@ export default function InvestigatorItems({
         /* ITEMS */
         /* ================================================== */
 
-        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+        <div className="mt-3 flex flex-wrap gap-3 pb-2">
           {assets.map((asset) => {
             const imagePath = getAssetImage(asset);
 
@@ -60,9 +60,13 @@ export default function InvestigatorItems({
                 image={imagePath}
                 name={asset.name}
                 kind="asset"
+                tooltipText={asset.description}
                 onClick={() => onSelect(asset)}
                 onImageError={() => {
-                  console.error("Asset image not found:", imagePath);
+                  console.error(
+                    "Asset image not found:",
+                    imagePath,
+                  );
                 }}
               />
             );

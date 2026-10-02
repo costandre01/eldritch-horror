@@ -1,5 +1,6 @@
 import type { Spell } from "../../../game/models/Spell";
 import type { SpellDefinition } from "../../../game/models/SpellDefinition";
+
 import InvestigatorCardThumbnail from "./InvestigatorCardThumbnail";
 
 interface InvestigatorSpellsProps {
@@ -53,20 +54,25 @@ export default function InvestigatorSpells({
       {spells.length === 0 ? (
 
         <div className="mt-3 flex min-h-14 items-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-950/40 px-3 text-xs text-slate-400">
-          <span className="text-base text-slate-500">＋</span>
+          <span className="text-base text-slate-500">
+            ＋
+          </span>
+
           No spells yet
         </div>
 
       ) : (
 
-        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+        /* ================================================== */
+        /* SPELLS */
+        /* ================================================== */
+
+        <div className="mt-3 flex flex-wrap gap-3 pb-2">
 
           {spells.map((spell) => {
 
             const spellDefinition =
-              getSpellDefinition(
-                spell,
-              );
+              getSpellDefinition(spell);
 
             /*
              * ================================================
@@ -96,16 +102,33 @@ export default function InvestigatorSpells({
             return (
               <InvestigatorCardThumbnail
                 key={spell.id}
-                image={spell.flipped ? spell.backImage : spell.frontImage}
+                image={
+                  spell.flipped
+                    ? spell.backImage
+                    : spell.frontImage
+                }
                 name={spellDefinition.name}
                 kind="spell"
-                badge={spell.exhausted ? "Exhausted" : undefined}
-                onClick={() => onSelect(spell, spellDefinition)}
+                tooltipText={
+                  spellDefinition.description
+                }
+                badge={
+                  spell.exhausted
+                    ? "Exhausted"
+                    : undefined
+                }
+                onClick={() =>
+                  onSelect(
+                    spell,
+                    spellDefinition,
+                  )
+                }
               />
             );
           })}
 
         </div>
+
       )}
 
     </section>

@@ -81,10 +81,13 @@ export interface EncounterEffect {
     | "retreat-doom"
     | "start-other-world-encounter"
     | "solve-mythos-rumor"
+    | "continue-mythos-special"
+    | "resolve-investigator-defeat"
     | "roll-single-die"
     | "resolve-spell-loss";
 
   ignoreSpellLossReactions?: boolean;
+  deferDefeat?: boolean;
   ignorePocketWatch?: boolean;
 
   amount?: number;
@@ -193,6 +196,8 @@ export interface EncounterEffect {
   onThreeToSix?: EncounterEffect[];
 
   mythosId?: string;
+
+  mythosStep?: string;
 }
 
 export interface EncounterChoice {
